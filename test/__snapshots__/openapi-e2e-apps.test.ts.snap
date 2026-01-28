@@ -1,0 +1,825 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-gateway that matches snapshot > api-gateway-openapi 1`] = `
+{
+  "/": {
+    "get": {
+      "operationId": "GatewayController_getApiInfo",
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiInfoDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "GatewayController.getApiInfo",
+      "tags": [
+        "gateway",
+      ],
+    },
+  },
+  "/api/notifications/stats": {
+    "get": {
+      "operationId": "ProxyController_getNotificationStats",
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/any",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "ProxyController.getNotificationStats",
+      "tags": [
+        "proxy",
+      ],
+    },
+  },
+  "/api/users/{id}/profile": {
+    "get": {
+      "operationId": "ProxyController_getUserProfile",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/any",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "ProxyController.getUserProfile",
+      "tags": [
+        "proxy",
+      ],
+    },
+  },
+  "/health": {
+    "get": {
+      "operationId": "GatewayController_getHealth",
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthCheckDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "GatewayController.getHealth",
+      "tags": [
+        "gateway",
+      ],
+    },
+  },
+  "/version": {
+    "get": {
+      "operationId": "GatewayController_getVersion",
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Inline type: { version: string; buildDate: string; }",
+                "type": "object",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "GatewayController.getVersion",
+      "tags": [
+        "gateway",
+      ],
+    },
+  },
+}
+`;
+
+exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for monolith-todo-app that matches snapshot > monolith-todo-app-openapi 1`] = `
+{
+  "/api/users": {
+    "get": {
+      "operationId": "UserController_findAll",
+      "parameters": [
+        {
+          "description": "Search users by name or email",
+          "in": "query",
+          "name": "search",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/UserDto",
+                },
+                "type": "array",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.findAll",
+      "tags": [
+        "users",
+      ],
+    },
+    "post": {
+      "operationId": "UserController_create",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateUserDto",
+            },
+          },
+        },
+        "description": "Request body parameter: createUserDto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.create",
+      "tags": [
+        "users",
+      ],
+    },
+  },
+  "/api/users/{id}": {
+    "get": {
+      "operationId": "UserController_findOne",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.findOne",
+      "tags": [
+        "users",
+      ],
+    },
+  },
+  "/todos": {
+    "get": {
+      "operationId": "TodoController_findAll",
+      "parameters": [
+        {
+          "description": "Filter todos by completion status",
+          "in": "query",
+          "name": "completed",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "boolean",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+        {
+          "description": "Filter todos by priority",
+          "in": "query",
+          "name": "priority",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "object",
+              },
+              {
+                "type": "object",
+              },
+              {
+                "type": "object",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/TodoDto",
+                },
+                "type": "array",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "TodoController.findAll",
+      "tags": [
+        "todos",
+      ],
+    },
+    "post": {
+      "operationId": "TodoController_create",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateTodoDto",
+            },
+          },
+        },
+        "description": "Request body parameter: createTodoDto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "TodoController.create",
+      "tags": [
+        "todos",
+      ],
+    },
+  },
+  "/todos/{id}": {
+    "delete": {
+      "operationId": "TodoController_remove",
+      "parameters": [
+        {
+          "description": "Todo ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/void",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "TodoController.remove",
+      "tags": [
+        "todos",
+      ],
+    },
+    "get": {
+      "operationId": "TodoController_findOne",
+      "parameters": [
+        {
+          "description": "Todo ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "TodoController.findOne",
+      "tags": [
+        "todos",
+      ],
+    },
+    "put": {
+      "operationId": "TodoController_update",
+      "parameters": [
+        {
+          "description": "Todo ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateTodoDto",
+            },
+          },
+        },
+        "description": "Request body parameter: updateTodoDto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "TodoController.update",
+      "tags": [
+        "todos",
+      ],
+    },
+  },
+}
+`;
+
+exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for notification-service that matches snapshot > notification-service-openapi 1`] = `
+{
+  "/notifications": {
+    "get": {
+      "operationId": "NotificationController_findAll",
+      "parameters": [
+        {
+          "description": "Filter by user ID",
+          "in": "query",
+          "name": "userId",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+        {
+          "description": "Filter by notification type",
+          "in": "query",
+          "name": "type",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+        {
+          "description": "Filter by notification status",
+          "in": "query",
+          "name": "status",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/NotificationDto",
+                },
+                "type": "array",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "NotificationController.findAll",
+      "tags": [
+        "notifications",
+      ],
+    },
+    "post": {
+      "operationId": "NotificationController_create",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateNotificationDto",
+            },
+          },
+        },
+        "description": "Request body parameter: createNotificationDto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "NotificationController.create",
+      "tags": [
+        "notifications",
+      ],
+    },
+  },
+  "/notifications/stats": {
+    "get": {
+      "operationId": "NotificationController_getStats",
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationStatsDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "NotificationController.getStats",
+      "tags": [
+        "notifications",
+      ],
+    },
+  },
+  "/notifications/{id}": {
+    "get": {
+      "operationId": "NotificationController_findOne",
+      "parameters": [
+        {
+          "description": "Notification unique identifier",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationDto | null",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "NotificationController.findOne",
+      "tags": [
+        "notifications",
+      ],
+    },
+  },
+}
+`;
+
+exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user-service that matches snapshot > user-service-openapi 1`] = `
+{
+  "/users": {
+    "get": {
+      "operationId": "UserController_findAll",
+      "parameters": [
+        {
+          "description": "Filter users by role",
+          "in": "query",
+          "name": "role",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "object",
+              },
+              {
+                "type": "object",
+              },
+              {
+                "type": "object",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+        {
+          "description": "Filter users by active status",
+          "in": "query",
+          "name": "isActive",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "boolean",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/UserDto",
+                },
+                "type": "array",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.findAll",
+      "tags": [
+        "users",
+      ],
+    },
+    "post": {
+      "operationId": "UserController_create",
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateUserDto",
+            },
+          },
+        },
+        "description": "Request body parameter: createUserDto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.create",
+      "tags": [
+        "users",
+      ],
+    },
+  },
+  "/users/{id}": {
+    "delete": {
+      "operationId": "UserController_remove",
+      "parameters": [
+        {
+          "description": "User unique identifier",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/void",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.remove",
+      "tags": [
+        "users",
+      ],
+    },
+    "get": {
+      "operationId": "UserController_findOne",
+      "parameters": [
+        {
+          "description": "User unique identifier",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.findOne",
+      "tags": [
+        "users",
+      ],
+    },
+    "put": {
+      "operationId": "UserController_update",
+      "parameters": [
+        {
+          "description": "User unique identifier",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateUserDto",
+            },
+          },
+        },
+        "description": "Request body parameter: updateUserDto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.update",
+      "tags": [
+        "users",
+      ],
+    },
+  },
+  "/users/{id}/profile": {
+    "get": {
+      "operationId": "UserController_getProfile",
+      "parameters": [
+        {
+          "description": "User unique identifier",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfileDto",
+              },
+            },
+          },
+          "description": "Success",
+        },
+      },
+      "summary": "UserController.getProfile",
+      "tags": [
+        "users",
+      ],
+    },
+  },
+}
+`;
