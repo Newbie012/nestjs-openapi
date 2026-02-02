@@ -29,7 +29,7 @@ export class TodoService {
   }
 
   findById(id: string): TodoDto {
-    const todo = this.todos.find(todo => todo.id === id);
+    const todo = this.todos.find((todo) => todo.id === id);
     if (!todo) {
       throw new NotFoundException(`Todo with ID ${id} not found`);
     }
@@ -45,13 +45,13 @@ export class TodoService {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     this.todos.push(newTodo);
     return newTodo;
   }
 
   update(id: string, updateTodoDto: UpdateTodoDto): TodoDto {
-    const todoIndex = this.todos.findIndex(todo => todo.id === id);
+    const todoIndex = this.todos.findIndex((todo) => todo.id === id);
     if (todoIndex === -1) {
       throw new NotFoundException(`Todo with ID ${id} not found`);
     }
@@ -67,7 +67,7 @@ export class TodoService {
   }
 
   delete(id: string): void {
-    const todoIndex = this.todos.findIndex(todo => todo.id === id);
+    const todoIndex = this.todos.findIndex((todo) => todo.id === id);
     if (todoIndex === -1) {
       throw new NotFoundException(`Todo with ID ${id} not found`);
     }

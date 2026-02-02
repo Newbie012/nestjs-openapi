@@ -1,0 +1,71 @@
+---
+title: Introduction
+description: Generate OpenAPI specs from NestJS apps using static analysis
+icon: BookOpen
+---
+
+Generate OpenAPI specifications from NestJS applications using **static analysis** - no runtime, no build step required. Point at your `.ts` files, get a ready-to-ship spec.
+
+## Motivation
+
+Your OpenAPI spec is a **contract** - between your server and your clients, between your backend and your frontend, between your API and every SDK generated from it. When that contract is loose or inaccurate, the consequences show up at runtime: type mismatches, missing fields, invalid enum values, broken client code. These aren't just documentation issues - they're production bugs waiting to happen.
+
+`@nestjs/swagger` relies on `reflect-metadata` at runtime, which fundamentally limits spec accuracy. TypeScript's emitted metadata stores only a single `design:type` per property - unions become `Object`, generics lose their type arguments, and literal types collapse. Interfaces and type aliases are invisible entirely.
+
+To work around these limitations, you're forced to duplicate your type information in decorators:
+
+```typescript
+// You already have this type
+status: 'pending' | 'shipped' | 'delivered';
+
+// But you also need this decorator to make the spec accurate
+@ApiProperty({ enum: ['pending', 'shipped', 'delivered'] })
+status: 'pending' | 'shipped' | 'delivered';
+```
+
+Now you're maintaining the same information in two places - the TypeScript type and the decorator. When they drift apart (and they will), your spec lies about your API. Clients trust the spec, call your API, and get runtime errors.
+
+**Why overcomplicate things?** You already have the types. They're right there in your code. Why not use them as the single source of truth?
+
+**nestjs-openapi-static** does exactly that. It reads your TypeScript source directly using the TypeScript AST - no decorators needed, no duplication, no drift. Your types are your spec. When you change a type, the spec changes with it. No build step, no app bootstrap, no infrastructure.
+
+### Key features
+
+- **Purely static** - No compilation step, no app bootstrap, no runtime execution.
+- **CI/CD friendly** - Runs without databases, brokers, or env vars.
+- **TypeScript native** - Uses your `tsconfig` for accurate resolution.
+- **OpenAPI 3.0.3** - Paths, parameters, request bodies, responses, security.
+- **class-validator aware** - Maps common validators into schema constraints.
+- **Filterable** - Exclude endpoints by decorator or path pattern.
+
+## Quick example
+
+```ts twoslash title="openapi.config.ts"
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: {
+    entry: 'src/app.module.ts',
+  },
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+```bash title="Terminal"
+npx nestjs-openapi-static generate -c openapi.config.ts
+```
+
+## Next steps
+
+<Cards>
+  <Card title="Installation" href="/docs/installation" />
+  <Card title="Quick Start" href="/docs/quick-start" />
+  <Card title="Configuration" href="/docs/guides/configuration" />
+  <Card title="Comparison" href="/docs/comparison" />
+</Cards>

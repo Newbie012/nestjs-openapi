@@ -1,0 +1,358 @@
+---
+title: Programmatic API
+description: Use nestjs-openapi-static in build scripts and custom tooling
+---
+
+Use the programmatic API to integrate spec generation into build scripts, test suites, and custom tooling.
+
+## Basic Usage
+
+```ts twoslash
+import { generate } from 'nestjs-openapi-static';
+
+const result = await generate('./openapi.config.ts');
+
+console.log(`Generated: ${result.outputPath}`);
+console.log(`Paths: ${result.pathCount}`);
+console.log(`Operations: ${result.operationCount}`);
+console.log(`Schemas: ${result.schemaCount}`);
+```
+
+## Build Script Examples
+
+### Simple Build Script
+
+```typescript
+// scripts/generate-openapi.ts
+import { generate } from 'nestjs-openapi-static';
+
+async function main() {
+  console.log('Generating OpenAPI specification...');
+
+  const start = performance.now();
+  const result = await generate('./openapi.config.ts');
+  const duration = ((performance.now() - start) / 1000).toFixed(2);
+
+  console.log(`Generated ${result.outputPath} in ${duration}s`);
+  console.log(`  ${result.pathCount} paths`);
+  console.log(`  ${result.operationCount} operations`);
+  console.log(`  ${result.schemaCount} schemas`);
+}
+
+main().catch((error) => {
+  console.error('Generation failed:', error.message);
+  process.exit(1);
+});
+```
+
+Run with:
+
+```bash
+npx tsx scripts/generate-openapi.ts
+```
+
+### Multi-App Build Script
+
+```typescript
+// scripts/generate-all.ts
+import { generate } from 'nestjs-openapi-static';
+import { resolve } from 'path';
+
+interface AppConfig {
+  name: string;
+  configPath: string;
+}
+
+const apps: AppConfig[] = [
+  { name: 'Backend API', configPath: 'apps/backend/openapi.config.ts' },
+  { name: 'Admin API', configPath: 'apps/admin/openapi.config.ts' },
+  { name: 'Public API', configPath: 'apps/public/openapi.config.ts' },
+];
+
+async function generateAll() {
+  console.log('Generating OpenAPI specifications...\n');
+
+  const results = await Promise.all(
+    apps.map(async (app) => {
+      try {
+        const start = performance.now();
+        const result = await generate(app.configPath);
+        const duration = ((performance.now() - start) / 1000).toFixed(2);
+
+        return {
+          app: app.name,
+          success: true,
+          result,
+          duration,
+        };
+      } catch (error) {
+        return {
+          app: app.name,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }),
+  );
+
+  // Print results
+  for (const r of results) {
+    if (r.success) {
+      console.log(
+        `${r.app}: ${r.result.operationCount} operations (${r.duration}s)`,
+      );
+    } else {
+      console.error(`${r.app}: FAILED - ${r.error}`);
+    }
+  }
+
+  // Exit with error if any failed
+  const failed = results.filter((r) => !r.success);
+  if (failed.length > 0) {
+    process.exit(1);
+  }
+}
+
+generateAll();
+```
+
+### Watch Mode Script
+
+```typescript
+// scripts/watch-openapi.ts
+import { generate } from 'nestjs-openapi-static';
+import { watch } from 'chokidar';
+
+const CONFIG_PATH = './openapi.config.ts';
+const WATCH_PATTERNS = ['src/**/*.ts', 'openapi.config.ts'];
+
+async function regenerate() {
+  console.log('\nRegenerating OpenAPI spec...');
+  try {
+    const result = await generate(CONFIG_PATH);
+    console.log(`Generated ${result.operationCount} operations`);
+  } catch (error) {
+    console.error(
+      'Generation failed:',
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
+// Initial generation
+regenerate();
+
+// Watch for changes
+const watcher = watch(WATCH_PATTERNS, {
+  ignoreInitial: true,
+  ignored: ['**/node_modules/**', '**/*.spec.ts'],
+});
+
+watcher.on('change', (path) => {
+  console.log(`File changed: ${path}`);
+  regenerate();
+});
+
+console.log('Watching for changes...');
+```
+
+## Integration Patterns
+
+### With Vite
+
+```typescript
+// vite.config.ts
+import { defineConfig, type Plugin } from 'vite';
+import { generate } from 'nestjs-openapi-static';
+
+function openapiPlugin(): Plugin {
+  return {
+    name: 'openapi-generate',
+    async buildStart() {
+      console.log('Generating OpenAPI spec...');
+      await generate('./openapi.config.ts');
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [openapiPlugin()],
+});
+```
+
+### With esbuild
+
+```typescript
+// build.ts
+import { build } from 'esbuild';
+import { generate } from 'nestjs-openapi-static';
+
+async function main() {
+  // Generate OpenAPI spec first
+  console.log('Generating OpenAPI spec...');
+  await generate('./openapi.config.ts');
+
+  // Then build
+  console.log('Building application...');
+  await build({
+    entryPoints: ['src/main.ts'],
+    bundle: true,
+    outdir: 'dist',
+    platform: 'node',
+    format: 'esm',
+  });
+}
+
+main();
+```
+
+### With Jest/Vitest
+
+```typescript
+// tests/openapi.test.ts
+import { generate } from 'nestjs-openapi-static';
+import { readFileSync } from 'fs';
+
+describe('OpenAPI Specification', () => {
+  let spec: any;
+
+  beforeAll(async () => {
+    await generate('./openapi.config.ts');
+    spec = JSON.parse(readFileSync('openapi.json', 'utf-8'));
+  });
+
+  it('should have correct info', () => {
+    expect(spec.info.title).toBe('My API');
+    expect(spec.info.version).toBe('1.0.0');
+  });
+
+  it('should have expected endpoints', () => {
+    expect(spec.paths['/api/users']).toBeDefined();
+    expect(spec.paths['/api/users'].get).toBeDefined();
+    expect(spec.paths['/api/users'].post).toBeDefined();
+  });
+
+  it('should have schemas for DTOs', () => {
+    expect(spec.components.schemas.CreateUserDto).toBeDefined();
+    expect(spec.components.schemas.UserDto).toBeDefined();
+  });
+
+  it('should have security schemes', () => {
+    expect(spec.components.securitySchemes.bearerAuth).toBeDefined();
+  });
+});
+```
+
+### With Semantic Release
+
+```typescript
+// release.config.ts
+import { generate } from 'nestjs-openapi-static';
+
+export default {
+  plugins: [
+    '@semantic-release/commit-analyzer',
+    '@semantic-release/release-notes-generator',
+    [
+      '@semantic-release/exec',
+      {
+        prepareCmd: `
+        npx tsx -e "
+          import { generate } from 'nestjs-openapi-static';
+          await generate('./openapi.config.ts');
+        "
+      `,
+      },
+    ],
+    [
+      '@semantic-release/git',
+      {
+        assets: ['openapi.json'],
+        message: 'chore(release): update OpenAPI spec [skip ci]',
+      },
+    ],
+  ],
+};
+```
+
+## Error Handling
+
+### Basic Error Handling
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+
+try {
+  const result = await generate('./openapi.config.ts');
+  console.log('Success:', result.outputPath);
+} catch (error) {
+  if (error instanceof Error) {
+    console.error('Failed:', error.message);
+  }
+  process.exit(1);
+}
+```
+
+### Typed Error Handling
+
+```ts twoslash
+import { generate } from 'nestjs-openapi-static';
+import {
+  ConfigNotFoundError,
+  ConfigLoadError,
+  ConfigValidationError,
+  EntryNotFoundError,
+} from 'nestjs-openapi-static';
+
+try {
+  await generate('./openapi.config.ts');
+} catch (error) {
+  if (error instanceof ConfigNotFoundError) {
+    console.error('Config file not found');
+  } else if (error instanceof ConfigLoadError) {
+    console.error('Failed to load config file');
+  } else if (error instanceof ConfigValidationError) {
+    console.error('Invalid configuration');
+  } else if (error instanceof EntryNotFoundError) {
+    console.error(`Entry module not found: ${error.entry}`);
+  } else {
+    throw error;
+  }
+  process.exit(1);
+}
+```
+
+## Accessing Generated Spec
+
+Read the generated spec after generation:
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+import { readFileSync } from 'fs';
+import type { OpenApiSpec } from 'nestjs-openapi-static';
+
+async function main() {
+  const result = await generate('./openapi.config.ts');
+
+  // Read the generated spec
+  const spec: OpenApiSpec = JSON.parse(
+    readFileSync(result.outputPath, 'utf-8'),
+  );
+
+  // Process the spec
+  console.log('Endpoints:');
+  for (const [path, methods] of Object.entries(spec.paths)) {
+    for (const method of Object.keys(methods)) {
+      console.log(`  ${method.toUpperCase()} ${path}`);
+    }
+  }
+}
+
+main();
+```
+
+## See Also
+
+- [generate()](/docs/api/generate) - API reference
+- [Effect API](/docs/advanced/effect-api) - Effect-TS integration
+- [CI/CD Recipe](/docs/recipes/ci-cd) - Automation patterns

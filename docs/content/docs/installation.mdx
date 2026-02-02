@@ -1,0 +1,51 @@
+---
+title: Installation
+description: Install nestjs-openapi-static in your project
+icon: Download
+---
+
+## Requirements
+
+- Node.js 20+
+- TypeScript 5+
+- NestJS 10+ or 11+
+
+## Install the Package
+
+<Tabs groupId="package-manager" items={['npm', 'pnpm', 'yarn']} persist>
+  <Tab value="npm">
+
+```bash
+npm install nestjs-openapi-static --save-dev
+```
+
+  </Tab>
+  <Tab value="pnpm">
+
+```bash
+pnpm add -D nestjs-openapi-static
+```
+
+  </Tab>
+  <Tab value="yarn">
+
+```bash
+yarn add -D nestjs-openapi-static
+```
+
+  </Tab>
+</Tabs>
+
+## Peer Dependencies
+
+The library requires `@nestjs/common`. If you use `@nestjs/swagger` decorators in your code, you already have it installed.
+
+```json
+{
+  "@nestjs/common": "^10.0.0 || ^11.0.0"
+}
+```
+
+## Next Steps
+
+Continue to [Quick Start](/docs/quick-start) to generate your first OpenAPI spec.

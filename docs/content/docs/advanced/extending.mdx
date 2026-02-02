@@ -1,0 +1,83 @@
+---
+title: Config Inheritance
+description: Share configuration without built-in extends support
+---
+
+The `extends` field is present in the type definitions but is **not executed** by the current Promise-based generator. Until inheritance is implemented, compose configs manually.
+
+## Recommended pattern: manual composition
+
+Create a shared base object and spread/override it in each config file. This keeps type safety from `defineConfig` without relying on unimplemented inheritance.
+
+```typescript
+// configs/base.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+
+export const baseConfig = defineConfig({
+  files: {
+    dtoGlob: 'src/**/*.dto.ts',
+    tsconfig: 'tsconfig.json',
+  },
+  options: {
+    extractValidation: true,
+    excludeDecorators: ['ApiExcludeEndpoint'],
+  },
+});
+```
+
+```typescript
+// apps/api/openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+import { baseConfig } from '../../configs/base.config';
+
+export default defineConfig({
+  ...baseConfig,
+  output: 'openapi.api.json',
+  files: {
+    ...baseConfig.files,
+    entry: 'src/app.module.ts',
+  },
+  openapi: {
+    ...baseConfig.openapi,
+    info: {
+      ...baseConfig.openapi.info,
+      title: 'Public API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+```typescript
+// apps/admin/openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+import { baseConfig } from '../../configs/base.config';
+
+export default defineConfig({
+  ...baseConfig,
+  output: 'openapi.admin.json',
+  files: {
+    ...baseConfig.files,
+    entry: 'src/admin.module.ts',
+  },
+  openapi: {
+    ...baseConfig.openapi,
+    info: {
+      ...baseConfig.openapi.info,
+      title: 'Admin API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+## Why not use `extends` today?
+
+- The Promise-based generator (`generate`) does not load or merge parent configs.
+- The Effect-based pipeline validates against the schema but also does not perform inheritance.
+- Relying on `extends` would silently ignore your base config at runtime.
+
+## Future work
+
+- Add explicit inheritance support with deterministic merge rules (objects deep-merge, arrays replace).
+- Validate and document path resolution rules when inheritance is enabled.

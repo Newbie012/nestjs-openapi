@@ -1,0 +1,118 @@
+---
+title: Quick Start
+description: Generate your first OpenAPI spec in minutes
+icon: Zap
+---
+
+Generate an OpenAPI specification from your NestJS application in three steps.
+
+## Step 1: Create a Config File
+
+Create `openapi.config.ts` in your project root:
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: {
+    entry: 'src/app.module.ts',
+    tsconfig: 'tsconfig.json',
+    dtoGlob: 'src/**/*.dto.ts',
+  },
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+<Callout type="note">
+  Output can be JSON or YAML (`format: 'yaml'`). Configure security in the
+  config file - security decorators are not read.
+</Callout>
+
+## Step 2: Generate the Spec
+
+Run the CLI:
+
+```bash
+npx nestjs-openapi-static generate -c openapi.config.ts
+```
+
+You'll see output like:
+
+```
+✓ Generated openapi.json (1.2s)
+  42 paths, 87 operations
+```
+
+## Step 3: View the Result
+
+Your `openapi.json` file is ready. You can:
+
+- View it in [Swagger Editor](https://editor.swagger.io/)
+- Import it into Postman
+- Generate API clients
+- Serve it with Swagger UI
+
+## Add to package.json
+
+```json
+{
+  "scripts": {
+    "openapi": "nestjs-openapi-static generate -c openapi.config.ts",
+    "prebuild": "npm run openapi"
+  }
+}
+```
+
+## Example Output
+
+For a simple controller:
+
+```typescript
+@Controller('users')
+export class UsersController {
+  @Get()
+  findAll(): User[] {
+    return [];
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string): User {
+    return null;
+  }
+
+  @Post()
+  create(@Body() dto: CreateUserDto): User {
+    return null;
+  }
+}
+```
+
+The generated spec includes:
+
+```json
+{
+  "paths": {
+    "/users": {
+      "get": { "operationId": "UsersController_findAll" },
+      "post": { "operationId": "UsersController_create" }
+    },
+    "/users/{id}": {
+      "get": { "operationId": "UsersController_findOne" }
+    }
+  }
+}
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Configuration Guide" href="/docs/guides/configuration" />
+  <Card title="Decorator Support" href="/docs/guides/decorators" />
+  <Card title="Serve with Swagger UI" href="/docs/recipes/swagger-ui" />
+</Cards>

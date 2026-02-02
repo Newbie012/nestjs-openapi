@@ -1,0 +1,6 @@
+{
+  "title": "API Reference",
+  "icon": "Code",
+  "defaultOpen": false,
+  "pages": ["index", "generate", "define-config", "openapi-module", "types", "errors"]
+}

@@ -1,0 +1,356 @@
+---
+title: Monorepo Setup
+description: Generate OpenAPI specs for multiple NestJS applications
+---
+
+When your project contains multiple NestJS applications, you can generate separate OpenAPI specifications for each.
+
+## Project Structure
+
+Typical monorepo layout:
+
+```
+my-monorepo/
+├── apps/
+│   ├── backend-api/
+│   │   ├── src/
+│   │   │   └── app.module.ts
+│   │   └── openapi.config.ts
+│   ├── admin-api/
+│   │   ├── src/
+│   │   │   └── app.module.ts
+│   │   └── openapi.config.ts
+│   └── public-api/
+│       ├── src/
+│       │   └── app.module.ts
+│       └── openapi.config.ts
+├── libs/
+│   └── shared/
+│       └── src/
+│           └── dto/
+├── package.json
+└── tsconfig.json
+```
+
+## Per-App Configuration
+
+Create a config file for each application:
+
+```ts twoslash
+// apps/backend-api/openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: {
+    entry: 'src/app.module.ts',
+    tsconfig: '../../tsconfig.json',
+    dtoGlob: ['src/**/*.dto.ts', '../../libs/shared/src/**/*.dto.ts'],
+  },
+  openapi: {
+    info: {
+      title: 'Backend API',
+      version: '1.0.0',
+      description: 'Internal backend services',
+    },
+    servers: [
+      { url: 'https://backend.example.com', description: 'Production' },
+    ],
+  },
+  options: {
+    basePath: '/api',
+  },
+});
+```
+
+```typescript
+// apps/admin-api/openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: {
+    entry: 'src/app.module.ts',
+    tsconfig: '../../tsconfig.json',
+    dtoGlob: ['src/**/*.dto.ts', '../../libs/shared/src/**/*.dto.ts'],
+  },
+  openapi: {
+    info: {
+      title: 'Admin API',
+      version: '1.0.0',
+      description: 'Administration interface',
+    },
+    servers: [{ url: 'https://admin.example.com', description: 'Production' }],
+    security: {
+      schemes: [
+        {
+          name: 'adminAuth',
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      ],
+      global: [{ adminAuth: [] }],
+    },
+  },
+});
+```
+
+## NPM Scripts
+
+Add scripts to generate specs for all apps:
+
+```json
+{
+  "scripts": {
+    "openapi": "npm run openapi:backend && npm run openapi:admin && npm run openapi:public",
+    "openapi:backend": "nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts",
+    "openapi:admin": "nestjs-openapi-static generate -c apps/admin-api/openapi.config.ts",
+    "openapi:public": "nestjs-openapi-static generate -c apps/public-api/openapi.config.ts"
+  }
+}
+```
+
+Run all at once:
+
+```bash
+npm run openapi
+```
+
+Or generate individually:
+
+```bash
+npm run openapi:backend
+```
+
+## Shared Base Configuration
+
+Use config inheritance to avoid duplication:
+
+```typescript
+// configs/base-openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  format: 'json', // or 'yaml'
+  files: {
+    tsconfig: '../../tsconfig.json',
+    exclude: ['**/*.spec.ts', '**/*.test.ts'],
+  },
+  options: {
+    extractValidation: true,
+    excludeDecorators: ['ApiExcludeEndpoint', 'Internal'],
+  },
+});
+```
+
+<Callout type="warn">
+  The `extends` field is not executed by the current generator. Import and
+  spread your base config instead of relying on inheritance.
+</Callout>
+
+```typescript
+// apps/backend-api/openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+import base from '../../configs/base-openapi.config';
+
+export default defineConfig({
+  ...base,
+  output: 'openapi.json',
+  files: {
+    ...base.files,
+    entry: 'src/app.module.ts',
+    dtoGlob: ['src/**/*.dto.ts', '../../libs/shared/src/**/*.dto.ts'],
+  },
+  openapi: {
+    ...base.openapi,
+    info: {
+      ...base.openapi.info,
+      title: 'Backend API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+## Nx Workspaces
+
+For Nx monorepos, you can use project-level scripts:
+
+```json
+// apps/backend-api/project.json
+{
+  "name": "backend-api",
+  "targets": {
+    "openapi": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts"
+      }
+    }
+  }
+}
+```
+
+Run with Nx:
+
+```bash
+# Single app
+nx openapi backend-api
+
+# All apps
+nx run-many --target=openapi
+```
+
+## Turborepo
+
+For Turborepo monorepos:
+
+```json
+// turbo.json
+{
+  "pipeline": {
+    "openapi": {
+      "dependsOn": ["^build"],
+      "outputs": ["openapi.json"]
+    }
+  }
+}
+```
+
+```bash
+turbo run openapi
+```
+
+## Shared DTOs
+
+When apps share DTOs from a library:
+
+```typescript
+// libs/shared/src/dto/user.dto.ts
+export class UserDto {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export class CreateUserDto {
+  email: string;
+  name: string;
+}
+```
+
+Include the shared library in `dtoGlob`:
+
+```typescript
+// apps/backend-api/openapi.config.ts
+files: {
+  entry: 'src/app.module.ts',
+  dtoGlob: [
+    'src/**/*.dto.ts',
+    '../../libs/shared/src/**/*.dto.ts',
+  ],
+}
+```
+
+## Output Organization
+
+Keep generated specs organized:
+
+```
+my-monorepo/
+├── apps/
+│   ├── backend-api/
+│   │   ├── openapi.json        # Generated here
+│   │   └── openapi.config.ts
+│   └── admin-api/
+│       ├── openapi.json        # Generated here
+│       └── openapi.config.ts
+├── docs/
+│   └── openapi/                # Or centralize here
+│       ├── backend-api.json
+│       └── admin-api.json
+```
+
+Centralized output:
+
+```typescript
+// apps/backend-api/openapi.config.ts
+output: '../../docs/openapi/backend-api.json',
+```
+
+## Parallel Generation
+
+Generate all specs in parallel using npm-run-all:
+
+```bash
+npm install -D npm-run-all
+```
+
+```json
+{
+  "scripts": {
+    "openapi": "run-p openapi:*",
+    "openapi:backend": "nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts",
+    "openapi:admin": "nestjs-openapi-static generate -c apps/admin-api/openapi.config.ts",
+    "openapi:public": "nestjs-openapi-static generate -c apps/public-api/openapi.config.ts"
+  }
+}
+```
+
+## Complete Example
+
+```typescript
+// apps/backend-api/openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+import base from '../../configs/base-openapi.config';
+
+export default defineConfig({
+  ...base,
+  output: 'openapi.json',
+
+  files: {
+    ...base.files,
+    entry: 'src/app.module.ts',
+    dtoGlob: [
+      'src/**/*.dto.ts',
+      '../../libs/shared/src/dto/**/*.ts',
+      '../../libs/entities/src/**/*.entity.ts',
+    ],
+  },
+
+  openapi: {
+    ...base.openapi,
+    info: {
+      ...base.openapi.info,
+      title: 'Backend API',
+      version: '1.0.0',
+      description: 'Internal backend services for the platform',
+      contact: {
+        name: 'Backend Team',
+        email: 'backend@example.com',
+      },
+    },
+    servers: [
+      { url: 'https://backend.example.com', description: 'Production' },
+      { url: 'https://staging-backend.example.com', description: 'Staging' },
+      { url: 'http://localhost:3001', description: 'Development' },
+    ],
+    tags: [
+      { name: 'users', description: 'User management' },
+      { name: 'orders', description: 'Order processing' },
+      { name: 'inventory', description: 'Inventory management' },
+    ],
+  },
+
+  options: {
+    basePath: '/api/v1',
+  },
+});
+```
+
+## Next Steps
+
+- [CI/CD Recipe](/docs/recipes/ci-cd) - Automate generation in pipelines
+- [OpenAPI Clients Recipe](/docs/recipes/openapi-clients) - Generate typed clients
+- [Configuration Guide](/docs/guides/configuration) - Full config reference

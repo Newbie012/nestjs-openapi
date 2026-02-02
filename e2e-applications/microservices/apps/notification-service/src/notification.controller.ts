@@ -16,7 +16,11 @@ import {
   ApiQuery,
   ApiBody,
 } from '@nestjs/swagger';
-import { CreateNotificationDto, NotificationDto, NotificationStatsDto } from './dto';
+import {
+  CreateNotificationDto,
+  NotificationDto,
+  NotificationStatsDto,
+} from './dto';
 
 @ApiTags('notifications')
 @Controller('notifications')
@@ -55,7 +59,7 @@ export class NotificationController {
   @Get()
   @ApiOperation({
     summary: 'Get notifications',
-    description: 'Retrieve notifications with optional filtering'
+    description: 'Retrieve notifications with optional filtering',
   })
   @ApiQuery({
     name: 'userId',
@@ -88,13 +92,13 @@ export class NotificationController {
     let filtered = [...this.notifications];
 
     if (userId) {
-      filtered = filtered.filter(n => n.userId === userId);
+      filtered = filtered.filter((n) => n.userId === userId);
     }
     if (type) {
-      filtered = filtered.filter(n => n.type === type);
+      filtered = filtered.filter((n) => n.type === type);
     }
     if (status) {
-      filtered = filtered.filter(n => n.status === status);
+      filtered = filtered.filter((n) => n.status === status);
     }
 
     return filtered;
@@ -103,7 +107,7 @@ export class NotificationController {
   @Get('stats')
   @ApiOperation({
     summary: 'Get notification statistics',
-    description: 'Retrieve overall notification delivery statistics'
+    description: 'Retrieve overall notification delivery statistics',
   })
   @ApiResponse({
     status: 200,
@@ -129,7 +133,7 @@ export class NotificationController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get notification by ID',
-    description: 'Retrieve a specific notification by its identifier'
+    description: 'Retrieve a specific notification by its identifier',
   })
   @ApiParam({
     name: 'id',
@@ -147,13 +151,13 @@ export class NotificationController {
     description: 'Notification not found',
   })
   findOne(@Param('id') id: string): NotificationDto | null {
-    return this.notifications.find(n => n.id === id) || null;
+    return this.notifications.find((n) => n.id === id) || null;
   }
 
   @Post()
   @ApiOperation({
     summary: 'Send notification',
-    description: 'Create and send a new notification'
+    description: 'Create and send a new notification',
   })
   @ApiBody({
     description: 'Notification data',
@@ -165,7 +169,9 @@ export class NotificationController {
     type: NotificationDto,
   })
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createNotificationDto: CreateNotificationDto): NotificationDto {
+  create(
+    @Body() createNotificationDto: CreateNotificationDto,
+  ): NotificationDto {
     const notification: NotificationDto = {
       id: `notif_${Math.random().toString(36).substr(2, 12)}`,
       userId: createNotificationDto.userId,

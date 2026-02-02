@@ -1,0 +1,6 @@
+{
+  "title": "Recipes",
+  "icon": "ChefHat",
+  "defaultOpen": false,
+  "pages": ["monorepo", "ci-cd", "swagger-ui", "openapi-clients", "migration"]
+}

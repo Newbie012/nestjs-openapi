@@ -43,18 +43,20 @@ export class UserService {
     let filteredUsers = [...this.users];
 
     if (params.role) {
-      filteredUsers = filteredUsers.filter(user => user.role === params.role);
+      filteredUsers = filteredUsers.filter((user) => user.role === params.role);
     }
 
     if (params.isActive !== undefined) {
-      filteredUsers = filteredUsers.filter(user => user.isActive === params.isActive);
+      filteredUsers = filteredUsers.filter(
+        (user) => user.isActive === params.isActive,
+      );
     }
 
     return filteredUsers;
   }
 
   findById(id: string): UserDto {
-    const user = this.users.find(user => user.id === id);
+    const user = this.users.find((user) => user.id === id);
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -63,13 +65,13 @@ export class UserService {
 
   findProfile(id: string): UserProfileDto {
     const user = this.findById(id);
-    
+
     return {
       user,
       preferences: {
         theme: user.role === 'admin' ? 'light' : 'dark',
         notifications: user.isActive,
-        language: 'en'
+        language: 'en',
       },
       lastLogin: new Date('2025-09-18T13:45:00Z'),
     };
@@ -87,13 +89,13 @@ export class UserService {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     this.users.push(newUser);
     return newUser;
   }
 
   update(id: string, updateUserDto: UpdateUserDto): UserDto {
-    const userIndex = this.users.findIndex(user => user.id === id);
+    const userIndex = this.users.findIndex((user) => user.id === id);
     if (userIndex === -1) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -101,9 +103,10 @@ export class UserService {
     const updatedUser = {
       ...this.users[userIndex],
       ...updateUserDto,
-      fullName: updateUserDto.firstName || updateUserDto.lastName 
-        ? `${updateUserDto.firstName || this.users[userIndex].firstName} ${updateUserDto.lastName || this.users[userIndex].lastName}`
-        : this.users[userIndex].fullName,
+      fullName:
+        updateUserDto.firstName || updateUserDto.lastName
+          ? `${updateUserDto.firstName || this.users[userIndex].firstName} ${updateUserDto.lastName || this.users[userIndex].lastName}`
+          : this.users[userIndex].fullName,
       updatedAt: new Date(),
     };
 
@@ -112,7 +115,7 @@ export class UserService {
   }
 
   delete(id: string): void {
-    const userIndex = this.users.findIndex(user => user.id === id);
+    const userIndex = this.users.findIndex((user) => user.id === id);
     if (userIndex === -1) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }

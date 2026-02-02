@@ -52,11 +52,11 @@ export class TodoController {
     let todos = this.todoService.findAll();
 
     if (completed !== undefined) {
-      todos = todos.filter(todo => todo.completed === completed);
+      todos = todos.filter((todo) => todo.completed === completed);
     }
 
     if (priority) {
-      todos = todos.filter(todo => todo.priority === priority);
+      todos = todos.filter((todo) => todo.priority === priority);
     }
 
     return todos;
@@ -118,7 +118,10 @@ export class TodoController {
     status: 404,
     description: 'Todo not found',
   })
-  update(@Param('id') id: string, @Body() updateTodoDto: UpdateTodoDto): TodoDto {
+  update(
+    @Param('id') id: string,
+    @Body() updateTodoDto: UpdateTodoDto,
+  ): TodoDto {
     return this.todoService.update(id, updateTodoDto);
   }
 

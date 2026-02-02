@@ -1,15 +1,5 @@
-import {
-  Controller,
-  Get,
-  Param,
-  HttpStatus,
-} from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-} from '@nestjs/swagger';
+import { Controller, Get, Param } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { HealthCheckDto, ApiInfoDto } from './dto';
 
 @ApiTags('gateway')
@@ -20,7 +10,7 @@ export class GatewayController {
   @Get()
   @ApiOperation({
     summary: 'API Information',
-    description: 'Get basic API information and available services'
+    description: 'Get basic API information and available services',
   })
   @ApiResponse({
     status: 200,
@@ -40,7 +30,7 @@ export class GatewayController {
   @Get('health')
   @ApiOperation({
     summary: 'Health check',
-    description: 'Get overall system health status including microservices'
+    description: 'Get overall system health status including microservices',
   })
   @ApiResponse({
     status: 200,
@@ -49,7 +39,7 @@ export class GatewayController {
   })
   getHealth(): HealthCheckDto {
     const uptime = Math.floor((Date.now() - this.startTime) / 1000);
-    
+
     return {
       status: 'healthy',
       timestamp: new Date(),
@@ -74,7 +64,7 @@ export class GatewayController {
   @Get('version')
   @ApiOperation({
     summary: 'Get API version',
-    description: 'Returns the current API version'
+    description: 'Returns the current API version',
   })
   @ApiResponse({
     status: 200,
@@ -101,7 +91,7 @@ export class ProxyController {
   @Get('users/:id/profile')
   @ApiOperation({
     summary: 'Get user profile (proxied)',
-    description: 'Proxy request to user service for user profile'
+    description: 'Proxy request to user service for user profile',
   })
   @ApiParam({
     name: 'id',
@@ -133,7 +123,7 @@ export class ProxyController {
   @Get('notifications/stats')
   @ApiOperation({
     summary: 'Get notification stats (proxied)',
-    description: 'Proxy request to notification service for statistics'
+    description: 'Proxy request to notification service for statistics',
   })
   @ApiResponse({
     status: 200,

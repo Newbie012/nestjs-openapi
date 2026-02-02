@@ -1,0 +1,348 @@
+---
+title: Internals
+description: How nestjs-openapi-static works under the hood
+---
+
+This page explains how nestjs-openapi-static generates OpenAPI specifications from NestJS source code.
+
+## Architecture Overview
+
+The generation process follows a straightforward pipeline:
+
+1. **Configuration Loading** - Parse and validate the config file
+2. **AST Parsing** - Load TypeScript source files into ts-morph
+3. **Module Traversal** - Recursively discover modules and their controllers
+4. **Method Extraction** - Analyze controllers for HTTP methods, paths, and parameters
+5. **Schema Generation** - Convert DTOs to JSON Schema
+6. **Transformation** - Build OpenAPI paths and operations
+7. **Output** - Write the final spec to disk
+
+### Core Dependencies
+
+| Library                                                                      | Purpose                                   |
+| ---------------------------------------------------------------------------- | ----------------------------------------- |
+| [ts-morph](https://ts-morph.com/)                                            | TypeScript AST parsing and traversal      |
+| [Effect-TS](https://effect.website/)                                         | Functional error handling and composition |
+| [ts-json-schema-generator](https://github.com/vega/ts-json-schema-generator) | TypeScript to JSON Schema conversion      |
+
+## Processing Pipeline
+
+### 1. Configuration Loading
+
+```typescript
+// Pseudocode (Promise-based path)
+const config = await import('./openapi.config.ts');
+assert(config.output);
+assert(config.openapi?.info?.title && config.openapi.info.version);
+```
+
+- Loads the config file via dynamic import (supports `default` or `config` exports).
+- Validates only the required fields; other validation happens later in Effect-based paths.
+- Resolves paths relative to the config file location (output, entry, tsconfig, dtoGlob). Supports JSON or YAML output.
+- `extends` is not executed in the current generator.
+
+### 2. TypeScript Project Initialization
+
+```typescript
+const project = new Project({
+  tsConfigFilePath: resolved.tsconfig,
+  skipAddingFilesFromTsConfig: true,
+});
+
+project.addSourceFilesAtPaths(resolved.entry);
+```
+
+- Creates a ts-morph Project with the user's tsconfig
+- Only adds the entry file initially (lazy loading)
+- ts-morph resolves imports on-demand
+
+### 3. Module Traversal
+
+Starting from `AppModule`, the library recursively traverses the module graph:
+
+```typescript
+// Simplified traversal logic
+function getModules(moduleClass: ClassDeclaration): ModuleWithControllers[] {
+  const decorator = moduleClass.getDecorator('Module');
+  const metadata = getModuleMetadata(decorator);
+
+  const modules = [
+    {
+      name: moduleClass.getName(),
+      controllers: metadata.controllers,
+    },
+  ];
+
+  // Recursively process imported modules
+  for (const importedModule of metadata.imports) {
+    modules.push(...getModules(importedModule));
+  }
+
+  return modules;
+}
+```
+
+**Module metadata extraction:**
+
+- `controllers` - Array of controller classes
+- `imports` - Array of imported modules
+- `exports` - (Not used for OpenAPI generation)
+- `providers` - (Not used for OpenAPI generation)
+
+### 4. Controller Analysis
+
+For each controller, extract route information:
+
+```typescript
+function getControllerMethodInfos(controller: ClassDeclaration): MethodInfo[] {
+  const prefix = getControllerPrefix(controller); // @Controller('users')
+  const tags = getControllerTags(controller); // @ApiTags('users')
+
+  return controller
+    .getMethods()
+    .filter((method) => hasHttpDecorator(method))
+    .map((method) => extractMethodInfo(method, prefix, tags));
+}
+```
+
+**Extracted information:**
+
+- HTTP method (GET, POST, PUT, etc.)
+- Route path
+- Parameters (path, query, body, headers)
+- Return type
+- Decorators and metadata
+
+### 5. Method Info Extraction
+
+Each HTTP method is analyzed for:
+
+```typescript
+interface MethodInfo {
+  controllerName: string;
+  controllerPath: string;
+  methodName: string;
+  httpMethod: HttpMethod;
+  path: string;
+  parameters: ResolvedParameter[];
+  returnType?: ReturnTypeInfo;
+  tags: string[];
+  summary?: string;
+  description?: string;
+  operationId?: string;
+  deprecated?: boolean;
+  responses: ResponseInfo[];
+  consumes?: string[];
+  produces?: string[];
+  decorators: string[];
+}
+```
+
+**Parameter extraction:**
+
+```typescript
+// @Get(':id')
+// findOne(@Param('id') id: string, @Query('include') include?: string)
+
+[
+  { name: 'id', in: 'path', type: 'string', required: true },
+  { name: 'include', in: 'query', type: 'string', required: false },
+];
+```
+
+### 6. Schema Generation
+
+DTOs are converted to JSON Schema using ts-json-schema-generator:
+
+```typescript
+const generator = createGenerator({
+  path: dtoFiles,
+  tsconfig: tsconfigPath,
+  type: '*', // Generate all exported types
+});
+
+const schema = generator.createSchema();
+```
+
+**Post-processing:**
+
+1. Normalize `$ref` paths (remove hashes, use readable names)
+2. Extract validation constraints from class-validator decorators
+3. Merge constraints into schemas
+
+### 7. Validation Constraint Extraction
+
+When `extractValidation: true`, the library analyzes class-validator decorators:
+
+```typescript
+// Source DTO
+class CreateUserDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(150)
+  age: number;
+}
+
+// Extracted constraints
+{
+  email: { format: 'email', minLength: 1 },
+  age: { type: 'integer', minimum: 0, maximum: 150 },
+}
+```
+
+Constraints are merged into the generated JSON schemas.
+
+### 8. OpenAPI Transformation
+
+Method infos are transformed into OpenAPI operations:
+
+```typescript
+function transformMethod(method: MethodInfo): OpenApiOperation {
+  return {
+    operationId: method.operationId || generateOperationId(method),
+    summary: method.summary,
+    description: method.description,
+    deprecated: method.deprecated,
+    tags: method.tags,
+    parameters: method.parameters.map(transformParameter),
+    requestBody: method.body ? transformRequestBody(method.body) : undefined,
+    responses: transformResponses(method.responses),
+  };
+}
+```
+
+### 9. Path Aggregation
+
+Operations are grouped by path:
+
+```typescript
+const paths: OpenApiPaths = {};
+
+for (const method of methodInfos) {
+  const fullPath = normalizePath(`${method.controllerPath}/${method.path}`);
+
+  if (!paths[fullPath]) {
+    paths[fullPath] = {};
+  }
+
+  paths[fullPath][method.httpMethod] = transformMethod(method);
+}
+```
+
+### 10. Output Generation
+
+The final spec is assembled and written:
+
+```typescript
+const spec: OpenApiSpec = {
+  openapi: '3.0.3',
+  info: config.openapi.info,
+  servers: config.openapi.servers ?? [],
+  paths,
+  components: {
+    schemas,
+    securitySchemes,
+  },
+  tags: config.openapi.tags ?? [],
+  security: config.openapi.security?.global,
+};
+
+writeFileSync(outputPath, JSON.stringify(spec, null, 2));
+```
+
+## Key Design Decisions
+
+### Static Analysis Only
+
+The library never executes user code. Everything is determined through AST analysis:
+
+- **Pros**: No infrastructure needed, fast, safe
+- **Cons**: Can't analyze runtime-computed values
+
+### Decorator-Based Extraction
+
+Information is extracted from decorators, not runtime metadata:
+
+```typescript
+// Analyzed statically
+@Get(':id')
+@ApiOperation({ summary: 'Get user by ID' })
+findOne(@Param('id') id: string) {}
+
+// NOT analyzed (runtime)
+const routes = [
+  { method: 'GET', path: '/:id', handler: this.findOne },
+];
+```
+
+### Config-Based Security
+
+Security schemes are defined in config, not extracted from code:
+
+- Simpler implementation
+- Explicit configuration
+- No ambiguity about global vs. operation-level security
+
+### Effect-TS for Error Handling
+
+Internal operations use Effect for:
+
+- Typed error channels
+- Composable operations
+- Built-in logging
+- Clean error propagation
+
+The public API wraps Effect in Promises for ease of use.
+
+## File Structure
+
+```
+src/
+├── index.ts              # Public API exports
+├── internal.ts           # Effect-based internal API
+├── cli.ts                # CLI entry point
+├── generate.ts           # Main generation orchestration
+├── config.ts             # Config loading and resolution
+├── types.ts              # Public TypeScript interfaces
+├── domain.ts             # Internal domain types (Effect Schema)
+├── project.ts            # ts-morph project initialization
+├── modules.ts            # Module graph traversal
+├── controllers.ts        # Controller analysis utilities
+├── methods.ts            # Controller method extraction
+├── transformer.ts        # MethodInfo → OpenAPI transformation
+├── filter.ts             # Path/decorator filtering
+├── security.ts           # Security scheme building
+├── security-decorators.ts # Security decorator extraction
+├── schema-generator.ts   # ts-json-schema-generator wrapper
+├── schema-merger.ts      # Schema reference resolution
+├── schema-normalizer.ts  # Schema cleanup
+├── validation-mapper.ts  # class-validator extraction
+├── ast.ts                # Generic AST utilities
+├── nest-ast.ts           # NestJS-specific AST utilities
+├── errors.ts             # Typed error definitions
+└── module.ts             # OpenApiModule for runtime serving
+```
+
+## Performance Considerations
+
+- **Lazy source file loading** - Only loads files as needed
+- **Parallel operations** - Schema generation and method extraction run concurrently
+- **Minimal type checking** - Uses `skipLibCheck` for speed
+- **Incremental analysis** - Only analyzes files matching patterns
+
+## Limitations
+
+1. **Dynamic routes** - Routes defined at runtime can't be analyzed
+2. **Complex type transformations** - Some TypeScript patterns may not generate ideal schemas
+3. **Custom decorators** - Only standard NestJS/Swagger decorators are recognized
+4. **Runtime security** - Security decorators aren't extracted (use config instead)
+
+## See Also
+
+- [Effect API](/docs/advanced/effect-api) - Using the Effect-based API
+- [ts-morph Documentation](https://ts-morph.com/) - AST manipulation
+- [OpenAPI 3.0 Specification](https://spec.openapis.org/oas/v3.0.3) - Output format

@@ -1,0 +1,206 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@import 'fumadocs-twoslash/twoslash.css';
+
+/* ============================================
+   Clean, Content-First Theme
+   Inspired by Tailwind CSS docs - subtle, functional
+   ============================================ */
+
+:root {
+  /* Dark mode - subtle warm dark */
+  --color-fd-background: oklch(0.14 0.01 285);
+  --color-fd-foreground: oklch(0.93 0.01 285);
+  --color-fd-muted: oklch(0.2 0.01 285);
+  --color-fd-muted-foreground: oklch(0.65 0.01 285);
+  --color-fd-popover: oklch(0.16 0.01 285);
+  --color-fd-popover-foreground: oklch(0.9 0.01 285);
+  --color-fd-card: oklch(0.17 0.01 285);
+  --color-fd-card-foreground: oklch(0.93 0.01 285);
+  --color-fd-border: oklch(0.25 0.01 285);
+
+  /* Primary - NestJS Red #ea2845 */
+  --color-fd-primary: oklch(0.58 0.22 18);
+  --color-fd-primary-foreground: oklch(1 0 0);
+
+  --color-fd-secondary: oklch(0.22 0.01 285);
+  --color-fd-secondary-foreground: oklch(0.88 0.01 285);
+
+  --color-fd-accent: oklch(0.22 0.015 285);
+  --color-fd-accent-foreground: oklch(0.93 0.01 285);
+
+  --color-fd-ring: oklch(0.58 0.22 18);
+}
+
+.light {
+  --color-fd-background: oklch(1 0 0);
+  --color-fd-foreground: oklch(0.18 0.01 285);
+  --color-fd-muted: oklch(0.96 0.005 285);
+  --color-fd-muted-foreground: oklch(0.45 0.01 285);
+  --color-fd-popover: oklch(1 0 0);
+  --color-fd-popover-foreground: oklch(0.18 0.01 285);
+  --color-fd-card: oklch(0.98 0.003 285);
+  --color-fd-card-foreground: oklch(0.18 0.01 285);
+  --color-fd-border: oklch(0.9 0.005 285);
+  --color-fd-primary: oklch(0.55 0.22 18);
+  --color-fd-primary-foreground: oklch(1 0 0);
+  --color-fd-secondary: oklch(0.96 0.005 285);
+  --color-fd-secondary-foreground: oklch(0.18 0.01 285);
+  --color-fd-accent: oklch(0.96 0.005 285);
+  --color-fd-accent-foreground: oklch(0.18 0.01 285);
+  --color-fd-ring: oklch(0.55 0.22 18);
+}
+
+/* ============================================
+   Base Styles - Clean & Functional
+   ============================================ */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-feature-settings:
+    'liga' 1,
+    'calt' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+/* Inline code - subtle styling */
+:not(pre) > code {
+  background: var(--color-fd-muted);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875em;
+  font-weight: 450;
+}
+
+/* ============================================
+   Buttons - Simple, no glow
+   ============================================ */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 150ms ease;
+}
+
+.btn-primary:hover {
+  background: oklch(0.52 0.2 18);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: var(--color-fd-secondary);
+  color: var(--color-fd-secondary-foreground);
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-fd-muted-foreground);
+  background: var(--color-fd-muted);
+}
+
+/* ============================================
+   Cards - Clean borders, subtle hover
+   ============================================ */
+.feature-card {
+  background: var(--color-fd-card);
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  transition: border-color 150ms ease;
+}
+
+.feature-card:hover {
+  border-color: var(--color-fd-muted-foreground);
+}
+
+/* ============================================
+   Code blocks - clean, no shadows
+   ============================================ */
+figure.shiki,
+.shiki {
+  box-shadow: none !important;
+  --tw-shadow: none !important;
+  --tw-inset-shadow: none !important;
+}
+
+/* Remove border from inner pre when inside figure */
+figure.shiki pre,
+figure pre {
+  border: none !important;
+}
+
+/* ============================================
+   Selection
+   ============================================ */
+::selection {
+  background: oklch(0.58 0.22 18 / 0.25);
+}
+
+/* ============================================
+   Scrollbar - subtle
+   ============================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-fd-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fd-muted-foreground);
+}
+
+/* ============================================
+   Sidebar - Sponsors icon color
+   ============================================ */
+a[href='/docs/sponsors'] svg {
+  color: #e91e63;
+}
+
+/* ============================================
+   Reduced motion
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}

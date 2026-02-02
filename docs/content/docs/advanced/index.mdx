@@ -1,0 +1,98 @@
+---
+title: Advanced Usage
+description: Advanced patterns and integration options for nestjs-openapi-static
+---
+
+This section covers advanced use cases, internal APIs, and integration patterns for power users.
+
+## Topics
+
+<Cards>
+  <Card title="Programmatic API" href="/docs/advanced/programmatic">
+    Use nestjs-openapi-static in build scripts and custom tooling
+  </Card>
+  <Card title="Effect-TS API" href="/docs/advanced/effect-api">
+    Integrate with Effect-TS for functional error handling
+  </Card>
+  <Card title="Config Inheritance" href="/docs/advanced/extending">
+    Share configuration across multiple applications
+  </Card>
+  <Card title="Internals" href="/docs/advanced/internals">
+    How the library works under the hood
+  </Card>
+</Cards>
+
+## When to Use Advanced APIs
+
+The standard `generate()` function and CLI cover most use cases:
+
+```typescript
+// Standard usage - sufficient for 90% of cases
+import { generate } from 'nestjs-openapi-static';
+
+await generate('./openapi.config.ts');
+```
+
+Consider advanced APIs when you need:
+
+- **Custom build pipelines** - Integrate with existing Effect-TS applications
+- **Fine-grained control** - Access intermediate results (method infos, schemas)
+- **Custom error handling** - Use Effect's typed error channels
+- **Shared configuration** - Inherit settings across multiple configs
+- **Understanding internals** - Debug or extend the library
+
+## Advanced Exports
+
+The library exports additional APIs for advanced use cases:
+
+```typescript
+// Effect-based generation
+import {
+  generateEffect,
+  generateAsync,
+  type GenerateOptions,
+} from 'nestjs-openapi-static';
+
+// Domain types for custom processing
+import type {
+  MethodInfo,
+  ResolvedConfig,
+  HttpMethod,
+} from 'nestjs-openapi-static';
+
+// Typed errors for error handling
+import {
+  ConfigNotFoundError,
+  EntryNotFoundError,
+  type GeneratorError,
+} from 'nestjs-openapi-static';
+
+// Low-level utilities
+import {
+  getModules,
+  getAllControllers,
+  getMethodInfo,
+  transformMethods,
+} from 'nestjs-openapi-static';
+```
+
+## Comparison: Standard vs Advanced
+
+| Feature        | Standard API | Advanced API        |
+| -------------- | ------------ | ------------------- |
+| Config file    | Required     | Optional            |
+| Error handling | try/catch    | Effect typed errors |
+| Output         | File written | In-memory paths     |
+| Complexity     | Low          | High                |
+| Use case       | CLI, scripts | Custom tooling      |
+
+## Prerequisites
+
+Advanced usage assumes familiarity with:
+
+- TypeScript and its type system
+- Effect-TS (for Effect API)
+- ts-morph (for understanding internals)
+- OpenAPI 3.0 specification
+
+If you're new to Effect-TS, start with the [Effect documentation](https://effect.website/docs/introduction).

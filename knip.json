@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/index.ts!", "src/internal.ts!", "src/cli.ts!"],
+  "project": ["src/**/*.ts"],
+  "ignore": ["e2e-applications/**", "**/*.test.ts"],
+  "ignoreDependencies": [
+    "@typescript-eslint/eslint-plugin",
+    "@typescript-eslint/parser",
+    "eslint-plugin-prettier",
+    "@vitest/coverage-v8",
+    "@nestjs/swagger",
+    "tsx"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "optionalPeerDependencies": "off"
+  }
+}

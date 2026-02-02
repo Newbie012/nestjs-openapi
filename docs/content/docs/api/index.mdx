@@ -1,0 +1,116 @@
+---
+title: API Reference
+description: Complete API reference for nestjs-openapi-static
+---
+
+Complete reference documentation for the nestjs-openapi-static public API.
+
+## Primary API
+
+The main exports you'll use in most projects:
+
+| Export                                      | Description                                           |
+| ------------------------------------------- | ----------------------------------------------------- |
+| [`generate()`](/docs/api/generate)          | Generate OpenAPI spec (JSON or YAML) from config file |
+| [`defineConfig()`](/docs/api/define-config) | Type-safe configuration helper                        |
+| [`OpenApiModule`](/docs/api/openapi-module) | NestJS module for runtime serving                     |
+
+## Quick Example
+
+```typescript
+// openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: {
+    entry: 'src/app.module.ts',
+  },
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+```typescript
+// Generate programmatically
+import { generate } from 'nestjs-openapi-static';
+
+const result = await generate('./openapi.config.ts');
+console.log(`Generated ${result.operationCount} operations`);
+```
+
+```typescript
+// Serve at runtime
+import { OpenApiModule } from 'nestjs-openapi-static';
+
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      serveSwaggerUi: true,
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+## Types
+
+Configuration and OpenAPI spec types:
+
+| Type                                               | Description                     |
+| -------------------------------------------------- | ------------------------------- |
+| [`Config`](/docs/api/types#config)                 | Main configuration interface    |
+| [`FilesConfig`](/docs/api/types#filesconfig)       | Input file configuration        |
+| [`OpenApiConfig`](/docs/api/types#openapiconfig)   | OpenAPI metadata configuration  |
+| [`OptionsConfig`](/docs/api/types#optionsconfig)   | Generation options              |
+| [`SecurityConfig`](/docs/api/types#securityconfig) | Security scheme configuration   |
+| [`OpenApiSpec`](/docs/api/types#openapispec)       | Generated OpenAPI specification |
+
+## Errors
+
+Typed error classes for error handling:
+
+| Error                                                             | Description                    |
+| ----------------------------------------------------------------- | ------------------------------ |
+| [`ConfigNotFoundError`](/docs/api/errors#confignotfounderror)     | Config file not found          |
+| [`ConfigLoadError`](/docs/api/errors#configloaderror)             | Failed to load config          |
+| [`ConfigValidationError`](/docs/api/errors#configvalidationerror) | Invalid configuration          |
+| [`ProjectInitError`](/docs/api/errors#projectiniterror)           | TypeScript project init failed |
+| [`EntryNotFoundError`](/docs/api/errors#entrynotfounderror)       | Entry module not found         |
+
+## Advanced API
+
+For advanced use cases and Effect-TS integration:
+
+```typescript
+import {
+  generateEffect,
+  generateAsync,
+  type GenerateOptions,
+} from 'nestjs-openapi-static';
+```
+
+See [Advanced: Effect API](/docs/advanced/effect-api) for details.
+
+## Import Paths
+
+All exports are available from the main package:
+
+```typescript
+// Primary API
+import { generate, defineConfig, OpenApiModule } from 'nestjs-openapi-static';
+
+// Types
+import type { Config, OpenApiSpec } from 'nestjs-openapi-static';
+
+// Errors
+import { ConfigNotFoundError, EntryNotFoundError } from 'nestjs-openapi-static';
+
+// Module injection tokens
+import { OPENAPI_SPEC, OPENAPI_MODULE_OPTIONS } from 'nestjs-openapi-static';
+```

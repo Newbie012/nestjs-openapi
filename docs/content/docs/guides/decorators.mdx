@@ -1,0 +1,433 @@
+---
+title: Decorators
+description: Supported NestJS and Swagger decorators
+---
+
+The generator understands a comprehensive set of NestJS + Swagger decorators. Schemas come from TypeScript types (not `@ApiProperty`), and security can be configured via decorators or config.
+
+<Callout>
+  Quick truth table: we read routing + method Swagger decorators (tags,
+  operation metadata, consumes/produces, ApiResponse), parameter descriptions,
+  and exclusion decorators. We ignore property-level Swagger decorators and
+  response shortcuts.
+</Callout>
+
+## Routing Decorators
+
+### Controller
+
+```typescript
+@Controller('users')
+export class UsersController {
+  // All routes prefixed with /users
+}
+```
+
+<Callout type="warn">
+  Controller versioning (`@Controller({ path: 'users', version: '1' })`) is not
+  currently supported. We only read the string path.
+</Callout>
+
+### HTTP Method Decorators
+
+All standard HTTP method decorators are supported:
+
+```typescript
+@Controller('users')
+export class UsersController {
+  @Get()
+  findAll() {}
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {}
+
+  @Post()
+  create(@Body() dto: CreateUserDto) {}
+
+  @Put(':id')
+  replace(@Param('id') id: string, @Body() dto: UpdateUserDto) {}
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: PatchUserDto) {}
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {}
+}
+```
+
+### Parameter Decorators
+
+```typescript
+@Get(':id')
+findOne(
+  @Param('id') id: string,                    // Path parameter
+  @Query('include') include?: string,         // Query parameter
+  @Headers('authorization') auth: string,     // Header parameter
+) {}
+
+@Post()
+create(
+  @Body() dto: CreateUserDto,                 // Request body
+) {}
+```
+
+### Response Status
+
+```typescript
+@Post()
+@HttpCode(201)
+create(@Body() dto: CreateUserDto) {}
+
+@Delete(':id')
+@HttpCode(204)
+remove(@Param('id') id: string) {}
+```
+
+## Swagger Decorators
+
+### `@ApiTags`
+
+Assigns tags to controller endpoints:
+
+```typescript
+@ApiTags('users')
+@Controller('users')
+export class UsersController {
+  // All endpoints tagged with 'users'
+}
+
+// Multiple tags
+@ApiTags('users', 'admin')
+@Controller('admin/users')
+export class AdminUsersController {}
+```
+
+### `@ApiOperation`
+
+Describes an operation:
+
+```typescript
+@Get()
+@ApiOperation({
+  summary: 'List all users',
+  description: 'Returns a paginated list of users',
+  operationId: 'listUsers',
+  deprecated: false,
+})
+findAll() {}
+```
+
+| Property      | OpenAPI Field |
+| ------------- | ------------- |
+| `summary`     | `summary`     |
+| `description` | `description` |
+| `operationId` | `operationId` |
+| `deprecated`  | `deprecated`  |
+
+### `@ApiParam`
+
+Documents path parameters:
+
+```typescript
+@Get(':id')
+@ApiParam({
+  name: 'id',
+  description: 'User ID',
+  type: String,
+  required: true,
+  example: '123e4567-e89b-12d3-a456-426614174000',
+})
+findOne(@Param('id') id: string) {}
+```
+
+### `@ApiQuery`
+
+Documents query parameters:
+
+```typescript
+@Get()
+@ApiQuery({
+  name: 'page',
+  description: 'Page number',
+  type: Number,
+  required: false,
+  example: 1,
+})
+@ApiQuery({
+  name: 'limit',
+  description: 'Items per page',
+  type: Number,
+  required: false,
+  example: 10,
+})
+findAll(
+  @Query('page') page?: number,
+  @Query('limit') limit?: number,
+) {}
+```
+
+### `@ApiBody`
+
+Documents the request body:
+
+```typescript
+@Post()
+@ApiBody({
+  description: 'User creation data',
+  type: CreateUserDto,
+  required: true,
+})
+create(@Body() dto: CreateUserDto) {}
+```
+
+### `@ApiResponse`
+
+Documents responses. The `status` property is required and we read `description`, `type`, and array forms (`type: [UserDto]`). Shortcut helpers like `@ApiOkResponse` are not read; use `@ApiResponse` directly.
+
+```typescript
+@Get(':id')
+@ApiResponse({
+  status: 200,
+  description: 'User found',
+  type: UserDto,
+})
+@ApiResponse({
+  status: 404,
+  description: 'User not found',
+})
+findOne(@Param('id') id: string) {}
+```
+
+<Callout type="warn">
+  The `status` property is required for `@ApiResponse`. Responses without a
+  status are ignored.
+</Callout>
+
+### Response Shortcuts
+
+<Callout type="warn">
+  Response shortcut decorators (`@ApiOkResponse`, `@ApiCreatedResponse`, etc.)
+  are **not currently supported**. Use `@ApiResponse` with an explicit `status`
+  property instead.
+</Callout>
+
+```typescript
+// Instead of @ApiOkResponse({ description: 'Success', type: UserDto })
+// Use:
+@ApiResponse({ status: 200, description: 'Success', type: UserDto })
+
+// Instead of @ApiCreatedResponse({ description: 'Created', type: UserDto })
+// Use:
+@ApiResponse({ status: 201, description: 'Created', type: UserDto })
+
+// Instead of @ApiNotFoundResponse({ description: 'Not found' })
+// Use:
+@ApiResponse({ status: 404, description: 'Not found' })
+```
+
+### `@ApiConsumes` and `@ApiProduces`
+
+Specify content types:
+
+```typescript
+@Post('upload')
+@ApiConsumes('multipart/form-data')
+uploadFile(@Body() dto: FileUploadDto) {}
+
+@Get('report')
+@ApiProduces('application/pdf')
+getReport() {}
+```
+
+### `@ApiExcludeEndpoint`
+
+Exclude endpoints from the generated spec:
+
+```typescript
+@Get('health')
+@ApiExcludeEndpoint()
+healthCheck() {}
+```
+
+This is controlled by the `excludeDecorators` option:
+
+```typescript
+// openapi.config.ts
+options: {
+  excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
+}
+```
+
+## DTO Schema Generation
+
+<Callout type="info">
+  Schemas are generated from **TypeScript types**, not `@nestjs/swagger`
+  decorators. The library uses `ts-json-schema-generator` to analyze your DTO
+  classes and interfaces.
+</Callout>
+
+### How Schemas Work
+
+The library generates JSON Schema definitions by analyzing TypeScript source files:
+
+```typescript
+// TypeScript types are converted to JSON Schema
+export class CreateUserDto {
+  email: string; // → { "type": "string" }
+  age?: number; // → { "type": "number" } (optional)
+  roles: string[]; // → { "type": "array", "items": { "type": "string" } }
+}
+```
+
+### Adding Descriptions with JSDoc
+
+Use JSDoc comments to add descriptions to your schemas:
+
+```typescript
+export class CreateUserDto {
+  /** User email address */
+  email: string;
+
+  /**
+   * User age in years
+   * @minimum 0
+   * @maximum 150
+   */
+  age?: number;
+}
+```
+
+### class-validator Integration
+
+If you enable `extractValidation: true`, the library extracts constraints from class-validator decorators:
+
+```typescript
+export class CreateUserDto {
+  @IsEmail()
+  email: string; // → { "type": "string", "format": "email" }
+
+  @Min(0)
+  @Max(150)
+  age?: number; // → { "type": "number", "minimum": 0, "maximum": 150 }
+
+  @MinLength(1)
+  @MaxLength(100)
+  name: string; // → { "type": "string", "minLength": 1, "maxLength": 100 }
+}
+```
+
+See the [Validation Guide](/docs/guides/validation) for details.
+
+### Unsupported DTO Decorators
+
+The following `@nestjs/swagger` property decorators are **not supported**:
+
+- `@ApiProperty()` - Use TypeScript types and JSDoc instead
+- `@ApiPropertyOptional()` - Use optional properties (`?`) instead
+- `@ApiHideProperty()` - Not supported
+
+## Type Inference
+
+The library infers types from TypeScript when possible:
+
+```typescript
+@Controller('users')
+export class UsersController {
+  // Return type inferred from method signature
+  @Get()
+  findAll(): Promise<UserDto[]> {
+    return this.service.findAll();
+  }
+
+  // Parameter types inferred from decorators
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<UserDto> {
+    return this.service.findOne(id);
+  }
+}
+```
+
+<Callout>
+  For best results, always specify explicit return types on controller methods
+  and use typed DTOs for request bodies.
+</Callout>
+
+## Security Decorators
+
+Security decorators are fully supported at both controller and method level:
+
+```typescript
+@Controller('users')
+@ApiBearerAuth() // Applied to all methods
+export class UsersController {
+  @Get()
+  findAll() {} // Inherits @ApiBearerAuth
+
+  @Get(':id')
+  @ApiOAuth2(['read:users']) // Method-level override
+  findOne(@Param('id') id: string) {}
+
+  @Delete(':id')
+  @ApiBearerAuth('jwt')
+  @ApiSecurity('admin-key') // Multiple schemes (AND logic)
+  remove(@Param('id') id: string) {}
+}
+```
+
+### Supported Security Decorators
+
+| Decorator                     | Default Name | Notes                   |
+| ----------------------------- | ------------ | ----------------------- |
+| `@ApiBearerAuth(name?)`       | `'bearer'`   | HTTP Bearer (JWT)       |
+| `@ApiBasicAuth(name?)`        | `'basic'`    | HTTP Basic auth         |
+| `@ApiOAuth2(scopes[], name?)` | `'oauth2'`   | OAuth2 with scopes      |
+| `@ApiSecurity(name, scopes?)` | -            | Generic security scheme |
+| `@ApiCookieAuth(name?)`       | `'cookie'`   | Cookie-based auth       |
+
+### Behavior
+
+- **Controller-level**: Applies to all methods in the controller
+- **Method-level**: Overrides controller-level security
+- **Multiple decorators**: AND logic (all schemes required)
+- **Merge with config**: Decorator security merges with `openapi.security.global`
+
+<Callout>
+  Security schemes must still be defined in config. Decorators reference scheme
+  names defined in `openapi.security.schemes`.
+</Callout>
+
+See the [Security Guide](/docs/guides/security) for complete configuration options.
+
+## Unsupported Decorators
+
+The following `@nestjs/swagger` decorators are **not currently supported**:
+
+### Response Shortcuts
+
+- `@ApiOkResponse()` - Use `@ApiResponse({ status: 200, ... })`
+- `@ApiCreatedResponse()` - Use `@ApiResponse({ status: 201, ... })`
+- `@ApiAcceptedResponse()` - Use `@ApiResponse({ status: 202, ... })`
+- `@ApiNoContentResponse()` - Use `@ApiResponse({ status: 204, ... })`
+- `@ApiBadRequestResponse()` - Use `@ApiResponse({ status: 400, ... })`
+- `@ApiUnauthorizedResponse()` - Use `@ApiResponse({ status: 401, ... })`
+- `@ApiForbiddenResponse()` - Use `@ApiResponse({ status: 403, ... })`
+- `@ApiNotFoundResponse()` - Use `@ApiResponse({ status: 404, ... })`
+- `@ApiConflictResponse()` - Use `@ApiResponse({ status: 409, ... })`
+- `@ApiInternalServerErrorResponse()` - Use `@ApiResponse({ status: 500, ... })`
+
+### Property Decorators
+
+- `@ApiProperty()` - Use TypeScript types and JSDoc
+- `@ApiPropertyOptional()` - Use optional properties (`?`)
+- `@ApiHideProperty()` - Not supported
+
+### Other
+
+- `@ApiExtension()` - Custom extensions
+- Controller versioning - `@Controller({ path, version })` object syntax
+
+## Next Steps
+
+- [Security Guide](/docs/guides/security) - Configure authentication schemes
+- [Validation Guide](/docs/guides/validation) - Extract class-validator constraints
+- [Filtering Guide](/docs/guides/filtering) - Exclude endpoints from the spec

@@ -11,7 +11,7 @@ export class UserService {
       createdAt: new Date('2025-09-18T09:00:00Z'),
     },
     {
-      id: '2', 
+      id: '2',
       email: 'jane@example.com',
       name: 'Jane Smith',
       createdAt: new Date('2025-09-18T09:30:00Z'),
@@ -23,7 +23,7 @@ export class UserService {
   }
 
   findById(id: string): UserDto {
-    const user = this.users.find(user => user.id === id);
+    const user = this.users.find((user) => user.id === id);
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -36,7 +36,7 @@ export class UserService {
       ...createUserDto,
       createdAt: new Date(),
     };
-    
+
     this.users.push(newUser);
     return newUser;
   }

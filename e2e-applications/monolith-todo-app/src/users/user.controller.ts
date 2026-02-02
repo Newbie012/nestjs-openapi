@@ -42,9 +42,10 @@ export class UserController {
 
     if (search) {
       const searchLower = search.toLowerCase();
-      users = users.filter(user => 
-        user.name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower)
+      users = users.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchLower) ||
+          user.email.toLowerCase().includes(searchLower),
       );
     }
 

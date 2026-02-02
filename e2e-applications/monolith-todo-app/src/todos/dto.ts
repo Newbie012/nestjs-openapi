@@ -1,95 +1,95 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTodoDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'The title of the todo item',
-    example: 'Buy groceries'
+    example: 'Buy groceries',
   })
   title: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Detailed description of the todo item',
     example: 'Buy milk, eggs, and bread from the store',
-    required: false
+    required: false,
   })
   description?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Priority level of the todo',
     enum: ['low', 'medium', 'high'],
-    default: 'medium'
+    default: 'medium',
   })
   priority: 'low' | 'medium' | 'high';
 }
 
 export class UpdateTodoDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'The title of the todo item',
-    required: false
+    required: false,
   })
   title?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Detailed description of the todo item',
-    required: false
+    required: false,
   })
   description?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Whether the todo is completed',
-    required: false
+    required: false,
   })
   completed?: boolean;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Priority level of the todo',
     enum: ['low', 'medium', 'high'],
-    required: false
+    required: false,
   })
   priority?: 'low' | 'medium' | 'high';
 }
 
 export class TodoDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Unique identifier for the todo',
-    example: 'uuid-123'
+    example: 'uuid-123',
   })
   id: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'The title of the todo item',
-    example: 'Buy groceries'
+    example: 'Buy groceries',
   })
   title: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Detailed description of the todo item',
-    example: 'Buy milk, eggs, and bread from the store'
+    example: 'Buy milk, eggs, and bread from the store',
   })
   description: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Whether the todo is completed',
-    example: false
+    example: false,
   })
   completed: boolean;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Priority level of the todo',
     enum: ['low', 'medium', 'high'],
-    example: 'medium'
+    example: 'medium',
   })
   priority: 'low' | 'medium' | 'high';
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Creation timestamp',
-    example: '2025-09-18T10:00:00Z'
+    example: '2025-09-18T10:00:00Z',
   })
   createdAt: Date;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Last update timestamp',
-    example: '2025-09-18T10:00:00Z'
+    example: '2025-09-18T10:00:00Z',
   })
   updatedAt: Date;
 }

@@ -1,0 +1,333 @@
+---
+title: Filtering
+description: Exclude endpoints from the generated OpenAPI spec
+---
+
+Exclude endpoints from the generated spec using decorators or path filters.
+
+<Callout>
+  Defaults: we already skip endpoints with `ApiExcludeEndpoint` and
+  `ApiExcludeController`. `pathFilter` is an **include** filter - only matching
+  paths remain.
+</Callout>
+
+## Decorator-Based Exclusion
+
+### Using `@ApiExcludeEndpoint`
+
+The standard `@nestjs/swagger` decorator for excluding individual endpoints:
+
+```typescript
+import { ApiExcludeEndpoint } from '@nestjs/swagger';
+
+@Controller('system')
+export class SystemController {
+  @Get('health')
+  @ApiExcludeEndpoint()
+  healthCheck() {
+    return { status: 'ok' };
+  }
+
+  @Get('metrics')
+  @ApiExcludeEndpoint()
+  metrics() {
+    return this.metricsService.getAll();
+  }
+
+  @Get('status')
+  // This endpoint IS included in the spec
+  status() {
+    return { version: '1.0.0' };
+  }
+}
+```
+
+### Using `@ApiExcludeController`
+
+Exclude an entire controller:
+
+```typescript
+import { ApiExcludeController } from '@nestjs/swagger';
+
+@ApiExcludeController()
+@Controller('internal')
+export class InternalController {
+  // All endpoints in this controller are excluded
+  @Get('debug')
+  debug() {}
+
+  @Post('reset')
+  reset() {}
+}
+```
+
+### Custom Exclusion Decorators
+
+Configure custom decorator names to trigger exclusion:
+
+```typescript
+// openapi.config.ts
+export default defineConfig({
+  output: 'openapi.json',
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+  },
+  options: {
+    excludeDecorators: [
+      'ApiExcludeEndpoint', // Default
+      'ApiExcludeController', // Default
+      'Internal', // Custom
+      'AdminOnly', // Custom
+      'Deprecated', // Custom
+    ],
+  },
+});
+```
+
+Create custom decorators:
+
+```typescript
+// decorators/internal.decorator.ts
+import { SetMetadata } from '@nestjs/common';
+
+export const Internal = () => SetMetadata('internal', true);
+```
+
+Use them:
+
+```typescript
+@Controller('admin')
+export class AdminController {
+  @Get('users')
+  @Internal() // Excluded from spec
+  listAllUsers() {}
+
+  @Delete('cache')
+  @AdminOnly() // Excluded from spec
+  clearCache() {}
+}
+```
+
+## Path-Based Filtering
+
+### Using Regex
+
+Filter paths with a regular expression. Paths matching the regex are **included**:
+
+```typescript
+// openapi.config.ts
+export default defineConfig({
+  output: 'openapi.json',
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+  },
+  options: {
+    // Exclude paths containing '/internal/'
+    pathFilter: /^(?!.*\/internal\/).*/,
+  },
+});
+```
+
+Common patterns:
+
+```typescript
+// Exclude internal paths
+pathFilter: /^(?!.*\/internal\/).*/;
+
+// Only include /api/v2 paths
+pathFilter: /^\/api\/v2\//;
+
+// Exclude admin and debug paths
+pathFilter: /^(?!.*(\/admin\/|\/debug\/)).*/;
+
+// Only include public API paths
+pathFilter: /^\/public\//;
+```
+
+### Using a Function
+
+For complex filtering logic, use a predicate function:
+
+```typescript
+options: {
+  pathFilter: (path) => {
+    // Exclude internal paths
+    if (path.includes('/internal/')) return false;
+
+    // Exclude deprecated v1 API
+    if (path.startsWith('/api/v1/')) return false;
+
+    // Exclude admin endpoints
+    if (path.includes('/admin/')) return false;
+
+    // Include everything else
+    return true;
+  },
+}
+```
+
+### Combining Filters
+
+Decorator exclusion and path filtering work together:
+
+```typescript
+// openapi.config.ts
+export default defineConfig({
+  output: 'openapi.json',
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+  },
+  options: {
+    // Decorator-based exclusion
+    excludeDecorators: ['ApiExcludeEndpoint', 'Internal'],
+
+    // Path-based filtering
+    pathFilter: /^(?!.*\/internal\/).*/,
+  },
+});
+```
+
+An endpoint is excluded if:
+
+1. It has any decorator in `excludeDecorators`, **OR**
+2. Its path doesn't match `pathFilter`
+
+## Use Cases
+
+### Public vs Internal APIs
+
+Generate separate specs for public and internal APIs:
+
+```typescript
+// public-openapi.config.ts
+export default defineConfig({
+  output: 'openapi-public.json',
+  openapi: {
+    info: { title: 'Public API', version: '1.0.0' },
+  },
+  options: {
+    pathFilter: /^\/api\/public\//,
+  },
+});
+
+// internal-openapi.config.ts
+export default defineConfig({
+  output: 'openapi-internal.json',
+  openapi: {
+    info: { title: 'Internal API', version: '1.0.0' },
+  },
+  options: {
+    pathFilter: /^\/api\/internal\//,
+  },
+});
+```
+
+### API Versioning
+
+Generate specs for different API versions:
+
+```typescript
+// v1-openapi.config.ts
+export default defineConfig({
+  output: 'openapi-v1.json',
+  openapi: {
+    info: { title: 'API v1', version: '1.0.0' },
+  },
+  options: {
+    pathFilter: /^\/api\/v1\//,
+  },
+});
+
+// v2-openapi.config.ts
+export default defineConfig({
+  output: 'openapi-v2.json',
+  openapi: {
+    info: { title: 'API v2', version: '2.0.0' },
+  },
+  options: {
+    pathFilter: /^\/api\/v2\//,
+  },
+});
+```
+
+### Health and Metrics Endpoints
+
+Exclude infrastructure endpoints from public documentation:
+
+```typescript
+options: {
+  excludeDecorators: ['ApiExcludeEndpoint'],
+  pathFilter: (path) => {
+    const infrastructurePaths = ['/health', '/ready', '/metrics', '/debug'];
+    return !infrastructurePaths.some(p => path.startsWith(p));
+  },
+}
+```
+
+### Feature Flags
+
+Conditionally include endpoints based on environment:
+
+```typescript
+// openapi.config.ts
+const includeExperimentalFeatures = process.env.INCLUDE_EXPERIMENTAL === 'true';
+
+export default defineConfig({
+  output: 'openapi.json',
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+  },
+  options: {
+    pathFilter: (path) => {
+      if (path.includes('/experimental/') && !includeExperimentalFeatures) {
+        return false;
+      }
+      return true;
+    },
+  },
+});
+```
+
+## Examples
+
+### Exclude by Multiple Criteria
+
+```typescript
+options: {
+  excludeDecorators: [
+    'ApiExcludeEndpoint',
+    'ApiExcludeController',
+    'Internal',
+    'Deprecated',
+    'Beta',
+  ],
+  pathFilter: (path) => {
+    // Exclude patterns
+    const excludePatterns = [
+      /^\/internal\//,
+      /^\/debug\//,
+      /^\/admin\/system\//,
+      /\/_private$/,
+    ];
+
+    return !excludePatterns.some(pattern => pattern.test(path));
+  },
+}
+```
+
+### Include Only Specific Tags
+
+While this doesn't filter by OpenAPI tags directly, you can structure your paths:
+
+```typescript
+options: {
+  // Only include user-related endpoints
+  pathFilter: /^\/(users|profiles|accounts)\//,
+}
+```
+
+## Next Steps
+
+- [Serving Guide](/docs/guides/serving) - Serve the spec at runtime
+- [Configuration Reference](/docs/guides/configuration) - Full config options
+- [Recipes: CI/CD](/docs/recipes/ci-cd) - Generate specs in pipelines

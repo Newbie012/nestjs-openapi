@@ -1,0 +1,238 @@
+---
+title: defineConfig()
+description: Type-safe configuration helper for nestjs-openapi-static
+---
+
+A helper function that provides TypeScript type inference for configuration objects. It's a pass-through function that returns the config unchanged but enables IDE autocomplete and type checking.
+
+## Signature
+
+```typescript
+function defineConfig(config: Config): Config;
+```
+
+## Parameters
+
+| Parameter | Type     | Description          |
+| --------- | -------- | -------------------- |
+| `config`  | `Config` | Configuration object |
+
+## Returns
+
+`Config` - The same configuration object (unchanged).
+
+## Example
+
+### Basic Usage
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: { entry: 'src/app.module.ts' },
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+    },
+  },
+});
+```
+
+### Full Configuration
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'src/openapi/spec.json',
+  format: 'json',
+
+  files: {
+    entry: 'src/app.module.ts',
+    tsconfig: 'tsconfig.json',
+    dtoGlob: 'src/**/*.dto.ts',
+    exclude: ['**/*.spec.ts', '**/*.test.ts'],
+  },
+
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+      description: 'API description',
+      contact: {
+        name: 'Support',
+        email: 'support@example.com',
+        url: 'https://support.example.com',
+      },
+      license: {
+        name: 'MIT',
+        url: 'https://opensource.org/licenses/MIT',
+      },
+    },
+    servers: [
+      { url: 'https://api.example.com', description: 'Production' },
+      { url: 'http://localhost:3000', description: 'Development' },
+    ],
+    tags: [
+      { name: 'users', description: 'User operations' },
+      { name: 'posts', description: 'Post operations' },
+    ],
+    security: {
+      schemes: [
+        {
+          name: 'bearerAuth',
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      ],
+      global: [{ bearerAuth: [] }],
+    },
+  },
+
+  options: {
+    basePath: '/api/v1',
+    extractValidation: true,
+    excludeDecorators: ['ApiExcludeEndpoint', 'Internal'],
+    pathFilter: /^(?!.*\/internal\/).*/,
+  },
+});
+```
+
+### Sharing config across files
+
+`extends` is defined in the types but not executed by the Promise-based generator. Use manual composition instead (see [Config Inheritance](/docs/advanced/extending)).
+
+### Without defineConfig
+
+You can export a plain object, but you lose type checking:
+
+```typescript
+// Works but no autocomplete or type checking
+export default {
+  output: 'openapi.json',
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+    },
+  },
+};
+
+// Or use type annotation
+import type { Config } from 'nestjs-openapi-static';
+
+const config: Config = {
+  output: 'openapi.json',
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+    },
+  },
+};
+
+export default config;
+```
+
+## Config Structure
+
+### Required Fields
+
+```typescript
+defineConfig({
+  // Where to write the generated spec (required)
+  output: 'openapi.json',
+
+  // OpenAPI metadata (required)
+  openapi: {
+    info: {
+      title: 'My API', // required
+      version: '1.0.0', // required
+    },
+  },
+});
+```
+
+### Optional Fields
+
+```typescript
+defineConfig({
+  output: 'openapi.json',
+
+  // Output format (default: 'json')
+  format: 'json', // or 'yaml'
+
+  // Input files
+  files: {
+    entry: 'src/app.module.ts', // default
+    tsconfig: 'tsconfig.json', // generator will try to find it if omitted
+    dtoGlob: 'src/**/*.dto.ts',
+    include: ['src/**/*.ts'],
+    exclude: ['**/*.spec.ts'],
+  },
+
+  openapi: {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+      description: 'Optional description',
+      contact: {
+        /* optional */
+      },
+      license: {
+        /* optional */
+      },
+    },
+    servers: [
+      /* optional */
+    ],
+    tags: [
+      /* optional */
+    ],
+    security: {
+      /* optional */
+    },
+  },
+
+  // Generation options
+  options: {
+    basePath: '/api',
+    extractValidation: true, // default
+    excludeDecorators: ['ApiExcludeEndpoint'],
+    pathFilter: /regex/ /* or function */,
+  },
+});
+```
+
+## Type Inference
+
+`defineConfig` enables full TypeScript type inference:
+
+```typescript
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  openapi: {
+    security: {
+      schemes: [
+        {
+          name: 'auth',
+          type: 'http', // Autocomplete: 'http' | 'apiKey' | 'oauth2' | 'openIdConnect'
+          scheme: 'bearer', // Only valid when type is 'http'
+          // in: 'header',  // TypeScript error: 'in' only valid for 'apiKey'
+        },
+      ],
+    },
+  },
+});
+```
+
+## See Also
+
+- [Configuration Guide](/docs/guides/configuration) - Detailed config options
+- [Config Types](/docs/api/types) - TypeScript type definitions
+- [generate()](/docs/api/generate) - Generation function

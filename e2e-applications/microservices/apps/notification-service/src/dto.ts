@@ -1,164 +1,164 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateNotificationDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'User ID to send notification to',
-    example: 'usr_123456789'
+    example: 'usr_123456789',
   })
   userId: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notification type',
     enum: ['email', 'push', 'sms', 'in_app'],
-    example: 'email'
+    example: 'email',
   })
   type: 'email' | 'push' | 'sms' | 'in_app';
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notification title',
-    example: 'Welcome to our platform!'
+    example: 'Welcome to our platform!',
   })
   title: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notification message content',
-    example: 'Thank you for signing up. Get started by exploring our features.'
+    example: 'Thank you for signing up. Get started by exploring our features.',
   })
   message: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Priority level',
     enum: ['low', 'medium', 'high', 'urgent'],
-    default: 'medium'
+    default: 'medium',
   })
   priority: 'low' | 'medium' | 'high' | 'urgent';
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Schedule delivery for later (optional)',
     required: false,
-    example: '2025-09-18T16:00:00Z'
+    example: '2025-09-18T16:00:00Z',
   })
   scheduledFor?: Date;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Additional metadata for the notification',
     required: false,
-    example: { campaign_id: 'welcome_series_1', source: 'signup' }
+    example: { campaign_id: 'welcome_series_1', source: 'signup' },
   })
   metadata?: Record<string, any>;
 }
 
 export class NotificationDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Unique notification identifier',
-    example: 'notif_abc123def456'
+    example: 'notif_abc123def456',
   })
   id: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'User ID who received the notification',
-    example: 'usr_123456789'
+    example: 'usr_123456789',
   })
   userId: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notification type',
     enum: ['email', 'push', 'sms', 'in_app'],
-    example: 'email'
+    example: 'email',
   })
   type: 'email' | 'push' | 'sms' | 'in_app';
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notification title',
-    example: 'Welcome to our platform!'
+    example: 'Welcome to our platform!',
   })
   title: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notification message content',
-    example: 'Thank you for signing up. Get started by exploring our features.'
+    example: 'Thank you for signing up. Get started by exploring our features.',
   })
   message: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Current status of the notification',
     enum: ['pending', 'sent', 'delivered', 'failed', 'read'],
-    example: 'delivered'
+    example: 'delivered',
   })
   status: 'pending' | 'sent' | 'delivered' | 'failed' | 'read';
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Priority level',
     enum: ['low', 'medium', 'high', 'urgent'],
-    example: 'medium'
+    example: 'medium',
   })
   priority: 'low' | 'medium' | 'high' | 'urgent';
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'When notification was created',
-    example: '2025-09-18T14:00:00Z'
+    example: '2025-09-18T14:00:00Z',
   })
   createdAt: Date;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'When notification was sent (null if not sent)',
-    example: '2025-09-18T14:05:00Z'
+    example: '2025-09-18T14:05:00Z',
   })
   sentAt: Date | null;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'When notification was delivered (null if not delivered)',
-    example: '2025-09-18T14:05:30Z'
+    example: '2025-09-18T14:05:30Z',
   })
   deliveredAt: Date | null;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'When user read the notification (null if not read)',
-    example: '2025-09-18T14:30:00Z'
+    example: '2025-09-18T14:30:00Z',
   })
   readAt: Date | null;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Additional metadata',
-    example: { campaign_id: 'welcome_series_1', source: 'signup' }
+    example: { campaign_id: 'welcome_series_1', source: 'signup' },
   })
   metadata: Record<string, any>;
 }
 
 export class NotificationStatsDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Total notifications sent',
-    example: 1542
+    example: 1542,
   })
   totalSent: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Notifications pending delivery',
-    example: 23
+    example: 23,
   })
   pending: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Successfully delivered notifications',
-    example: 1450
+    example: 1450,
   })
   delivered: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Failed delivery notifications',
-    example: 69
+    example: 69,
   })
   failed: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Read notifications',
-    example: 892
+    example: 892,
   })
   read: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Breakdown by notification type',
-    example: { email: 850, push: 450, sms: 120, in_app: 122 }
+    example: { email: 850, push: 450, sms: 120, in_app: 122 },
   })
   byType: Record<string, number>;
 }

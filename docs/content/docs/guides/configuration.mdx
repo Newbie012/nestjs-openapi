@@ -1,0 +1,315 @@
+---
+title: Configuration
+description: Complete configuration reference for nestjs-openapi-static
+---
+
+All configuration is done through a TypeScript config file (typically `openapi.config.ts`). Use the `defineConfig` helper for type safety.
+
+## Config File Structure
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  // Where to write the spec (required)
+  output: 'openapi.json',
+
+  // Output format
+  format: 'json',
+
+  // Input file configuration
+  files: {
+    entry: 'src/app.module.ts',
+  },
+
+  // OpenAPI metadata
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+  },
+
+  // Generation options
+  options: {
+    basePath: '/api',
+  },
+});
+```
+
+## `output` (required)
+
+Path to write the generated specification. Relative to the config file.
+
+```typescript
+output: 'src/openapi/spec.json';
+```
+
+## `format`
+
+Output format for the specification.
+
+| Value    | Description                   |
+| -------- | ----------------------------- |
+| `'json'` | JSON format (default)         |
+| `'yaml'` | YAML format (fully supported) |
+
+## `files`
+
+Input file configuration. All paths are relative to the config file location.
+
+```typescript
+files: {
+   // Entry module file(s) - default: 'src/app.module.ts'
+   entry: 'src/app.module.ts',
+
+   // Multiple entry points (only the first is used today)
+   entry: ['src/app.module.ts', 'src/admin.module.ts'],
+
+   // tsconfig path (recommended)
+   tsconfig: 'tsconfig.json',
+
+  // Glob pattern(s) for DTO files
+  dtoGlob: 'src/**/*.dto.ts',
+
+  // Multiple DTO patterns
+  dtoGlob: ['src/**/*.dto.ts', 'libs/**/*.dto.ts'],
+
+  // Glob patterns to include
+  include: ['src/**/*.ts'],
+
+  // Glob patterns to exclude (defaults shown)
+  exclude: ['**/*.spec.ts', '**/*.test.ts', '**/node_modules/**'],
+}
+```
+
+Set `tsconfig` explicitly. The Promise-based generator will search upward from `files.entry` if omitted, but the Effect-based API requires a path.
+
+### Entry Points
+
+The `entry` option specifies which module file to analyze. The library traverses `@Module({ imports })` to discover all controllers.
+
+```typescript
+// Single entry point
+entry: 'src/app.module.ts';
+
+// Multiple entry points (first entry is used today)
+entry: ['apps/api/src/app.module.ts', 'apps/admin/src/app.module.ts'];
+```
+
+<Callout type="warn">
+  Multi-entry configs are normalized but the current generator only reads the
+  first entry. Provide separate configs per app if you need multiple specs.
+</Callout>
+
+### DTO Glob
+
+The `dtoGlob` option specifies which files contain DTOs for schema generation. Only exported types are converted into schemas.
+
+```typescript
+// Single pattern
+dtoGlob: 'src/**/*.dto.ts';
+
+// Multiple patterns
+dtoGlob: ['src/**/*.dto.ts', 'src/**/*.entity.ts'];
+```
+
+## `openapi`
+
+OpenAPI specification metadata. Maps directly to the OpenAPI 3.0 spec structure.
+
+### `info` (required)
+
+API metadata for the `info` section:
+
+```typescript
+openapi: {
+  info: {
+    title: 'My API',           // required
+    version: '1.0.0',          // required
+    description: 'API for managing resources',
+    contact: {
+      name: 'API Support',
+      email: 'support@example.com',
+      url: 'https://support.example.com',
+    },
+    license: {
+      name: 'MIT',
+      url: 'https://opensource.org/licenses/MIT',
+    },
+  },
+}
+```
+
+### `servers`
+
+Server URLs for the API:
+
+```typescript
+openapi: {
+  servers: [
+    { url: 'https://api.example.com', description: 'Production' },
+    { url: 'https://staging-api.example.com', description: 'Staging' },
+    { url: 'http://localhost:3000', description: 'Development' },
+  ],
+}
+```
+
+### `tags`
+
+Tags for organizing API endpoints:
+
+```typescript
+openapi: {
+  tags: [
+    { name: 'users', description: 'User management' },
+    { name: 'posts', description: 'Blog post operations' },
+    { name: 'auth', description: 'Authentication' },
+  ],
+}
+```
+
+### `security`
+
+Security schemes and global requirements. See the [Security Guide](/docs/guides/security) for details.
+
+```typescript
+openapi: {
+  security: {
+    schemes: [
+      {
+        name: 'bearerAuth',
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+    ],
+    global: [{ bearerAuth: [] }],
+  },
+}
+```
+
+## `options`
+
+Generation behavior options.
+
+### `basePath`
+
+Global prefix for all routes. Equivalent to NestJS's `app.setGlobalPrefix()`:
+
+```typescript
+options: {
+  basePath: '/api/v1',
+}
+```
+
+With this configuration, a route `GET /users` becomes `GET /api/v1/users`.
+
+### `extractValidation`
+
+Extract validation constraints from class-validator decorators (default: `true`):
+
+```typescript
+options: {
+  extractValidation: true,
+}
+```
+
+See the [Validation Guide](/docs/guides/validation) for details.
+
+### `excludeDecorators`
+
+Decorator names that exclude endpoints from the spec:
+
+```typescript
+options: {
+  // Default values
+  excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
+
+  // Add custom decorators
+  excludeDecorators: ['ApiExcludeEndpoint', 'Internal', 'AdminOnly'],
+}
+```
+
+### `pathFilter`
+
+Filter paths by regex or predicate function. Paths matching the regex (or returning `true`) are **included**:
+
+```typescript
+options: {
+  // Exclude paths containing '/internal/'
+  pathFilter: /^(?!.*\/internal\/).*/,
+
+  // Using a function
+  pathFilter: (path) => !path.includes('/internal/'),
+
+  // Include only v2 API paths
+  pathFilter: /^\/api\/v2\//,
+}
+```
+
+## `extends`
+
+The type definition includes an `extends` field for future shared configs, but it is **not implemented** in the current Promise-based generator. Keep configs standalone for now.
+
+## Complete Example
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'src/openapi/openapi.generated.json',
+  format: 'json',
+
+  files: {
+    entry: 'src/app.module.ts',
+    tsconfig: 'tsconfig.json',
+    dtoGlob: 'src/**/*.dto.ts',
+    exclude: ['**/*.spec.ts', '**/*.test.ts'],
+  },
+
+  openapi: {
+    info: {
+      title: 'Todo API',
+      version: '1.0.0',
+      description: 'A simple todo management API',
+      contact: {
+        name: 'API Support',
+        email: 'support@example.com',
+      },
+      license: {
+        name: 'MIT',
+      },
+    },
+    servers: [
+      { url: 'https://api.todo.example.com', description: 'Production' },
+      { url: 'http://localhost:3000', description: 'Development' },
+    ],
+    tags: [
+      { name: 'todos', description: 'Todo operations' },
+      { name: 'users', description: 'User management' },
+    ],
+    security: {
+      schemes: [
+        {
+          name: 'bearerAuth',
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      ],
+      global: [{ bearerAuth: [] }],
+    },
+  },
+
+  options: {
+    basePath: '/api/v1',
+    extractValidation: true,
+    excludeDecorators: ['ApiExcludeEndpoint', 'Internal'],
+    pathFilter: /^(?!.*\/internal\/).*/,
+  },
+});
+```
+
+## Next Steps
+
+- [Decorators Guide](/docs/guides/decorators) - Supported NestJS and Swagger decorators
+- [Security Guide](/docs/guides/security) - Configure authentication schemes
+- [Validation Guide](/docs/guides/validation) - Extract class-validator constraints

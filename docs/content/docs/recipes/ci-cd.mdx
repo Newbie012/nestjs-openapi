@@ -1,0 +1,414 @@
+---
+title: CI/CD Integration
+description: Generate OpenAPI specs in continuous integration pipelines
+---
+
+Since nestjs-openapi-static requires no runtime or infrastructure, it's perfect for CI/CD pipelines. Generate specs without starting your application or connecting to databases.
+
+## GitHub Actions
+
+### Basic Workflow
+
+```yaml
+# .github/workflows/openapi.yml
+name: OpenAPI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate OpenAPI spec
+        run: npx nestjs-openapi-static generate -c openapi.config.ts
+
+      - name: Upload spec artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.json
+```
+
+### With Validation
+
+Validate the generated spec using `@redocly/cli`:
+
+```yaml
+# .github/workflows/openapi.yml
+name: OpenAPI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  generate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate OpenAPI spec
+        run: npx nestjs-openapi-static generate -c openapi.config.ts
+
+      - name: Validate OpenAPI spec
+        run: npx @redocly/cli lint openapi.json
+
+      - name: Upload spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.json
+```
+
+### Auto-Commit Generated Spec
+
+Automatically commit spec changes:
+
+```yaml
+# .github/workflows/openapi.yml
+name: OpenAPI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'openapi.config.ts'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate OpenAPI spec
+        run: npx nestjs-openapi-static generate -c openapi.config.ts
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: update OpenAPI spec'
+          file_pattern: 'openapi.json'
+```
+
+### Check for Spec Changes in PRs
+
+Fail if spec changes are not committed:
+
+```yaml
+# .github/workflows/openapi-check.yml
+name: OpenAPI Check
+
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate OpenAPI spec
+        run: npx nestjs-openapi-static generate -c openapi.config.ts
+
+      - name: Check for uncommitted changes
+        run: |
+          if git diff --exit-code openapi.json; then
+            echo "OpenAPI spec is up to date"
+          else
+            echo "::error::OpenAPI spec is out of date. Run 'npx nestjs-openapi-static generate' and commit the changes."
+            exit 1
+          fi
+```
+
+## GitLab CI
+
+### Basic Pipeline
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - generate
+  - validate
+
+generate-openapi:
+  stage: generate
+  image: node:20
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npx nestjs-openapi-static generate -c openapi.config.ts
+  artifacts:
+    paths:
+      - openapi.json
+    expire_in: 1 week
+
+validate-openapi:
+  stage: validate
+  image: node:20
+  needs: [generate-openapi]
+  script:
+    - npx @redocly/cli lint openapi.json
+```
+
+### With Auto-Commit
+
+```yaml
+# .gitlab-ci.yml
+generate-and-commit:
+  stage: generate
+  image: node:20
+  only:
+    - main
+  script:
+    - npm ci
+    - npx nestjs-openapi-static generate -c openapi.config.ts
+    - |
+      if git diff --exit-code openapi.json; then
+        echo "No changes"
+      else
+        git config user.email "ci@example.com"
+        git config user.name "CI Bot"
+        git add openapi.json
+        git commit -m "chore: update OpenAPI spec"
+        git push https://oauth2:${CI_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:main
+      fi
+```
+
+## CircleCI
+
+```yaml
+# .circleci/config.yml
+version: 2.1
+
+jobs:
+  generate-openapi:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-deps-{{ checksum "package-lock.json" }}
+      - run: npm ci
+      - save_cache:
+          key: v1-deps-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Generate OpenAPI spec
+          command: npx nestjs-openapi-static generate -c openapi.config.ts
+      - run:
+          name: Validate spec
+          command: npx @redocly/cli lint openapi.json
+      - store_artifacts:
+          path: openapi.json
+          destination: openapi-spec
+
+workflows:
+  build:
+    jobs:
+      - generate-openapi
+```
+
+## Azure Pipelines
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '20.x'
+
+  - script: npm ci
+    displayName: 'Install dependencies'
+
+  - script: npx nestjs-openapi-static generate -c openapi.config.ts
+    displayName: 'Generate OpenAPI spec'
+
+  - script: npx @redocly/cli lint openapi.json
+    displayName: 'Validate spec'
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'openapi.json'
+      artifactName: 'openapi-spec'
+```
+
+## Monorepo Pipelines
+
+For monorepos with multiple specs:
+
+```yaml
+# .github/workflows/openapi.yml
+name: OpenAPI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'libs/**'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [backend-api, admin-api, public-api]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate OpenAPI spec for ${{ matrix.app }}
+        run: npx nestjs-openapi-static generate -c apps/${{ matrix.app }}/openapi.config.ts
+
+      - name: Upload spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/openapi.json
+```
+
+## Publishing to API Portal
+
+Deploy specs to an API documentation portal:
+
+```yaml
+# .github/workflows/publish-docs.yml
+name: Publish API Docs
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate spec
+        run: npx nestjs-openapi-static generate -c openapi.config.ts
+
+      - name: Publish to Bump.sh
+        run: npx bump deploy openapi.json --doc my-api --token ${{ secrets.BUMP_TOKEN }}
+
+      # Or publish to SwaggerHub
+      # - name: Publish to SwaggerHub
+      #   run: |
+      #     curl -X POST "https://api.swaggerhub.com/apis/ORG/API/1.0.0" \
+      #       -H "Authorization: ${{ secrets.SWAGGERHUB_TOKEN }}" \
+      #       -H "Content-Type: application/json" \
+      #       -d @openapi.json
+```
+
+## Docker Build Integration
+
+Generate spec during Docker build:
+
+```dockerfile
+# Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+RUN npx nestjs-openapi-static generate -c openapi.config.ts
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/openapi.json ./openapi.json
+COPY --from=builder /app/node_modules ./node_modules
+
+CMD ["node", "dist/main.js"]
+```
+
+## Pre-commit Hooks
+
+Generate spec before commits using Husky:
+
+```bash
+npm install -D husky
+npx husky init
+```
+
+```bash
+# .husky/pre-commit
+npx nestjs-openapi-static generate -c openapi.config.ts
+git add openapi.json
+```
+
+<Callout type="warn">
+  Pre-commit hooks that modify files can be slow. Consider using CI-based
+  generation for larger projects.
+</Callout>
+
+## Next Steps
+
+- [OpenAPI Clients Recipe](/docs/recipes/openapi-clients) - Generate typed clients from specs
+- [Monorepo Recipe](/docs/recipes/monorepo) - Multiple apps setup
+- [Swagger UI Recipe](/docs/recipes/swagger-ui) - Serve interactive docs

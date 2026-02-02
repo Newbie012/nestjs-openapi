@@ -1,0 +1,6 @@
+{
+  "title": "Advanced",
+  "icon": "Cog",
+  "defaultOpen": false,
+  "pages": ["index", "programmatic", "effect-api", "extending", "internals"]
+}

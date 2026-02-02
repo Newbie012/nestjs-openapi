@@ -1,0 +1,482 @@
+---
+title: Comparison
+description: Compare nestjs-openapi-static with @nestjs/swagger
+icon: Scale
+---
+
+`@nestjs/swagger` relies on `reflect-metadata` at runtime, which fundamentally limits what it can see. Here's how the same TypeScript produces different OpenAPI schemas.
+
+## Union Types
+
+```typescript title="Input"
+export class CreateOrderDto {
+  status: 'pending' | 'shipped' | 'delivered';
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "type": "string",
+      "enum": ["pending", "shipped", "delivered"]
+    }
+    ```
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "type": "object"
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Fix: add `enum` option to decorator</div>
+
+  </div>
+</div>
+
+## Generic Types
+
+```typescript title="Input"
+class PaginatedResponse<T> {
+  items: T[];
+  total: number;
+}
+
+// Return type: PaginatedResponse<UserDto>
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UserDto"
+        }
+      }
+    }
+    ```
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "items": {
+        "type": "array"
+      }
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Fix: add `type` option on every usage</div>
+
+  </div>
+</div>
+
+## Interfaces
+
+```typescript title="Input"
+interface Address {
+  street: string;
+  city: string;
+}
+
+export class UserDto {
+  address: Address;
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "address": {
+        "$ref": "#/components/schemas/Address"
+      }
+    }
+    ```
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "address": {
+        "type": "object"
+      }
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Fix: convert to class + add `type` option</div>
+
+  </div>
+</div>
+
+## Nullable Types
+
+```typescript title="Input"
+export class UpdateUserDto {
+  name?: string; // optional
+  bio: string | null; // nullable
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "name": {
+        "type": "string"
+      },
+      "bio": {
+        "type": "string",
+        "nullable": true
+      },
+      "required": ["bio"]
+    }
+    ```
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "name": {
+        "type": "object"
+      },
+      "bio": {
+        "type": "object"
+      }
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Fix: use `@ApiPropertyOptional()` + `nullable` option</div>
+
+  </div>
+</div>
+
+## Enums
+
+```typescript title="Input"
+enum Role {
+  Admin = 'admin',
+  User = 'user',
+}
+
+export class UserDto {
+  role: Role;
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "type": "string",
+      "enum": ["admin", "user"]
+    }
+    ```
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "type": "object"
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Fix: add `enum` option to decorator</div>
+
+  </div>
+</div>
+
+## Discriminated Unions
+
+```typescript title="Input"
+type ApiResponse =
+  | { status: 'success'; data: UserDto }
+  | { status: 'error'; message: string };
+
+@Controller('users')
+export class UsersController {
+  @Get(':id')
+  findOne(@Param('id') id: string): ApiResponse {
+    // ...
+  }
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": { "const": "success" },
+            "data": { "$ref": "#/components/schemas/UserDto" }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": { "const": "error" },
+            "message": { "type": "string" }
+          }
+        }
+      ]
+    }
+    ```
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "type": "object"
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Fix: create wrapper class + use `@ApiExtraModels` + `oneOf` in decorator</div>
+
+  </div>
+</div>
+
+## Union of Objects
+
+```typescript title="Input"
+export class CatDto {
+  name: string;
+  meow: boolean;
+}
+
+export class DogDto {
+  name: string;
+  bark: boolean;
+}
+
+export class PetOwnerDto {
+  ownerName: string;
+  pet: CatDto | DogDto; // Union of different object types
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "PetOwnerDto": {
+        "properties": {
+          "ownerName": { "type": "string" },
+          "pet": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/CatDto" },
+              { "$ref": "#/components/schemas/DogDto" }
+            ]
+          }
+        }
+      }
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Both `CatDto` and `DogDto` schemas are also generated</div>
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "PetOwnerDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">`CatDto` and `DogDto` not generated at all</div>
+
+  </div>
+</div>
+
+## Interface Return Types
+
+```typescript title="Input"
+// Interface, not a class
+export interface IUserProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+@Controller('profile')
+export class ProfileController {
+  @Get(':id')
+  getProfile(@Param('id') id: string): IUserProfile {
+    // ...
+  }
+}
+```
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+  <div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+
+    ```json
+    {
+      "IUserProfile": {
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "displayName": { "type": "string" },
+          "avatarUrl": { "type": ["string", "null"] }
+        }
+      }
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Interface fully resolved with nullable type preserved</div>
+
+  </div>
+  <div>
+    <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">@nestjs/swagger</div>
+
+    ```json
+    {
+      "type": "object"
+    }
+    ```
+
+    <div className="text-xs text-fd-muted-foreground mt-2">Interfaces are invisible to runtime reflection</div>
+
+  </div>
+</div>
+
+---
+
+## The Decorator Tax
+
+With `@nestjs/swagger`, accurate schemas require duplicating type information:
+
+```typescript
+export class CreateOrderDto {
+  @ApiProperty({ enum: ['pending', 'shipped', 'delivered'] })
+  status: 'pending' | 'shipped' | 'delivered';
+
+  @ApiProperty({ type: () => AddressDto })
+  address: Address;
+
+  @ApiProperty({ type: [ItemDto] })
+  items: ItemDto[];
+
+  @ApiProperty({ nullable: true })
+  notes: string | null;
+}
+```
+
+With `nestjs-openapi-static`, TypeScript is the source of truth-no duplication, no drift.
+
+---
+
+## When to Use Each
+
+|                   | @nestjs/swagger                     | nestjs-openapi-static             |
+| ----------------- | ----------------------------------- | --------------------------------- |
+| **Best for**      | Full decorator control, OpenAPI 3.1 | TypeScript-first, CI/CD pipelines |
+| **Requires**      | App bootstrap, infrastructure       | Just source files                 |
+| **Schema source** | Decorators                          | TypeScript types                  |
+
+See the [Migration Guide](/docs/recipes/migration) for running both in parallel.
+
+---
+
+## Feature Parity
+
+### Decorator Support
+
+| Category      | Decorator                                       |         Status          |
+| ------------- | ----------------------------------------------- | :---------------------: |
+| **Routing**   | `@Controller`, `@Get/@Post/@Put/@Patch/@Delete` |           ✅            |
+|               | `@Options/@Head/@All`                           |           ✅            |
+|               | `@Param/@Query/@Body/@Headers`                  |           ✅            |
+|               | `@HttpCode`                                     |           ✅            |
+| **Operation** | `@ApiTags`                                      |           ✅            |
+|               | `@ApiOperation`                                 |           ✅            |
+|               | `@ApiResponse`                                  |           ✅            |
+|               | `@ApiParam/@ApiQuery/@ApiBody/@ApiHeader`       |           ✅            |
+|               | `@ApiConsumes/@ApiProduces`                     |           ✅            |
+|               | `@ApiExcludeEndpoint/@ApiExcludeController`     |           ✅            |
+| **Security**  | `@ApiBearerAuth`                                |           ✅            |
+|               | `@ApiBasicAuth`                                 |           ✅            |
+|               | `@ApiOAuth2`                                    |           ✅            |
+|               | `@ApiSecurity`                                  |           ✅            |
+|               | `@ApiCookieAuth`                                |           ✅            |
+| **Schema**    | `@ApiProperty`                                  | ⚠️ Use TypeScript types |
+|               | `@ApiPropertyOptional`                          |    ⚠️ Use `?` syntax    |
+|               | `@ApiHideProperty`                              |           ❌            |
+| **Other**     | `@ApiExtension`                                 |           ❌            |
+|               | `@ApiExtraModels`                               |           ❌            |
+|               | Response shortcuts (`@ApiOkResponse`, etc.)     |  ❌ Use `@ApiResponse`  |
+
+### class-validator Support
+
+| Decorator                                 |               Status                |
+| ----------------------------------------- | :---------------------------------: |
+| `@IsString/@IsNumber/@IsBoolean/@IsArray` |                 ✅                  |
+| `@IsEmail/@IsUrl/@IsUUID/@IsDate`         |                 ✅                  |
+| `@MinLength/@MaxLength/@Length`           |                 ✅                  |
+| `@Min/@Max/@IsPositive/@IsNegative`       |                 ✅                  |
+| `@ArrayMinSize/@ArrayMaxSize`             |                 ✅                  |
+| `@Matches` (regex)                        |                 ✅                  |
+| `@IsOptional`                             |                 ✅                  |
+| `@IsEnum`                                 | ⚠️ Recognized, values not extracted |
+
+### Architecture Comparison
+
+| Aspect                    |   @nestjs/swagger   | nestjs-openapi-static |
+| ------------------------- | :-----------------: | :-------------------: |
+| **Approach**              | Runtime reflection  |  Static AST analysis  |
+| **Requires running app**  |         Yes         |          No           |
+| **Build-time generation** |         No          |          Yes          |
+| **Effect on bundle size** |  Adds runtime code  |     Zero runtime      |
+| **CI/CD friendly**        | Needs app bootstrap |      Just `npx`       |
+
+### Summary
+
+| Category            | Parity   |
+| ------------------- | -------- |
+| HTTP routing        | **100%** |
+| Security decorators | **100%** |
+| Operation metadata  | **~95%** |
+| Schema generation   | **~80%** |
+| class-validator     | **~95%** |
+| Advanced features   | **~50%** |
+
+**Overall: ~85-90% feature parity** for typical REST API documentation needs.

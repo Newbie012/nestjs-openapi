@@ -1,0 +1,455 @@
+---
+title: Types
+description: TypeScript type definitions for nestjs-openapi-static
+---
+
+All public TypeScript types exported from nestjs-openapi-static.
+
+## Configuration Types
+
+### Config
+
+Main configuration interface for `defineConfig()`:
+
+```typescript
+interface Config {
+  /**
+   * Extend another config file.
+   * Present for future support; currently ignored by the Promise-based generator.
+   */
+  readonly extends?: string;
+
+  /**
+   * Output path for the generated OpenAPI specification.
+   * @required
+   */
+  readonly output: string;
+
+  /**
+   * Output format for the specification.
+   * @default "json"
+   */
+  readonly format?: OutputFormat;
+
+  /**
+   * Input file configuration.
+   */
+  readonly files?: FilesConfig;
+
+  /**
+   * OpenAPI specification metadata.
+   * @required
+   */
+  readonly openapi: OpenApiConfig;
+
+  /**
+   * Generation behavior options.
+   */
+  readonly options?: OptionsConfig;
+}
+```
+
+<Callout type="warn">
+  `extends` is not executed today. Compose configs manually until inheritance is
+  implemented.
+</Callout>
+
+### FilesConfig
+
+Input file configuration:
+
+```typescript
+interface FilesConfig {
+  /**
+   * Entry module file(s).
+   * @default "src/app.module.ts"
+   */
+  readonly entry?: string | readonly string[];
+
+  /**
+   * Path to tsconfig.json.
+   * The Promise generator will search upward from the entry file if omitted,
+   * but providing an explicit path is recommended (and required for the
+   * Effect-based API).
+   */
+  readonly tsconfig?: string;
+
+  /**
+   * Glob pattern(s) for DTO files to generate schemas from.
+   */
+  readonly dtoGlob?: string | readonly string[];
+
+  /**
+   * Glob patterns to include.
+   */
+  readonly include?: readonly string[];
+
+  /**
+   * Glob patterns to exclude.
+   * @default ["**\/*.spec.ts", "**\/*.test.ts", "**\/node_modules/**"]
+   */
+  readonly exclude?: readonly string[];
+}
+```
+
+### OpenApiConfig
+
+OpenAPI specification metadata:
+
+```typescript
+interface OpenApiConfig {
+  /**
+   * API metadata for the info section.
+   * @required
+   */
+  readonly info: InfoConfig;
+
+  /**
+   * Server URLs for the API.
+   */
+  readonly servers?: readonly ServerConfig[];
+
+  /**
+   * Tags for organizing API endpoints.
+   */
+  readonly tags?: readonly TagConfig[];
+
+  /**
+   * Security configuration.
+   */
+  readonly security?: SecurityConfig;
+}
+```
+
+### InfoConfig
+
+API metadata:
+
+```typescript
+interface InfoConfig {
+  readonly title: string;
+  readonly version: string;
+  readonly description?: string;
+  readonly contact?: ContactConfig;
+  readonly license?: LicenseConfig;
+}
+
+interface ContactConfig {
+  readonly name?: string;
+  readonly email?: string;
+  readonly url?: string;
+}
+
+interface LicenseConfig {
+  readonly name: string;
+  readonly url?: string;
+}
+```
+
+### ServerConfig
+
+Server configuration:
+
+```typescript
+interface ServerConfig {
+  readonly url: string;
+  readonly description?: string;
+}
+```
+
+### TagConfig
+
+Tag configuration:
+
+```typescript
+interface TagConfig {
+  readonly name: string;
+  readonly description?: string;
+}
+```
+
+### SecurityConfig
+
+Security configuration:
+
+```typescript
+interface SecurityConfig {
+  /**
+   * Security schemes available for the API.
+   */
+  readonly schemes?: readonly SecuritySchemeConfig[];
+
+  /**
+   * Global security requirements applied to all operations.
+   */
+  readonly global?: readonly SecurityRequirement[];
+}
+```
+
+### SecuritySchemeConfig
+
+Security scheme definition:
+
+```typescript
+interface SecuritySchemeConfig {
+  /** Unique name for this security scheme */
+  readonly name: string;
+
+  /** The type of security scheme */
+  readonly type: SecuritySchemeType;
+
+  /** Description of the security scheme */
+  readonly description?: string;
+
+  /** HTTP Authorization scheme (for type: 'http') */
+  readonly scheme?: string;
+
+  /** Token format hint (for type: 'http' with scheme: 'bearer') */
+  readonly bearerFormat?: string;
+
+  /** Location of API key (for type: 'apiKey') */
+  readonly in?: SecuritySchemeIn;
+
+  /** Parameter name (for type: 'apiKey') */
+  readonly parameterName?: string;
+
+  /** OAuth2 flows (for type: 'oauth2') */
+  readonly flows?: OAuth2FlowsConfig;
+
+  /** OpenID Connect URL (for type: 'openIdConnect') */
+  readonly openIdConnectUrl?: string;
+}
+
+type SecuritySchemeType = 'apiKey' | 'http' | 'oauth2' | 'openIdConnect';
+type SecuritySchemeIn = 'query' | 'header' | 'cookie';
+```
+
+### OAuth2FlowsConfig
+
+OAuth2 flows configuration:
+
+```typescript
+interface OAuth2FlowsConfig {
+  readonly implicit?: OAuth2FlowConfig;
+  readonly password?: OAuth2FlowConfig;
+  readonly clientCredentials?: OAuth2FlowConfig;
+  readonly authorizationCode?: OAuth2FlowConfig;
+}
+
+interface OAuth2FlowConfig {
+  readonly authorizationUrl?: string;
+  readonly tokenUrl?: string;
+  readonly refreshUrl?: string;
+  readonly scopes?: Record<string, string>;
+}
+```
+
+### SecurityRequirement
+
+Security requirement mapping:
+
+```typescript
+type SecurityRequirement = Record<string, readonly string[]>;
+
+// Example
+const requirement: SecurityRequirement = {
+  bearerAuth: [], // No specific scopes
+  oauth2: ['read:users', 'write:users'], // Required scopes
+};
+```
+
+### OptionsConfig
+
+Generation options:
+
+```typescript
+interface OptionsConfig {
+  /**
+   * Base path prefix for all routes.
+   */
+  readonly basePath?: string;
+
+  /**
+   * Extract validation constraints from class-validator.
+   * @default true
+   */
+  readonly extractValidation?: boolean;
+
+  /**
+   * Decorator names that exclude endpoints.
+   * @default ["ApiExcludeEndpoint", "ApiExcludeController"]
+   */
+  readonly excludeDecorators?: readonly string[];
+
+  /**
+   * Filter paths by regex or predicate.
+   * Paths matching are INCLUDED.
+   */
+  readonly pathFilter?: RegExp | ((path: string) => boolean);
+}
+```
+
+### OutputFormat
+
+```typescript
+type OutputFormat = 'json' | 'yaml';
+```
+
+## OpenAPI Spec Types
+
+### OpenApiSpec
+
+Complete OpenAPI 3.0 specification:
+
+```typescript
+interface OpenApiSpec {
+  readonly openapi: '3.0.3';
+  readonly info: {
+    readonly title: string;
+    readonly version: string;
+    readonly description?: string;
+    readonly contact?: ContactConfig;
+    readonly license?: LicenseConfig;
+  };
+  readonly servers?: readonly ServerConfig[];
+  readonly tags?: readonly TagConfig[];
+  readonly paths: OpenApiPaths;
+  readonly components?: {
+    readonly schemas?: Record<string, OpenApiSchema>;
+    readonly securitySchemes?: Record<string, OpenApiSecurityScheme>;
+  };
+  readonly security?: readonly SecurityRequirement[];
+}
+```
+
+### OpenApiPaths
+
+```typescript
+interface OpenApiPaths {
+  readonly [path: string]: {
+    readonly [method: string]: OpenApiOperation;
+  };
+}
+```
+
+### OpenApiOperation
+
+```typescript
+interface OpenApiOperation {
+  readonly operationId: string;
+  readonly summary?: string;
+  readonly description?: string;
+  readonly deprecated?: boolean;
+  readonly tags?: readonly string[];
+  readonly parameters?: readonly OpenApiParameter[];
+  readonly requestBody?: OpenApiRequestBody;
+  readonly responses: Record<string, OpenApiResponse>;
+}
+```
+
+### OpenApiParameter
+
+```typescript
+interface OpenApiParameter {
+  readonly name: string;
+  readonly in: 'path' | 'query' | 'header' | 'cookie';
+  readonly description?: string;
+  readonly required: boolean;
+  readonly schema: OpenApiSchema;
+}
+```
+
+### OpenApiRequestBody
+
+```typescript
+interface OpenApiRequestBody {
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly content: Record<string, { readonly schema: OpenApiSchema }>;
+}
+```
+
+### OpenApiResponse
+
+```typescript
+interface OpenApiResponse {
+  readonly description: string;
+  readonly content?: Record<string, { readonly schema: OpenApiSchema }>;
+}
+```
+
+### OpenApiSchema
+
+```typescript
+interface OpenApiSchema {
+  readonly type?: string;
+  readonly format?: string;
+  readonly $ref?: string;
+  readonly oneOf?: readonly OpenApiSchema[];
+  readonly items?: OpenApiSchema;
+  readonly properties?: Record<string, OpenApiSchema>;
+  readonly required?: readonly string[];
+  readonly enum?: readonly unknown[];
+  readonly description?: string;
+}
+```
+
+### OpenApiSecurityScheme
+
+```typescript
+interface OpenApiSecurityScheme {
+  readonly type: SecuritySchemeType;
+  readonly description?: string;
+  readonly scheme?: string;
+  readonly bearerFormat?: string;
+  readonly in?: SecuritySchemeIn;
+  readonly name?: string;
+  readonly flows?: OpenApiOAuth2Flows;
+  readonly openIdConnectUrl?: string;
+}
+```
+
+## Module Types
+
+### OpenApiModuleOptions
+
+```typescript
+interface OpenApiModuleOptions {
+  readonly filePath: string;
+  readonly enabled?: boolean;
+  readonly jsonPath?: string;
+  readonly serveSwaggerUi?: boolean;
+  readonly swaggerUiPath?: string;
+  readonly swaggerUiTitle?: string;
+}
+```
+
+### ResolvedOpenApiModuleOptions
+
+```typescript
+interface ResolvedOpenApiModuleOptions {
+  readonly filePath: string;
+  readonly enabled: boolean;
+  readonly jsonPath: string;
+  readonly serveSwaggerUi: boolean;
+  readonly swaggerUiPath: string;
+  readonly swaggerUiTitle: string;
+}
+```
+
+### GenerateResult
+
+```typescript
+interface GenerateResult {
+  readonly outputPath: string;
+  readonly pathCount: number;
+  readonly operationCount: number;
+  readonly schemaCount: number;
+}
+```
+
+## See Also
+
+- [Configuration Guide](/docs/guides/configuration) - How to use these types
+- [defineConfig()](/docs/api/define-config) - Configuration helper
+- [Errors](/docs/api/errors) - Error type definitions

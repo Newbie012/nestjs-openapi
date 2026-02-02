@@ -1,0 +1,378 @@
+---
+title: Swagger UI
+description: Serve interactive API documentation with Swagger UI
+---
+
+Swagger UI provides interactive documentation where developers can explore and test your API. nestjs-openapi-static includes built-in Swagger UI support via `OpenApiModule`.
+
+## Built-in Swagger UI
+
+The simplest way to serve Swagger UI:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { OpenApiModule } from 'nestjs-openapi-static';
+
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      serveSwaggerUi: true,
+      swaggerUiPath: '/docs',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Access at `http://localhost:3000/docs`.
+
+## Configuration Options
+
+```typescript
+OpenApiModule.forRoot({
+  filePath: 'openapi.json',
+
+  // Enable Swagger UI
+  serveSwaggerUi: true,
+
+  // Customize the path (default: '/api-docs')
+  swaggerUiPath: '/docs',
+
+  // Custom page title (uses spec title by default)
+  swaggerUiTitle: 'My API Documentation',
+});
+```
+
+## Environment-Based Display
+
+Show Swagger UI only in development:
+
+```typescript
+OpenApiModule.forRoot({
+  filePath: 'openapi.json',
+  enabled: process.env.NODE_ENV !== 'production',
+  serveSwaggerUi: true,
+});
+```
+
+Or use a dedicated environment variable:
+
+```typescript
+OpenApiModule.forRoot({
+  filePath: 'openapi.json',
+  serveSwaggerUi: process.env.SWAGGER_UI_ENABLED === 'true',
+});
+```
+
+## Alternative: swagger-ui-express
+
+For more control over Swagger UI, use `swagger-ui-express` directly:
+
+```bash
+npm install swagger-ui-express
+npm install -D @types/swagger-ui-express
+```
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { SwaggerModule } from '@nestjs/swagger';
+import * as swaggerUi from 'swagger-ui-express';
+import * as fs from 'fs';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Load the pre-generated spec
+  const spec = JSON.parse(fs.readFileSync('openapi.json', 'utf-8'));
+
+  // Serve Swagger UI with custom options
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(spec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'My API Docs',
+      customfavIcon: '/favicon.ico',
+      swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        filter: true,
+        showExtensions: true,
+      },
+    }),
+  );
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## Swagger UI Options
+
+Common swagger-ui-express options:
+
+```typescript
+swaggerUi.setup(spec, {
+  // Custom CSS
+  customCss: `
+    .swagger-ui .topbar { display: none }
+    .swagger-ui .info { margin-bottom: 20px }
+  `,
+
+  // Custom CSS URL
+  customCssUrl: '/custom-swagger.css',
+
+  // Custom JavaScript
+  customJs: '/custom-swagger.js',
+
+  // Custom page title
+  customSiteTitle: 'My API Documentation',
+
+  // Custom favicon
+  customfavIcon: '/favicon.ico',
+
+  // Swagger UI options
+  swaggerOptions: {
+    // Keep authorization after refresh
+    persistAuthorization: true,
+
+    // Show request duration
+    displayRequestDuration: true,
+
+    // Enable filtering
+    filter: true,
+
+    // Show extensions
+    showExtensions: true,
+
+    // Expand/collapse options: 'list', 'full', 'none'
+    docExpansion: 'list',
+
+    // Default models expansion depth
+    defaultModelsExpandDepth: 1,
+
+    // Default model expansion depth
+    defaultModelExpandDepth: 3,
+
+    // Enable "Try it out" by default
+    tryItOutEnabled: true,
+
+    // Syntax highlighting theme
+    syntaxHighlight: {
+      activate: true,
+      theme: 'monokai',
+    },
+  },
+
+  // Explorer plugin (search bar)
+  explorer: true,
+});
+```
+
+## Alternative: Redoc
+
+[Redoc](https://github.com/Redocly/redoc) is another popular OpenAPI documentation tool:
+
+```bash
+npm install redoc-express
+```
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import * as redoc from 'redoc-express';
+import * as fs from 'fs';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const spec = JSON.parse(fs.readFileSync('openapi.json', 'utf-8'));
+
+  app.use(
+    '/docs',
+    redoc.default({
+      title: 'API Docs',
+      specUrl: '/openapi.json',
+      spec,
+      redocOptions: {
+        theme: {
+          colors: {
+            primary: { main: '#6200ee' },
+          },
+          typography: {
+            fontSize: '16px',
+            fontFamily: 'Inter, sans-serif',
+          },
+        },
+        hideDownloadButton: false,
+        expandResponses: '200,201',
+      },
+    }),
+  );
+
+  // Serve raw spec
+  app.getHttpAdapter().get('/openapi.json', (req, res) => {
+    res.json(spec);
+  });
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## Alternative: Scalar
+
+[Scalar](https://github.com/scalar/scalar) is a modern API reference:
+
+```bash
+npm install @scalar/nestjs-api-reference
+```
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { apiReference } from '@scalar/nestjs-api-reference';
+import * as fs from 'fs';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const spec = JSON.parse(fs.readFileSync('openapi.json', 'utf-8'));
+
+  app.use(
+    '/docs',
+    apiReference({
+      spec: {
+        content: spec,
+      },
+      theme: 'purple',
+    }),
+  );
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## Static Hosting
+
+For production, consider hosting documentation statically:
+
+### Build Static HTML
+
+```bash
+# Using Redoc CLI
+npm install -g @redocly/cli
+redocly build-docs openapi.json -o docs/index.html
+
+# Using Swagger UI
+# Download from https://github.com/swagger-api/swagger-ui/releases
+```
+
+### Deploy to CDN
+
+Host the static files on any CDN:
+
+- Netlify
+- Vercel
+- GitHub Pages
+- CloudFront + S3
+
+### GitHub Pages Example
+
+```yaml
+# .github/workflows/docs.yml
+name: Deploy API Docs
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Generate spec
+        run: npx nestjs-openapi-static generate -c openapi.config.ts
+
+      - name: Build Redoc
+        run: npx @redocly/cli build-docs openapi.json -o docs/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+```
+
+## Multiple API Versions
+
+Serve documentation for multiple API versions:
+
+```typescript
+import * as swaggerUi from 'swagger-ui-express';
+import * as fs from 'fs';
+
+const specV1 = JSON.parse(fs.readFileSync('openapi-v1.json', 'utf-8'));
+const specV2 = JSON.parse(fs.readFileSync('openapi-v2.json', 'utf-8'));
+
+// V1 docs
+app.use('/docs/v1', swaggerUi.serveFiles(specV1), swaggerUi.setup(specV1));
+
+// V2 docs
+app.use('/docs/v2', swaggerUi.serveFiles(specV2), swaggerUi.setup(specV2));
+
+// Landing page with version selector
+app.get('/docs', (req, res) => {
+  res.send(`
+    <h1>API Documentation</h1>
+    <ul>
+      <li><a href="/docs/v1">API v1</a></li>
+      <li><a href="/docs/v2">API v2</a></li>
+    </ul>
+  `);
+});
+```
+
+## Authentication in Swagger UI
+
+Pre-configure authentication for testing:
+
+```typescript
+swaggerUi.setup(spec, {
+  swaggerOptions: {
+    persistAuthorization: true,
+    // Pre-fill auth header
+    authAction: {
+      bearerAuth: {
+        name: 'bearerAuth',
+        schema: {
+          type: 'http',
+          scheme: 'bearer',
+        },
+        value: 'your-dev-token-here',
+      },
+    },
+  },
+});
+```
+
+<Callout type="warn">
+  Never hardcode production tokens. Use environment-specific configurations.
+</Callout>
+
+## Next Steps
+
+- [Serving Guide](/docs/guides/serving) - OpenApiModule reference
+- [OpenAPI Clients Recipe](/docs/recipes/openapi-clients) - Generate typed clients
+- [CI/CD Recipe](/docs/recipes/ci-cd) - Automate documentation builds

@@ -1,0 +1,79 @@
+---
+title: Acknowledgments
+description: Credits to the open source projects that make this possible
+icon: Award
+---
+
+This project stands on the shoulders of excellent open source work. Thank you to all the maintainers and contributors.
+
+## Core Dependencies
+
+### Effect
+
+The functional TypeScript library that powers our internal architecture. Effect provides robust error handling, composable pipelines, and type-safe concurrency. It made building reliable static analysis tooling significantly easier.
+
+[effect.website](https://effect.website)
+
+### ts-morph
+
+A wrapper around the TypeScript compiler API that makes AST manipulation actually pleasant. Without ts-morph, navigating decorators, extracting type information, and traversing module graphs would be far more tedious.
+
+[ts-morph.com](https://ts-morph.com)
+
+### ts-json-schema-generator
+
+Handles the heavy lifting of converting TypeScript types to JSON Schema. This library does the complex work of resolving generics, unions, and intersections into valid schemas.
+
+[github.com/vega/ts-json-schema-generator](https://github.com/vega/ts-json-schema-generator)
+
+## Documentation
+
+### Fumadocs
+
+The documentation framework you're reading right now. Built on Next.js, it provides excellent DX with MDX support, syntax highlighting, and a clean default theme.
+
+[fumadocs.vercel.app](https://fumadocs.vercel.app)
+
+### Tailwind CSS
+
+Utility-first CSS that makes styling documentation components fast and consistent.
+
+[tailwindcss.com](https://tailwindcss.com)
+
+## Development Tools
+
+### Vitest
+
+Fast, TypeScript-native test runner. Made writing and running 240+ tests a breeze.
+
+[vitest.dev](https://vitest.dev)
+
+### unbuild
+
+Zero-config build tool from the UnJS ecosystem. Handles dual ESM builds without fuss.
+
+[github.com/unjs/unbuild](https://github.com/unjs/unbuild)
+
+### ESLint & Prettier
+
+Keeping code consistent and formatted.
+
+## The NestJS Ecosystem
+
+### NestJS
+
+The framework this tool analyzes. NestJS's decorator-based architecture is what makes static analysis possible - decorators are visible in the AST.
+
+[nestjs.com](https://nestjs.com)
+
+### @nestjs/swagger
+
+The official OpenAPI module. While we take a different approach, their decorator conventions define the standard we aim to support.
+
+[docs.nestjs.com/openapi/introduction](https://docs.nestjs.com/openapi/introduction)
+
+### class-validator
+
+Validation decorators that we extract and map to OpenAPI schema constraints.
+
+[github.com/typestack/class-validator](https://github.com/typestack/class-validator)

@@ -1,0 +1,339 @@
+---
+title: Errors
+description: Typed error classes for error handling
+---
+
+nestjs-openapi-static uses typed error classes built with Effect's `Data.TaggedError`. These can be caught and handled programmatically.
+
+## Import
+
+```typescript
+import {
+  ConfigNotFoundError,
+  ConfigLoadError,
+  ConfigValidationError,
+  ProjectInitError,
+  EntryNotFoundError,
+  InvalidMethodError,
+} from 'nestjs-openapi-static';
+```
+
+## Configuration Errors
+
+### ConfigNotFoundError
+
+Thrown when a configuration file cannot be found.
+
+```typescript
+class ConfigNotFoundError extends Data.TaggedError('ConfigNotFoundError')<{
+  readonly path?: string;
+  readonly searchDir?: string;
+  readonly message: string;
+}>
+```
+
+**Properties:**
+
+- `path` - The specified config path (if explicitly provided)
+- `searchDir` - The directory that was searched (for auto-detection)
+- `message` - Human-readable error message
+
+**Example:**
+
+```typescript
+try {
+  await generate('./missing-config.ts');
+} catch (error) {
+  if (error instanceof ConfigNotFoundError) {
+    console.error(`Config not found: ${error.message}`);
+    // Config not found: Configuration file not found: ./missing-config.ts
+  }
+}
+```
+
+### ConfigLoadError
+
+Thrown when a configuration file exists but cannot be loaded.
+
+```typescript
+class ConfigLoadError extends Data.TaggedError('ConfigLoadError')<{
+  readonly path: string;
+  readonly message: string;
+  readonly cause?: unknown;
+}>
+```
+
+**Properties:**
+
+- `path` - Path to the config file
+- `message` - Human-readable error message
+- `cause` - Original error that caused the load failure
+
+**Example:**
+
+```typescript
+try {
+  await generate('./invalid-config.ts');
+} catch (error) {
+  if (error instanceof ConfigLoadError) {
+    console.error(`Failed to load config: ${error.message}`);
+    if (error.cause) {
+      console.error('Caused by:', error.cause);
+    }
+  }
+}
+```
+
+### ConfigValidationError
+
+Thrown when configuration is loaded but fails validation.
+
+```typescript
+class ConfigValidationError extends Data.TaggedError('ConfigValidationError')<{
+  readonly path: string;
+  readonly message: string;
+  readonly issues: readonly string[];
+}>
+```
+
+**Properties:**
+
+- `path` - Path to the config file
+- `message` - Human-readable error message
+- `issues` - Array of specific validation issues
+
+**Example:**
+
+```typescript
+try {
+  await generate('./config.ts');
+} catch (error) {
+  if (error instanceof ConfigValidationError) {
+    console.error('Configuration validation failed:');
+    for (const issue of error.issues) {
+      console.error(`  - ${issue}`);
+    }
+  }
+}
+```
+
+## Project Errors
+
+### ProjectInitError
+
+Thrown when the TypeScript project cannot be initialized.
+
+```typescript
+class ProjectInitError extends Data.TaggedError('ProjectInitError')<{
+  readonly tsconfig: string;
+  readonly message: string;
+  readonly cause?: unknown;
+}>
+```
+
+**Properties:**
+
+- `tsconfig` - Path to the tsconfig.json file
+- `message` - Human-readable error message
+- `cause` - Original error
+
+**Example:**
+
+```typescript
+try {
+  await generate('./config.ts');
+} catch (error) {
+  if (error instanceof ProjectInitError) {
+    console.error(`Failed to init project with ${error.tsconfig}`);
+    console.error(error.message);
+  }
+}
+```
+
+### EntryNotFoundError
+
+Thrown when the entry module file or class cannot be found.
+
+```typescript
+class EntryNotFoundError extends Data.TaggedError('EntryNotFoundError')<{
+  readonly entry: string;
+  readonly className: string;
+  readonly message: string;
+}>
+```
+
+**Properties:**
+
+- `entry` - Path to the entry file
+- `className` - Name of the expected class (e.g., 'AppModule')
+- `message` - Human-readable error message
+
+**Example:**
+
+```typescript
+try {
+  await generate('./config.ts');
+} catch (error) {
+  if (error instanceof EntryNotFoundError) {
+    if (error.message.includes('Source file not found')) {
+      console.error(`Entry file not found: ${error.entry}`);
+    } else {
+      console.error(`Class '${error.className}' not found in ${error.entry}`);
+    }
+  }
+}
+```
+
+## Analysis Errors
+
+### InvalidMethodError
+
+Thrown when a controller method cannot be properly analyzed.
+
+```typescript
+class InvalidMethodError extends Data.TaggedError('InvalidMethodError')<{
+  readonly controllerName: string;
+  readonly methodName: string;
+  readonly message: string;
+}>
+```
+
+**Properties:**
+
+- `controllerName` - Name of the controller
+- `methodName` - Name of the method
+- `message` - Human-readable error message
+
+**Example:**
+
+```typescript
+try {
+  await generate('./config.ts');
+} catch (error) {
+  if (error instanceof InvalidMethodError) {
+    console.error(
+      `Invalid method: ${error.controllerName}.${error.methodName}`,
+    );
+    console.error(error.message);
+  }
+}
+```
+
+## Error Type Unions
+
+The library exports union types for grouping related errors:
+
+```typescript
+// All configuration errors
+type ConfigError =
+  | ConfigNotFoundError
+  | ConfigLoadError
+  | ConfigValidationError;
+
+// All project/parsing errors
+type ProjectError = ProjectInitError | EntryNotFoundError;
+
+// All analysis errors
+type AnalysisError = InvalidMethodError;
+
+// All errors that can occur during generation
+type GeneratorError = ProjectError | ConfigError | AnalysisError;
+```
+
+## Error Handling Patterns
+
+### Exhaustive Error Handling
+
+```typescript
+import {
+  ConfigNotFoundError,
+  ConfigLoadError,
+  ConfigValidationError,
+  ProjectInitError,
+  EntryNotFoundError,
+  InvalidMethodError,
+} from 'nestjs-openapi-static';
+
+try {
+  await generate('./config.ts');
+} catch (error) {
+  if (error instanceof ConfigNotFoundError) {
+    console.error('Configuration file not found');
+    process.exit(1);
+  }
+
+  if (error instanceof ConfigLoadError) {
+    console.error('Failed to load configuration');
+    process.exit(1);
+  }
+
+  if (error instanceof ConfigValidationError) {
+    console.error('Invalid configuration:');
+    error.issues.forEach((issue) => console.error(`  - ${issue}`));
+    process.exit(1);
+  }
+
+  if (error instanceof ProjectInitError) {
+    console.error('Failed to initialize TypeScript project');
+    process.exit(1);
+  }
+
+  if (error instanceof EntryNotFoundError) {
+    console.error(`Entry module not found: ${error.entry}`);
+    process.exit(1);
+  }
+
+  if (error instanceof InvalidMethodError) {
+    console.error(
+      `Invalid method: ${error.controllerName}.${error.methodName}`,
+    );
+    process.exit(1);
+  }
+
+  // Unknown error
+  throw error;
+}
+```
+
+### Using Tags
+
+Since these are tagged errors, you can use the `_tag` property:
+
+```typescript
+try {
+  await generate('./config.ts');
+} catch (error: unknown) {
+  if (error && typeof error === 'object' && '_tag' in error) {
+    switch (error._tag) {
+      case 'ConfigNotFoundError':
+        console.error('Config not found');
+        break;
+      case 'ConfigLoadError':
+        console.error('Config load failed');
+        break;
+      case 'ConfigValidationError':
+        console.error('Config invalid');
+        break;
+      case 'ProjectInitError':
+        console.error('Project init failed');
+        break;
+      case 'EntryNotFoundError':
+        console.error('Entry not found');
+        break;
+      case 'InvalidMethodError':
+        console.error('Invalid method');
+        break;
+      default:
+        throw error;
+    }
+  } else {
+    throw error;
+  }
+}
+```
+
+## See Also
+
+- [generate()](/docs/api/generate) - Main generation function
+- [Advanced: Effect API](/docs/advanced/effect-api) - Effect-based error handling
+- [Types](/docs/api/types) - All type definitions

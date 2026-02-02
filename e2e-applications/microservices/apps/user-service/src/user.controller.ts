@@ -27,9 +27,10 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all users',
-    description: 'Retrieve a list of users with optional filtering by role and active status'
+    description:
+      'Retrieve a list of users with optional filtering by role and active status',
   })
   @ApiQuery({
     name: 'role',
@@ -56,9 +57,9 @@ export class UserController {
   }
 
   @Get(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get user by ID',
-    description: 'Retrieve a specific user by their unique identifier'
+    description: 'Retrieve a specific user by their unique identifier',
   })
   @ApiParam({
     name: 'id',
@@ -80,9 +81,10 @@ export class UserController {
   }
 
   @Get(':id/profile')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get user profile',
-    description: 'Retrieve complete user profile including preferences and last login'
+    description:
+      'Retrieve complete user profile including preferences and last login',
   })
   @ApiParam({
     name: 'id',
@@ -104,9 +106,9 @@ export class UserController {
   }
 
   @Post()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create new user',
-    description: 'Create a new user account in the system'
+    description: 'Create a new user account in the system',
   })
   @ApiBody({
     description: 'User creation data',
@@ -127,9 +129,9 @@ export class UserController {
   }
 
   @Put(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update user',
-    description: 'Update an existing user\'s information'
+    description: "Update an existing user's information",
   })
   @ApiParam({
     name: 'id',
@@ -150,14 +152,17 @@ export class UserController {
     status: 404,
     description: 'User not found',
   })
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): UserDto {
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ): UserDto {
     return this.userService.update(id, updateUserDto);
   }
 
   @Delete(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete user',
-    description: 'Remove a user from the system'
+    description: 'Remove a user from the system',
   })
   @ApiParam({
     name: 'id',

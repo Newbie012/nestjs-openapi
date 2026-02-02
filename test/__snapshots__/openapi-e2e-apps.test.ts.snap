@@ -4,7 +4,9 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
 {
   "/": {
     "get": {
+      "description": "Get basic API information and available services",
       "operationId": "GatewayController_getApiInfo",
+      "parameters": [],
       "responses": {
         "200": {
           "content": {
@@ -14,10 +16,10 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
               },
             },
           },
-          "description": "Success",
+          "description": "API information",
         },
       },
-      "summary": "GatewayController.getApiInfo",
+      "summary": "API Information",
       "tags": [
         "gateway",
       ],
@@ -25,20 +27,15 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
   },
   "/api/notifications/stats": {
     "get": {
+      "description": "Proxy request to notification service for statistics",
       "operationId": "ProxyController_getNotificationStats",
+      "parameters": [],
       "responses": {
         "200": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/any",
-              },
-            },
-          },
-          "description": "Success",
+          "description": "Notification statistics from notification service",
         },
       },
-      "summary": "ProxyController.getNotificationStats",
+      "summary": "Get notification stats (proxied)",
       "tags": [
         "proxy",
       ],
@@ -46,7 +43,615 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
   },
   "/api/users/{id}/profile": {
     "get": {
+      "description": "Proxy request to user service for user profile",
       "operationId": "ProxyController_getUserProfile",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "description": "User profile data from user service",
+        },
+      },
+      "summary": "Get user profile (proxied)",
+      "tags": [
+        "proxy",
+      ],
+    },
+  },
+  "/health": {
+    "get": {
+      "description": "Get overall system health status including microservices",
+      "operationId": "GatewayController_getHealth",
+      "parameters": [],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthCheckDto",
+              },
+            },
+          },
+          "description": "System health status",
+        },
+      },
+      "summary": "Health check",
+      "tags": [
+        "gateway",
+      ],
+    },
+  },
+  "/version": {
+    "get": {
+      "description": "Returns the current API version",
+      "operationId": "GatewayController_getVersion",
+      "parameters": [],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "buildDate": {
+                    "type": "string",
+                  },
+                  "version": {
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "version",
+                  "buildDate",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "API version information",
+        },
+      },
+      "summary": "Get API version",
+      "tags": [
+        "gateway",
+      ],
+    },
+  },
+}
+`;
+
+exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for complex-generics that matches snapshot > complex-generics-openapi 1`] = `
+{
+  "/articles": {
+    "get": {
+      "operationId": "ArticleController_findAll",
+      "parameters": [
+        {
+          "description": "Page number",
+          "in": "query",
+          "name": "page",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "number",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+        {
+          "description": "Items per page",
+          "in": "query",
+          "name": "pageSize",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "number",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaginatedResponse<ArticleEntity>",
+              },
+            },
+          },
+          "description": "Paginated list of articles",
+        },
+      },
+      "summary": "Get paginated articles",
+      "tags": [
+        "Articles",
+      ],
+    },
+    "post": {
+      "operationId": "ArticleController_create",
+      "parameters": [],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateArticleDto",
+            },
+          },
+        },
+        "description": "Request body parameter: _dto",
+        "required": true,
+      },
+      "responses": {
+        "201": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiResponseDto<ArticleEntity>",
+              },
+            },
+          },
+          "description": "Article created",
+        },
+      },
+      "summary": "Create a new article",
+      "tags": [
+        "Articles",
+      ],
+    },
+  },
+  "/articles/{id}": {
+    "delete": {
+      "operationId": "ArticleController_remove",
+      "parameters": [
+        {
+          "description": "Article ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "204": {
+          "description": "Article deleted",
+        },
+        "404": {
+          "description": "Article not found",
+        },
+      },
+      "summary": "Delete an article",
+      "tags": [
+        "Articles",
+      ],
+    },
+    "get": {
+      "operationId": "ArticleController_findOne",
+      "parameters": [
+        {
+          "description": "Article ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiResponseDto<ArticleEntity>",
+              },
+            },
+          },
+          "description": "Article found",
+        },
+        "404": {
+          "description": "Article not found",
+        },
+      },
+      "summary": "Get article by ID",
+      "tags": [
+        "Articles",
+      ],
+    },
+    "put": {
+      "operationId": "ArticleController_update",
+      "parameters": [
+        {
+          "description": "Article ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateArticleDto",
+            },
+          },
+        },
+        "description": "Request body parameter: _dto",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiResponseDto<ArticleEntity>",
+              },
+            },
+          },
+          "description": "Article updated",
+        },
+      },
+      "summary": "Update an article",
+      "tags": [
+        "Articles",
+      ],
+    },
+  },
+  "/articles/{id}/with-author": {
+    "get": {
+      "operationId": "ArticleController_findWithAuthor",
+      "parameters": [
+        {
+          "description": "Article ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleWithAuthor",
+              },
+            },
+          },
+          "description": "Article with author details",
+        },
+      },
+      "summary": "Get article with embedded author",
+      "tags": [
+        "Articles",
+      ],
+    },
+  },
+  "/articles/{id}/with-comments": {
+    "get": {
+      "operationId": "ArticleController_findWithComments",
+      "parameters": [
+        {
+          "description": "Article ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleWithComments",
+              },
+            },
+          },
+          "description": "Article with comments",
+        },
+      },
+      "summary": "Get article with all comments",
+      "tags": [
+        "Articles",
+      ],
+    },
+  },
+  "/batch/articles": {
+    "delete": {
+      "operationId": "BatchController_batchDeleteArticles",
+      "parameters": [],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+        },
+        "description": "Request body parameter: _ids",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchResult<string>",
+              },
+            },
+          },
+          "description": "Batch deletion result",
+        },
+      },
+      "summary": "Batch delete articles",
+      "tags": [
+        "Batch",
+      ],
+    },
+    "post": {
+      "operationId": "BatchController_batchCreateArticles",
+      "parameters": [],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/CreateArticleDto",
+              },
+              "type": "array",
+            },
+          },
+        },
+        "description": "Request body parameter: _articles",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchResult<ArticleEntity>",
+              },
+            },
+          },
+          "description": "Batch operation result",
+        },
+      },
+      "summary": "Batch create articles",
+      "tags": [
+        "Batch",
+      ],
+    },
+  },
+  "/comments": {
+    "get": {
+      "operationId": "CommentController_findAll",
+      "parameters": [
+        {
+          "description": "Filter by article",
+          "in": "query",
+          "name": "articleId",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaginatedResponse<CommentEntity>",
+              },
+            },
+          },
+          "description": "Paginated list of comments",
+        },
+      },
+      "summary": "Get paginated comments",
+      "tags": [
+        "Comments",
+      ],
+    },
+  },
+  "/comments/{id}": {
+    "get": {
+      "operationId": "CommentController_findOne",
+      "parameters": [
+        {
+          "description": "Comment ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiResponseDto<CommentEntity>",
+              },
+            },
+          },
+          "description": "Comment found",
+        },
+      },
+      "summary": "Get comment by ID",
+      "tags": [
+        "Comments",
+      ],
+    },
+  },
+  "/filters": {
+    "get": {
+      "operationId": "FilterController_getFilters",
+      "parameters": [],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilterRules",
+              },
+            },
+          },
+          "description": "Current filter configuration",
+        },
+      },
+      "summary": "Get current filter rules",
+      "tags": [
+        "Filters",
+      ],
+    },
+    "post": {
+      "operationId": "FilterController_updateFilters",
+      "parameters": [],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FilterRules",
+            },
+          },
+        },
+        "description": "Request body parameter: _rules",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilterRules",
+              },
+            },
+          },
+          "description": "Updated filter configuration",
+        },
+      },
+      "summary": "Update filter rules",
+      "tags": [
+        "Filters",
+      ],
+    },
+  },
+  "/search": {
+    "get": {
+      "operationId": "SearchController_search",
+      "parameters": [
+        {
+          "description": "Search query",
+          "in": "query",
+          "name": "q",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "description": "Filter by entity type",
+          "in": "query",
+          "name": "type",
+          "required": false,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "object",
+              },
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/SearchResult",
+                },
+                "type": "array",
+              },
+            },
+          },
+          "description": "Search results",
+        },
+      },
+      "summary": "Global search across all entities",
+      "tags": [
+        "Search",
+      ],
+    },
+  },
+  "/users": {
+    "get": {
+      "operationId": "UserController_findAll",
+      "parameters": [],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaginatedResponse<UserEntity>",
+              },
+            },
+          },
+          "description": "Paginated list of users",
+        },
+      },
+      "summary": "Get paginated users",
+      "tags": [
+        "Users",
+      ],
+    },
+  },
+  "/users/{id}": {
+    "get": {
+      "operationId": "UserController_findOne",
       "parameters": [
         {
           "description": "User ID",
@@ -63,59 +668,121 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/any",
+                "$ref": "#/components/schemas/ApiResponseDto<UserEntity>",
               },
             },
           },
-          "description": "Success",
+          "description": "User found",
         },
       },
-      "summary": "ProxyController.getUserProfile",
+      "summary": "Get user by ID",
       "tags": [
-        "proxy",
+        "Users",
       ],
     },
   },
-  "/health": {
+  "/users/{id}/articles": {
     "get": {
-      "operationId": "GatewayController_getHealth",
+      "operationId": "UserController_getUserArticles",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
       "responses": {
         "200": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HealthCheckDto",
+                "$ref": "#/components/schemas/PaginatedArticlesWithAuthors",
               },
             },
           },
-          "description": "Success",
+          "description": "Paginated articles by this user",
         },
       },
-      "summary": "GatewayController.getHealth",
+      "summary": "Get user articles with author info",
       "tags": [
-        "gateway",
+        "Users",
       ],
     },
   },
-  "/version": {
+  "/users/{id}/settings": {
     "get": {
-      "operationId": "GatewayController_getVersion",
+      "operationId": "UserController_getSettings",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
       "responses": {
         "200": {
           "content": {
             "application/json": {
               "schema": {
-                "description": "Inline type: { version: string; buildDate: string; }",
-                "type": "object",
+                "$ref": "#/components/schemas/UserSettings",
               },
             },
           },
-          "description": "Success",
+          "description": "User settings",
         },
       },
-      "summary": "GatewayController.getVersion",
+      "summary": "Get user settings",
       "tags": [
-        "gateway",
+        "Users",
+      ],
+    },
+    "put": {
+      "operationId": "UserController_updateSettings",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UserSettings",
+            },
+          },
+        },
+        "description": "Request body parameter: _settings",
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiResponseDto<UserSettings>",
+              },
+            },
+          },
+          "description": "Settings updated",
+        },
+      },
+      "summary": "Update user settings",
+      "tags": [
+        "Users",
       ],
     },
   },
@@ -157,16 +824,17 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "List of users",
         },
       },
-      "summary": "UserController.findAll",
+      "summary": "Get all users",
       "tags": [
         "users",
       ],
     },
     "post": {
       "operationId": "UserController_create",
+      "parameters": [],
       "requestBody": {
         "content": {
           "application/json": {
@@ -179,7 +847,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
         "required": true,
       },
       "responses": {
-        "200": {
+        "201": {
           "content": {
             "application/json": {
               "schema": {
@@ -187,10 +855,10 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "The created user",
         },
       },
-      "summary": "UserController.create",
+      "summary": "Create a new user",
       "tags": [
         "users",
       ],
@@ -219,10 +887,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "The user",
+        },
+        "404": {
+          "description": "User not found",
         },
       },
-      "summary": "UserController.findOne",
+      "summary": "Get a user by ID",
       "tags": [
         "users",
       ],
@@ -283,16 +954,17 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "List of todos",
         },
       },
-      "summary": "TodoController.findAll",
+      "summary": "Get all todos",
       "tags": [
         "todos",
       ],
     },
     "post": {
       "operationId": "TodoController_create",
+      "parameters": [],
       "requestBody": {
         "content": {
           "application/json": {
@@ -305,7 +977,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
         "required": true,
       },
       "responses": {
-        "200": {
+        "201": {
           "content": {
             "application/json": {
               "schema": {
@@ -313,10 +985,10 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "The created todo",
         },
       },
-      "summary": "TodoController.create",
+      "summary": "Create a new todo",
       "tags": [
         "todos",
       ],
@@ -337,18 +1009,14 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
         },
       ],
       "responses": {
-        "200": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/void",
-              },
-            },
-          },
-          "description": "Success",
+        "204": {
+          "description": "Todo deleted successfully",
+        },
+        "404": {
+          "description": "Todo not found",
         },
       },
-      "summary": "TodoController.remove",
+      "summary": "Delete a todo",
       "tags": [
         "todos",
       ],
@@ -375,10 +1043,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "The todo",
+        },
+        "404": {
+          "description": "Todo not found",
         },
       },
-      "summary": "TodoController.findOne",
+      "summary": "Get a todo by ID",
       "tags": [
         "todos",
       ],
@@ -416,10 +1087,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
               },
             },
           },
-          "description": "Success",
+          "description": "The updated todo",
+        },
+        "404": {
+          "description": "Todo not found",
         },
       },
-      "summary": "TodoController.update",
+      "summary": "Update a todo",
       "tags": [
         "todos",
       ],
@@ -432,6 +1106,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
 {
   "/notifications": {
     "get": {
+      "description": "Retrieve notifications with optional filtering",
       "operationId": "NotificationController_findAll",
       "parameters": [
         {
@@ -495,16 +1170,18 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
               },
             },
           },
-          "description": "Success",
+          "description": "List of notifications",
         },
       },
-      "summary": "NotificationController.findAll",
+      "summary": "Get notifications",
       "tags": [
         "notifications",
       ],
     },
     "post": {
+      "description": "Create and send a new notification",
       "operationId": "NotificationController_create",
+      "parameters": [],
       "requestBody": {
         "content": {
           "application/json": {
@@ -517,7 +1194,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
         "required": true,
       },
       "responses": {
-        "200": {
+        "201": {
           "content": {
             "application/json": {
               "schema": {
@@ -525,10 +1202,10 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
               },
             },
           },
-          "description": "Success",
+          "description": "Notification created and queued",
         },
       },
-      "summary": "NotificationController.create",
+      "summary": "Send notification",
       "tags": [
         "notifications",
       ],
@@ -536,7 +1213,9 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
   },
   "/notifications/stats": {
     "get": {
+      "description": "Retrieve overall notification delivery statistics",
       "operationId": "NotificationController_getStats",
+      "parameters": [],
       "responses": {
         "200": {
           "content": {
@@ -546,10 +1225,10 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
               },
             },
           },
-          "description": "Success",
+          "description": "Notification statistics",
         },
       },
-      "summary": "NotificationController.getStats",
+      "summary": "Get notification statistics",
       "tags": [
         "notifications",
       ],
@@ -557,6 +1236,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
   },
   "/notifications/{id}": {
     "get": {
+      "description": "Retrieve a specific notification by its identifier",
       "operationId": "NotificationController_findOne",
       "parameters": [
         {
@@ -574,14 +1254,17 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotificationDto | null",
+                "$ref": "#/components/schemas/NotificationDto",
               },
             },
           },
-          "description": "Success",
+          "description": "Notification details",
+        },
+        "404": {
+          "description": "Notification not found",
         },
       },
-      "summary": "NotificationController.findOne",
+      "summary": "Get notification by ID",
       "tags": [
         "notifications",
       ],
@@ -594,6 +1277,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
 {
   "/users": {
     "get": {
+      "description": "Retrieve a list of users with optional filtering by role and active status",
       "operationId": "UserController_findAll",
       "parameters": [
         {
@@ -647,16 +1331,18 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
               },
             },
           },
-          "description": "Success",
+          "description": "List of users",
         },
       },
-      "summary": "UserController.findAll",
+      "summary": "Get all users",
       "tags": [
         "users",
       ],
     },
     "post": {
+      "description": "Create a new user account in the system",
       "operationId": "UserController_create",
+      "parameters": [],
       "requestBody": {
         "content": {
           "application/json": {
@@ -669,7 +1355,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
         "required": true,
       },
       "responses": {
-        "200": {
+        "201": {
           "content": {
             "application/json": {
               "schema": {
@@ -677,10 +1363,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
               },
             },
           },
-          "description": "Success",
+          "description": "User created successfully",
+        },
+        "400": {
+          "description": "Invalid user data provided",
         },
       },
-      "summary": "UserController.create",
+      "summary": "Create new user",
       "tags": [
         "users",
       ],
@@ -688,6 +1377,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
   },
   "/users/{id}": {
     "delete": {
+      "description": "Remove a user from the system",
       "operationId": "UserController_remove",
       "parameters": [
         {
@@ -701,23 +1391,20 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
         },
       ],
       "responses": {
-        "200": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/void",
-              },
-            },
-          },
-          "description": "Success",
+        "204": {
+          "description": "User deleted successfully",
+        },
+        "404": {
+          "description": "User not found",
         },
       },
-      "summary": "UserController.remove",
+      "summary": "Delete user",
       "tags": [
         "users",
       ],
     },
     "get": {
+      "description": "Retrieve a specific user by their unique identifier",
       "operationId": "UserController_findOne",
       "parameters": [
         {
@@ -739,15 +1426,19 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
               },
             },
           },
-          "description": "Success",
+          "description": "User details",
+        },
+        "404": {
+          "description": "User not found",
         },
       },
-      "summary": "UserController.findOne",
+      "summary": "Get user by ID",
       "tags": [
         "users",
       ],
     },
     "put": {
+      "description": "Update an existing user's information",
       "operationId": "UserController_update",
       "parameters": [
         {
@@ -780,10 +1471,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
               },
             },
           },
-          "description": "Success",
+          "description": "User updated successfully",
+        },
+        "404": {
+          "description": "User not found",
         },
       },
-      "summary": "UserController.update",
+      "summary": "Update user",
       "tags": [
         "users",
       ],
@@ -791,6 +1485,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
   },
   "/users/{id}/profile": {
     "get": {
+      "description": "Retrieve complete user profile including preferences and last login",
       "operationId": "UserController_getProfile",
       "parameters": [
         {
@@ -812,10 +1507,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
               },
             },
           },
-          "description": "Success",
+          "description": "User profile with preferences",
+        },
+        "404": {
+          "description": "User not found",
         },
       },
-      "summary": "UserController.getProfile",
+      "summary": "Get user profile",
       "tags": [
         "users",
       ],

@@ -1,0 +1,326 @@
+---
+title: Effect-TS API
+description: Integrate nestjs-openapi-static with Effect-TS
+---
+
+nestjs-openapi-static uses [Effect-TS](https://effect.website/) internally. If you already use Effect in your project, you can use the library's Effect-based API directly for typed error handling.
+
+## Why Effect?
+
+Effect provides:
+
+- **Typed errors** - Know exactly what errors can occur
+- **Composable operations** - Chain operations with automatic error propagation
+- **Resource safety** - Automatic cleanup
+- **Structured concurrency** - Safe parallel operations
+- **Observability** - Built-in logging and tracing
+
+## Effect-Based Generation
+
+### Basic Usage
+
+```typescript
+import { Effect } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+
+const program = generateEffect({
+  tsconfig: './tsconfig.json',
+  entry: './src/app.module.ts',
+});
+
+// Run the effect
+const paths = await Effect.runPromise(program);
+console.log('Generated paths:', Object.keys(paths));
+```
+
+### With Error Handling
+
+```typescript
+import { Effect, pipe } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+import type { ProjectError } from 'nestjs-openapi-static';
+
+const program = pipe(
+  generateEffect({
+    tsconfig: './tsconfig.json',
+    entry: './src/app.module.ts',
+  }),
+  Effect.catchTag('EntryNotFoundError', (error) =>
+    Effect.succeed({
+      error: `Entry not found: ${error.entry}`,
+      paths: {},
+    }),
+  ),
+  Effect.catchTag('ProjectInitError', (error) =>
+    Effect.succeed({
+      error: `Project init failed: ${error.message}`,
+      paths: {},
+    }),
+  ),
+);
+
+const result = await Effect.runPromise(program);
+```
+
+### GenerateOptions
+
+```typescript
+interface GenerateOptions {
+  /** Path to tsconfig.json */
+  readonly tsconfig: string;
+
+  /** Path to the entry module file */
+  readonly entry: string;
+}
+```
+
+## Async Wrapper
+
+For convenience, there's also an async wrapper:
+
+```typescript
+import { generateAsync } from 'nestjs-openapi-static';
+
+// Returns Promise<OpenApiPaths>
+const paths = await generateAsync({
+  tsconfig: './tsconfig.json',
+  entry: './src/app.module.ts',
+});
+```
+
+## Error Types
+
+The Effect API uses typed errors:
+
+```typescript
+import type { ProjectError } from 'nestjs-openapi-static';
+import { EntryNotFoundError, ProjectInitError } from 'nestjs-openapi-static';
+
+// ProjectError is a union type:
+type ProjectError = EntryNotFoundError | ProjectInitError;
+```
+
+### EntryNotFoundError
+
+```typescript
+class EntryNotFoundError {
+  readonly _tag = 'EntryNotFoundError';
+  readonly entry: string;
+  readonly className: string;
+  readonly message: string;
+}
+```
+
+### ProjectInitError
+
+```typescript
+class ProjectInitError {
+  readonly _tag = 'ProjectInitError';
+  readonly tsconfig: string;
+  readonly message: string;
+  readonly cause?: unknown;
+}
+```
+
+## Using with Effect Runtime
+
+### Custom Runtime
+
+```typescript
+import { Effect, Runtime, Layer, Logger, LogLevel } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+
+// Create a custom runtime with logging
+const CustomRuntime = Runtime.make({
+  logger: Logger.pretty,
+  logLevel: LogLevel.Debug,
+});
+
+const program = generateEffect({
+  tsconfig: './tsconfig.json',
+  entry: './src/app.module.ts',
+});
+
+const paths = await Runtime.runPromise(CustomRuntime)(program);
+```
+
+### With Logging
+
+The Effect API logs progress using Effect's logging system:
+
+```typescript
+import { Effect, Logger, LogLevel } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+
+const program = generateEffect({
+  tsconfig: './tsconfig.json',
+  entry: './src/app.module.ts',
+}).pipe(Logger.withMinimumLogLevel(LogLevel.Info));
+
+// Logs:
+// [INFO] Starting OpenAPI generation { entry: './src/app.module.ts' }
+// [INFO] Collected method infos { modules: 5, methods: 42 }
+// [INFO] OpenAPI generation complete { paths: 15 }
+```
+
+## Composing with Other Effects
+
+### Sequential Operations
+
+```typescript
+import { Effect, pipe } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+import * as fs from 'fs/promises';
+
+const program = pipe(
+  generateEffect({
+    tsconfig: './tsconfig.json',
+    entry: './src/app.module.ts',
+  }),
+  Effect.flatMap((paths) =>
+    Effect.tryPromise(() =>
+      fs.writeFile('openapi.json', JSON.stringify({ paths }, null, 2)),
+    ),
+  ),
+  Effect.tap(() => Effect.logInfo('OpenAPI spec written')),
+);
+
+await Effect.runPromise(program);
+```
+
+### Parallel Generation
+
+```typescript
+import { Effect } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+
+const configs = [
+  {
+    tsconfig: './apps/api/tsconfig.json',
+    entry: './apps/api/src/app.module.ts',
+  },
+  {
+    tsconfig: './apps/admin/tsconfig.json',
+    entry: './apps/admin/src/app.module.ts',
+  },
+];
+
+const program = Effect.all(
+  configs.map((config) =>
+    generateEffect(config).pipe(Effect.map((paths) => ({ config, paths }))),
+  ),
+  { concurrency: 'unbounded' },
+);
+
+const results = await Effect.runPromise(program);
+```
+
+### With Error Recovery
+
+```typescript
+import { Effect, pipe } from 'effect';
+import { generateEffect } from 'nestjs-openapi-static';
+
+const program = pipe(
+  generateEffect({
+    tsconfig: './tsconfig.json',
+    entry: './src/app.module.ts',
+  }),
+  Effect.retry({
+    times: 3,
+    schedule: Schedule.exponential('100 millis'),
+  }),
+  Effect.catchAll((error) =>
+    Effect.succeed({ error: error.message, paths: {} }),
+  ),
+);
+```
+
+## Lower-Level APIs
+
+For even more control, you can use the lower-level APIs:
+
+```typescript
+import { Effect } from 'effect';
+import {
+  getModules,
+  getControllerMethodInfos,
+  transformMethods,
+} from 'nestjs-openapi-static';
+import { Project } from 'ts-morph';
+
+const program = Effect.gen(function* () {
+  // Initialize ts-morph project
+  const project = new Project({
+    tsConfigFilePath: './tsconfig.json',
+    skipAddingFilesFromTsConfig: true,
+  });
+
+  project.addSourceFilesAtPaths('./src/app.module.ts');
+
+  const entryFile = project.getSourceFile('./src/app.module.ts');
+  const appModule = entryFile?.getClass('AppModule');
+
+  if (!appModule) {
+    return yield* Effect.fail(new Error('AppModule not found'));
+  }
+
+  // Get all modules
+  const modules = yield* getModules(appModule);
+
+  // Extract method info from each controller
+  const methodInfos = modules.flatMap((mod) =>
+    mod.controllers.flatMap((controller) =>
+      getControllerMethodInfos(controller),
+    ),
+  );
+
+  // Transform to OpenAPI paths
+  const paths = transformMethods(methodInfos);
+
+  return { modules: modules.length, paths };
+});
+
+const result = await Effect.runPromise(program);
+```
+
+## Type Reference
+
+### OpenApiPaths
+
+```typescript
+interface OpenApiPaths {
+  readonly [path: string]: {
+    readonly [method: string]: OpenApiOperation;
+  };
+}
+```
+
+### MethodInfo
+
+```typescript
+interface MethodInfo {
+  readonly controllerName: string;
+  readonly controllerPath: string;
+  readonly methodName: string;
+  readonly httpMethod: HttpMethod;
+  readonly path: string;
+  readonly parameters: readonly ResolvedParameter[];
+  readonly returnType?: ReturnTypeInfo;
+  readonly tags: readonly string[];
+  readonly summary?: string;
+  readonly description?: string;
+  readonly operationId?: string;
+  readonly deprecated?: boolean;
+  readonly responses: readonly ResponseInfo[];
+  readonly consumes?: readonly string[];
+  readonly produces?: readonly string[];
+  readonly decorators: readonly string[];
+}
+```
+
+## See Also
+
+- [Effect Documentation](https://effect.website/docs/introduction) - Learn Effect-TS
+- [Errors Reference](/docs/api/errors) - All error types
+- [Internals](/docs/advanced/internals) - How the library works

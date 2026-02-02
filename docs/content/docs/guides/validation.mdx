@@ -1,0 +1,474 @@
+---
+title: Validation
+description: Extract class-validator constraints as OpenAPI schema constraints
+---
+
+Validation rules from `class-validator` decorators become OpenAPI schema constraints automatically. Enabled by default.
+
+<Callout>
+  What’s covered: type/format/length/range/array size, optionality, regex. What’s
+  not: enum values (`@IsEnum`), nested validation hints beyond type info,
+  conditional validators. Inline return types still fall back to `{ type:
+  'object' }`.
+</Callout>
+
+## Configuration
+
+```typescript
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+  },
+  options: {
+    // Enable validation extraction (default: true)
+    extractValidation: true,
+  },
+});
+```
+
+## Supported Decorators
+
+### Type Validators
+
+| Decorator      | OpenAPI Schema    |
+| -------------- | ----------------- |
+| `@IsString()`  | `type: 'string'`  |
+| `@IsNumber()`  | `type: 'number'`  |
+| `@IsInt()`     | `type: 'integer'` |
+| `@IsBoolean()` | `type: 'boolean'` |
+| `@IsArray()`   | `type: 'array'`   |
+| `@IsObject()`  | `type: 'object'`  |
+
+```typescript
+export class CreateUserDto {
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  score: number;
+
+  @IsInt()
+  age: number;
+
+  @IsBoolean()
+  active: boolean;
+
+  @IsArray()
+  tags: string[];
+}
+```
+
+Generated schema:
+
+```yaml
+CreateUserDto:
+  type: object
+  properties:
+    name:
+      type: string
+    score:
+      type: number
+    age:
+      type: integer
+    active:
+      type: boolean
+    tags:
+      type: array
+  required:
+    - name
+    - score
+    - age
+    - active
+    - tags
+```
+
+### Format Validators
+
+| Decorator         | OpenAPI Schema        |
+| ----------------- | --------------------- |
+| `@IsEmail()`      | `format: 'email'`     |
+| `@IsUrl()`        | `format: 'uri'`       |
+| `@IsUUID()`       | `format: 'uuid'`      |
+| `@IsDateString()` | `format: 'date-time'` |
+| `@IsDate()`       | `format: 'date-time'` |
+| `@IsISO8601()`    | `format: 'date-time'` |
+
+```typescript
+export class UserDto {
+  @IsUUID()
+  id: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsUrl()
+  website: string;
+
+  @IsDateString()
+  createdAt: string;
+}
+```
+
+Generated schema:
+
+```yaml
+UserDto:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    website:
+      type: string
+      format: uri
+    createdAt:
+      type: string
+      format: date-time
+```
+
+### String Constraints
+
+| Decorator           | OpenAPI Schema                     |
+| ------------------- | ---------------------------------- |
+| `@MinLength(n)`     | `minLength: n`                     |
+| `@MaxLength(n)`     | `maxLength: n`                     |
+| `@Length(min, max)` | `minLength: min`, `maxLength: max` |
+| `@IsNotEmpty()`     | `minLength: 1`                     |
+| `@Matches(regex)`   | `pattern: regex`                   |
+
+```typescript
+export class CreatePostDto {
+  @MinLength(1)
+  @MaxLength(100)
+  title: string;
+
+  @Length(10, 5000)
+  content: string;
+
+  @IsNotEmpty()
+  slug: string;
+
+  @Matches(/^[a-z0-9-]+$/)
+  urlSlug: string;
+}
+```
+
+Generated schema:
+
+```yaml
+CreatePostDto:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 100
+    content:
+      type: string
+      minLength: 10
+      maxLength: 5000
+    slug:
+      type: string
+      minLength: 1
+    urlSlug:
+      type: string
+      pattern: ^[a-z0-9-]+$
+```
+
+### Number Constraints
+
+| Decorator       | OpenAPI Schema        |
+| --------------- | --------------------- |
+| `@Min(n)`       | `minimum: n`          |
+| `@Max(n)`       | `maximum: n`          |
+| `@IsPositive()` | `exclusiveMinimum: 0` |
+| `@IsNegative()` | `exclusiveMaximum: 0` |
+
+```typescript
+export class ProductDto {
+  @Min(0)
+  @Max(10000)
+  price: number;
+
+  @IsPositive()
+  quantity: number;
+
+  @Min(1)
+  @Max(5)
+  rating: number;
+}
+```
+
+Generated schema:
+
+```yaml
+ProductDto:
+  type: object
+  properties:
+    price:
+      type: number
+      minimum: 0
+      maximum: 10000
+    quantity:
+      type: number
+      exclusiveMinimum: 0
+    rating:
+      type: number
+      minimum: 1
+      maximum: 5
+```
+
+### Array Constraints
+
+| Decorator          | OpenAPI Schema      |
+| ------------------ | ------------------- |
+| `@ArrayMinSize(n)` | `minItems: n`       |
+| `@ArrayMaxSize(n)` | `maxItems: n`       |
+| `@ArrayUnique()`   | `uniqueItems: true` |
+
+```typescript
+export class TagsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  tags: string[];
+}
+```
+
+Generated schema:
+
+```yaml
+TagsDto:
+  type: object
+  properties:
+    tags:
+      type: array
+      items:
+        type: string
+      minItems: 1
+      maxItems: 10
+      uniqueItems: true
+```
+
+### Optional Properties
+
+| Decorator       | Effect                                 |
+| --------------- | -------------------------------------- |
+| `@IsOptional()` | Removes property from `required` array |
+
+```typescript
+export class UpdateUserDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+```
+
+Generated schema:
+
+```yaml
+UpdateUserDto:
+  type: object
+  properties:
+    name:
+      type: string
+    email:
+      type: string
+      format: email
+  # No 'required' array since all properties are optional
+```
+
+### Enum Validation
+
+| Decorator       | OpenAPI Schema   |
+| --------------- | ---------------- |
+| `@IsEnum(enum)` | `enum: [values]` |
+
+```typescript
+enum Status {
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
+  ARCHIVED = 'archived',
+}
+
+export class PostDto {
+  @IsEnum(Status)
+  status: Status;
+}
+```
+
+Generated schema:
+
+```yaml
+PostDto:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - draft
+        - published
+        - archived
+```
+
+## Combining with @ApiProperty
+
+class-validator decorators can be combined with `@ApiProperty` for additional documentation:
+
+```typescript
+export class CreateUserDto {
+  @ApiProperty({
+    description: 'User email address',
+    example: 'user@example.com',
+  })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({
+    description: 'User password',
+    example: 'SecurePass123!',
+  })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  password: string;
+
+  @ApiProperty({
+    description: 'User age in years',
+    example: 25,
+  })
+  @IsInt()
+  @Min(0)
+  @Max(150)
+  age: number;
+}
+```
+
+## Complete Example
+
+```typescript
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsInt,
+  IsArray,
+  IsEnum,
+  Min,
+  Max,
+  MinLength,
+  MaxLength,
+  ArrayMinSize,
+  ArrayMaxSize,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+enum Role {
+  USER = 'user',
+  ADMIN = 'admin',
+  MODERATOR = 'moderator',
+}
+
+export class CreateUserDto {
+  @ApiProperty({ description: 'Username' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(50)
+  username: string;
+
+  @ApiProperty({ description: 'Email address' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ description: 'Password' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  password: string;
+
+  @ApiPropertyOptional({ description: 'User age' })
+  @IsOptional()
+  @IsInt()
+  @Min(13)
+  @Max(120)
+  age?: number;
+
+  @ApiProperty({ description: 'User roles' })
+  @IsArray()
+  @IsEnum(Role, { each: true })
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  roles: Role[];
+}
+```
+
+Generated schema:
+
+```yaml
+CreateUserDto:
+  type: object
+  properties:
+    username:
+      type: string
+      minLength: 3
+      maxLength: 50
+    email:
+      type: string
+      format: email
+    password:
+      type: string
+      minLength: 8
+      maxLength: 100
+    age:
+      type: integer
+      minimum: 13
+      maximum: 120
+    roles:
+      type: array
+      items:
+        type: string
+        enum:
+          - user
+          - admin
+          - moderator
+      minItems: 1
+      maxItems: 3
+  required:
+    - username
+    - email
+    - password
+    - roles
+```
+
+<Callout>
+  Validation extraction works through static analysis. Complex runtime
+  validators or custom validation functions cannot be extracted.
+</Callout>
+
+## Disabling Validation Extraction
+
+If you don't use class-validator or prefer to document schemas manually:
+
+```typescript
+options: {
+  extractValidation: false,
+}
+```
+
+## Next Steps
+
+- [Filtering Guide](/docs/guides/filtering) - Exclude endpoints from the spec
+- [Serving Guide](/docs/guides/serving) - Serve the spec at runtime
+- [Configuration Reference](/docs/guides/configuration) - Full config options

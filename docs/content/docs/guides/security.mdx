@@ -1,0 +1,439 @@
+---
+title: Security
+description: Configure authentication and security schemes
+---
+
+Security schemes are defined in config, and can be applied via config-level global requirements or decorator-based per-operation requirements.
+
+<Callout type="info">
+  Security decorators (`@ApiBearerAuth`, `@ApiOAuth2`, etc.) are fully supported
+  at controller and method level. They reference schemes defined in config and
+  merge with global requirements.
+</Callout>
+
+## Configuration Overview
+
+Security is configured in the `openapi.security` section:
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: { entry: 'src/app.module.ts' },
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+    security: {
+      schemes: [{ name: 'bearerAuth', type: 'http', scheme: 'bearer' }],
+      global: [{ bearerAuth: [] }],
+    },
+  },
+});
+```
+
+## Security Scheme Types
+
+### Bearer Token (JWT)
+
+Most common for modern APIs:
+
+```typescript
+security: {
+  schemes: [
+    {
+      name: 'bearerAuth',
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description: 'Enter your JWT token',
+    },
+  ],
+  global: [{ bearerAuth: [] }],
+}
+```
+
+Generated OpenAPI:
+
+```yaml
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter your JWT token
+security:
+  - bearerAuth: []
+```
+
+### API Key
+
+For API key authentication:
+
+```typescript
+security: {
+  schemes: [
+    {
+      name: 'apiKey',
+      type: 'apiKey',
+      in: 'header',
+      parameterName: 'X-API-Key',
+      description: 'API key for authentication',
+    },
+  ],
+  global: [{ apiKey: [] }],
+}
+```
+
+API keys can be in different locations:
+
+| `in` Value | Description               |
+| ---------- | ------------------------- |
+| `'header'` | HTTP header (most common) |
+| `'query'`  | Query parameter           |
+| `'cookie'` | Cookie                    |
+
+```typescript
+// Query parameter API key
+{
+  name: 'apiKey',
+  type: 'apiKey',
+  in: 'query',
+  parameterName: 'api_key',
+}
+
+// Cookie-based API key
+{
+  name: 'sessionToken',
+  type: 'apiKey',
+  in: 'cookie',
+  parameterName: 'session_id',
+}
+```
+
+### Basic Authentication
+
+HTTP Basic auth:
+
+```typescript
+security: {
+  schemes: [
+    {
+      name: 'basicAuth',
+      type: 'http',
+      scheme: 'basic',
+      description: 'Basic HTTP authentication',
+    },
+  ],
+  global: [{ basicAuth: [] }],
+}
+```
+
+### OAuth 2.0
+
+Full OAuth 2.0 configuration:
+
+```typescript
+security: {
+  schemes: [
+    {
+      name: 'oauth2',
+      type: 'oauth2',
+      description: 'OAuth 2.0 authentication',
+      flows: {
+        authorizationCode: {
+          authorizationUrl: 'https://auth.example.com/oauth/authorize',
+          tokenUrl: 'https://auth.example.com/oauth/token',
+          refreshUrl: 'https://auth.example.com/oauth/refresh',
+          scopes: {
+            'read:users': 'Read user information',
+            'write:users': 'Modify user information',
+            'admin': 'Full administrative access',
+          },
+        },
+      },
+    },
+  ],
+  global: [{ oauth2: ['read:users'] }],
+}
+```
+
+#### OAuth 2.0 Flow Types
+
+| Flow                | Use Case                                   |
+| ------------------- | ------------------------------------------ |
+| `authorizationCode` | Web apps with server backend               |
+| `implicit`          | Single-page apps (legacy, not recommended) |
+| `password`          | Trusted first-party apps                   |
+| `clientCredentials` | Service-to-service                         |
+
+```typescript
+// Client credentials flow (machine-to-machine)
+flows: {
+  clientCredentials: {
+    tokenUrl: 'https://auth.example.com/oauth/token',
+    scopes: {
+      'api:read': 'Read API data',
+      'api:write': 'Write API data',
+    },
+  },
+}
+
+// Password flow (trusted apps)
+flows: {
+  password: {
+    tokenUrl: 'https://auth.example.com/oauth/token',
+    scopes: {
+      'user': 'User access',
+    },
+  },
+}
+```
+
+### OpenID Connect
+
+For OIDC discovery:
+
+```typescript
+security: {
+  schemes: [
+    {
+      name: 'oidc',
+      type: 'openIdConnect',
+      openIdConnectUrl: 'https://auth.example.com/.well-known/openid-configuration',
+      description: 'OpenID Connect authentication',
+    },
+  ],
+  global: [{ oidc: [] }],
+}
+```
+
+## Decorator-Based Security
+
+Security decorators apply requirements at the controller or method level:
+
+```typescript
+@Controller('users')
+@ApiBearerAuth() // All methods require bearer auth
+export class UsersController {
+  @Get()
+  findAll() {} // Inherits controller security
+
+  @Get(':id')
+  @ApiOAuth2(['read:users']) // Overrides with OAuth2 + scopes
+  findOne(@Param('id') id: string) {}
+
+  @Delete(':id')
+  @ApiBearerAuth('jwt')
+  @ApiSecurity('admin-key') // Requires BOTH (AND logic)
+  remove(@Param('id') id: string) {}
+}
+```
+
+### Supported Decorators
+
+| Decorator                     | Default Name | Description              |
+| ----------------------------- | ------------ | ------------------------ |
+| `@ApiBearerAuth(name?)`       | `'bearer'`   | HTTP Bearer (JWT)        |
+| `@ApiBasicAuth(name?)`        | `'basic'`    | HTTP Basic auth          |
+| `@ApiOAuth2(scopes[], name?)` | `'oauth2'`   | OAuth2 with scopes       |
+| `@ApiSecurity(name, scopes?)` | -            | Generic scheme reference |
+| `@ApiCookieAuth(name?)`       | `'cookie'`   | Cookie-based auth        |
+
+### Decorator Behavior
+
+- **Controller-level**: Applies to all methods unless overridden
+- **Method-level**: Overrides controller-level security completely
+- **Multiple decorators on same target**: AND logic (all required)
+- **Merge with global**: Decorator requirements merge with `global` config
+
+<Callout>
+  Decorators reference scheme **names** defined in `openapi.security.schemes`.
+  The scheme must exist in config for the reference to be valid in the OpenAPI
+  spec.
+</Callout>
+
+## Global vs Operation-Level Security
+
+### Global Security (Config-Based)
+
+Applied to all operations without decorator security:
+
+```typescript
+security: {
+  schemes: [
+    { name: 'bearerAuth', type: 'http', scheme: 'bearer' },
+  ],
+  global: [{ bearerAuth: [] }],
+}
+```
+
+### Alternative Authentication
+
+Allow either bearer token OR API key:
+
+```typescript
+security: {
+  schemes: [
+    { name: 'bearerAuth', type: 'http', scheme: 'bearer' },
+    { name: 'apiKey', type: 'apiKey', in: 'header', parameterName: 'X-API-Key' },
+  ],
+  // Each object in the array is an alternative (OR logic)
+  global: [
+    { bearerAuth: [] },
+    { apiKey: [] },
+  ],
+}
+```
+
+### Combined Authentication
+
+Require multiple schemes simultaneously:
+
+```typescript
+security: {
+  schemes: [
+    { name: 'bearerAuth', type: 'http', scheme: 'bearer' },
+    { name: 'apiKey', type: 'apiKey', in: 'header', parameterName: 'X-API-Key' },
+  ],
+  // All schemes in one object must be satisfied (AND logic)
+  global: [
+    { bearerAuth: [], apiKey: [] },
+  ],
+}
+```
+
+### OAuth Scopes
+
+Require specific OAuth scopes:
+
+```typescript
+security: {
+  schemes: [
+    {
+      name: 'oauth2',
+      type: 'oauth2',
+      flows: {
+        authorizationCode: {
+          authorizationUrl: 'https://auth.example.com/authorize',
+          tokenUrl: 'https://auth.example.com/token',
+          scopes: {
+            'read:users': 'Read users',
+            'write:users': 'Write users',
+            'admin': 'Admin access',
+          },
+        },
+      },
+    },
+  ],
+  // Require specific scopes globally
+  global: [{ oauth2: ['read:users'] }],
+}
+```
+
+## Multiple Security Schemes
+
+Define multiple schemes for different use cases:
+
+```typescript
+security: {
+  schemes: [
+    // For web clients
+    {
+      name: 'bearerAuth',
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description: 'JWT for web/mobile clients',
+    },
+    // For service-to-service
+    {
+      name: 'serviceApiKey',
+      type: 'apiKey',
+      in: 'header',
+      parameterName: 'X-Service-Key',
+      description: 'API key for internal services',
+    },
+    // For admin operations
+    {
+      name: 'adminAuth',
+      type: 'oauth2',
+      flows: {
+        clientCredentials: {
+          tokenUrl: 'https://auth.example.com/token',
+          scopes: {
+            'admin:read': 'Read admin data',
+            'admin:write': 'Write admin data',
+          },
+        },
+      },
+    },
+  ],
+  // Allow any of these authentication methods
+  global: [
+    { bearerAuth: [] },
+    { serviceApiKey: [] },
+  ],
+}
+```
+
+## Complete Example
+
+```ts twoslash
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: { entry: 'src/app.module.ts' },
+  openapi: {
+    info: { title: 'Secure API', version: '1.0.0' },
+    security: {
+      schemes: [
+        {
+          name: 'bearerAuth',
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'JWT token obtained from /auth/login',
+        },
+        {
+          name: 'apiKey',
+          type: 'apiKey',
+          in: 'header',
+          parameterName: 'X-API-Key',
+          description: 'API key for programmatic access',
+        },
+        {
+          name: 'oauth2',
+          type: 'oauth2',
+          description: 'OAuth 2.0 for third-party integrations',
+          flows: {
+            authorizationCode: {
+              authorizationUrl: 'https://auth.example.com/oauth/authorize',
+              tokenUrl: 'https://auth.example.com/oauth/token',
+              scopes: {
+                'read:data': 'Read application data',
+                'write:data': 'Modify application data',
+              },
+            },
+          },
+        },
+      ],
+      global: [{ bearerAuth: [] }, { apiKey: [] }],
+    },
+  },
+});
+```
+
+<Callout type="info">
+  Security can be configured via decorators (`@ApiBearerAuth`, etc.) or globally
+  in config. Decorator-based security merges with global requirements, giving
+  you flexibility to define defaults in config while allowing per-operation
+  overrides via decorators.
+</Callout>
+
+## Next Steps
+
+- [Validation Guide](/docs/guides/validation) - Extract class-validator constraints
+- [Filtering Guide](/docs/guides/filtering) - Exclude endpoints from the spec
+- [Serving Guide](/docs/guides/serving) - Serve the spec at runtime

@@ -1,0 +1,298 @@
+---
+title: OpenApiModule
+description: NestJS module for serving OpenAPI specifications at runtime
+---
+
+A NestJS dynamic module for serving generated OpenAPI specifications at runtime. Optionally serves Swagger UI for interactive documentation.
+
+## Import
+
+```typescript
+import { OpenApiModule } from 'nestjs-openapi-static';
+```
+
+## forRoot()
+
+Configure and register the module.
+
+### Signature
+
+```typescript
+class OpenApiModule {
+  static forRoot(options: OpenApiModuleOptions): DynamicModule;
+}
+```
+
+### Parameters
+
+| Parameter | Type                   | Description          |
+| --------- | ---------------------- | -------------------- |
+| `options` | `OpenApiModuleOptions` | Module configuration |
+
+### OpenApiModuleOptions
+
+```typescript
+interface OpenApiModuleOptions {
+  /**
+   * Path to the generated OpenAPI JSON file.
+   * Can be absolute or relative to process.cwd().
+   * @required
+   */
+  readonly filePath: string;
+
+  /**
+   * Whether the module is enabled.
+   * When false, no routes are registered.
+   * @default true
+   */
+  readonly enabled?: boolean;
+
+  /**
+   * Path where the OpenAPI JSON will be served.
+   * @default "/openapi.json"
+   */
+  readonly jsonPath?: string;
+
+  /**
+   * Whether to serve Swagger UI.
+   * @default false
+   */
+  readonly serveSwaggerUi?: boolean;
+
+  /**
+   * Path where Swagger UI will be served.
+   * @default "/api-docs"
+   */
+  readonly swaggerUiPath?: string;
+
+  /**
+   * Custom title for the Swagger UI page.
+   * Uses spec's info.title if not provided.
+   */
+  readonly swaggerUiTitle?: string;
+}
+```
+
+### Returns
+
+`DynamicModule` - NestJS dynamic module configuration.
+
+## Example
+
+### Basic Usage
+
+```typescript
+import { Module } from '@nestjs/common';
+import { OpenApiModule } from 'nestjs-openapi-static';
+
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Serves the spec at `GET /openapi.json`.
+
+### With Swagger UI
+
+```typescript
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      serveSwaggerUi: true,
+      swaggerUiPath: '/docs',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Creates two endpoints:
+
+- `GET /openapi.json` - Raw OpenAPI specification
+- `GET /docs` - Swagger UI interface
+
+### Environment-Based
+
+```typescript
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      enabled: process.env.NODE_ENV !== 'production',
+      serveSwaggerUi: process.env.SWAGGER_UI === 'true',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### Custom Paths
+
+```typescript
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      jsonPath: '/api/v1/openapi.json',
+      serveSwaggerUi: true,
+      swaggerUiPath: '/api/v1/docs',
+      swaggerUiTitle: 'My API v1 Documentation',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+## Injection Tokens
+
+The module exports two injection tokens for accessing the spec and options in your services.
+
+### OPENAPI_SPEC
+
+Inject the loaded OpenAPI specification:
+
+```typescript
+import { Injectable, Inject } from '@nestjs/common';
+import { OPENAPI_SPEC } from 'nestjs-openapi-static';
+import type { OpenApiSpec } from 'nestjs-openapi-static';
+
+@Injectable()
+export class ApiInfoService {
+  constructor(@Inject(OPENAPI_SPEC) private readonly spec: OpenApiSpec) {}
+
+  getVersion(): string {
+    return this.spec.info.version;
+  }
+
+  getEndpoints(): string[] {
+    return Object.keys(this.spec.paths);
+  }
+
+  getOperationCount(): number {
+    return Object.values(this.spec.paths).flatMap((methods) =>
+      Object.keys(methods),
+    ).length;
+  }
+}
+```
+
+### OPENAPI_MODULE_OPTIONS
+
+Inject the resolved module options:
+
+```typescript
+import { Injectable, Inject } from '@nestjs/common';
+import { OPENAPI_MODULE_OPTIONS } from 'nestjs-openapi-static';
+import type { ResolvedOpenApiModuleOptions } from 'nestjs-openapi-static';
+
+@Injectable()
+export class DocsService {
+  constructor(
+    @Inject(OPENAPI_MODULE_OPTIONS)
+    private readonly options: ResolvedOpenApiModuleOptions,
+  ) {}
+
+  getDocsUrl(): string {
+    return this.options.serveSwaggerUi
+      ? this.options.swaggerUiPath
+      : this.options.jsonPath;
+  }
+}
+```
+
+## Helper Functions
+
+### loadSpecFile()
+
+Load an OpenAPI spec file from disk:
+
+```typescript
+import { loadSpecFile } from 'nestjs-openapi-static';
+
+const spec = loadSpecFile('openapi.json');
+console.log(spec.info.title);
+```
+
+Throws an error if the file is not found.
+
+### generateSwaggerUiHtml()
+
+Generate the Swagger UI HTML page:
+
+```typescript
+import { generateSwaggerUiHtml } from 'nestjs-openapi-static';
+
+const html = generateSwaggerUiHtml('My API', '/openapi.json');
+// Returns full HTML page with Swagger UI
+```
+
+### resolveOptions()
+
+Resolve options with defaults:
+
+```typescript
+import { resolveOptions } from 'nestjs-openapi-static';
+
+const options = resolveOptions({
+  filePath: 'openapi.json',
+});
+
+console.log(options.jsonPath); // '/openapi.json'
+console.log(options.enabled); // true
+console.log(options.serveSwaggerUi); // false
+```
+
+## ResolvedOpenApiModuleOptions
+
+The resolved options interface with all defaults applied:
+
+```typescript
+interface ResolvedOpenApiModuleOptions {
+  readonly filePath: string;
+  readonly enabled: boolean;
+  readonly jsonPath: string;
+  readonly serveSwaggerUi: boolean;
+  readonly swaggerUiPath: string;
+  readonly swaggerUiTitle: string;
+}
+```
+
+## Error Handling
+
+If the spec file is not found when the module initializes:
+
+```
+Error: OpenAPI spec file not found: openapi.json.
+Make sure to run 'nestjs-openapi-static generate' first.
+```
+
+Ensure you run `nestjs-openapi-static generate` before starting your application.
+
+## Disabled Module
+
+When `enabled: false`, the module returns an empty configuration:
+
+```typescript
+OpenApiModule.forRoot({
+  filePath: 'openapi.json',
+  enabled: false, // No routes registered
+});
+```
+
+This is useful for conditionally disabling OpenAPI in production:
+
+```typescript
+enabled: process.env.NODE_ENV !== 'production';
+```
+
+## See Also
+
+- [Serving Guide](/docs/guides/serving) - Detailed serving configuration
+- [Swagger UI Recipe](/docs/recipes/swagger-ui) - Advanced Swagger UI options
+- [generate()](/docs/api/generate) - Generate the spec to serve

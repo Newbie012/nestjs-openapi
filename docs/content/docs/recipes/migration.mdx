@@ -1,0 +1,329 @@
+---
+title: Migration Guide
+description: Migrate from @nestjs/swagger to nestjs-openapi-static
+---
+
+Migrate from `@nestjs/swagger` runtime generation to `nestjs-openapi-static` static analysis.
+
+## Key Differences
+
+| Aspect            | @nestjs/swagger             | nestjs-openapi-static        |
+| ----------------- | --------------------------- | ---------------------------- |
+| When              | Runtime (app startup)       | Build time (static analysis) |
+| Requirements      | Running app, infrastructure | Only source code             |
+| Decorator support | Full (with CLI plugin)      | Core decorators              |
+| Security          | Extracted from decorators   | Configured in config file    |
+| Performance       | Adds startup time           | Zero runtime overhead        |
+
+## Step 1: Install
+
+```bash
+npm install -D nestjs-openapi-static
+```
+
+## Step 2: Create Configuration
+
+Convert your `SwaggerModule.setup()` configuration to a config file:
+
+### Before: Runtime Setup
+
+```typescript
+// main.ts
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const config = new DocumentBuilder()
+    .setTitle('My API')
+    .setDescription('API description')
+    .setVersion('1.0.0')
+    .addServer('https://api.example.com', 'Production')
+    .addServer('http://localhost:3000', 'Development')
+    .addBearerAuth()
+    .addApiKey({ type: 'apiKey', name: 'X-API-Key', in: 'header' }, 'apiKey')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api-docs', app, document);
+
+  await app.listen(3000);
+}
+```
+
+### After: Static Configuration
+
+```ts twoslash
+// openapi.config.ts
+import { defineConfig } from 'nestjs-openapi-static';
+
+export default defineConfig({
+  output: 'openapi.json',
+  files: {
+    entry: 'src/app.module.ts',
+  },
+  openapi: {
+    info: {
+      title: 'My API',
+      description: 'API description',
+      version: '1.0.0',
+    },
+    servers: [
+      { url: 'https://api.example.com', description: 'Production' },
+      { url: 'http://localhost:3000', description: 'Development' },
+    ],
+    security: {
+      schemes: [
+        {
+          name: 'bearerAuth',
+          type: 'http',
+          scheme: 'bearer',
+        },
+        {
+          name: 'apiKey',
+          type: 'apiKey',
+          in: 'header',
+          parameterName: 'X-API-Key',
+        },
+      ],
+      global: [{ bearerAuth: [] }],
+    },
+  },
+});
+```
+
+## Step 3: Generate Spec
+
+```bash
+npx nestjs-openapi-static generate -c openapi.config.ts
+```
+
+## Step 4: Serve at Runtime (Optional)
+
+Replace `SwaggerModule.setup()` with `OpenApiModule`:
+
+### Before
+
+```typescript
+// main.ts
+const document = SwaggerModule.createDocument(app, config);
+SwaggerModule.setup('api-docs', app, document);
+```
+
+### After
+
+```typescript
+// app.module.ts
+import { OpenApiModule } from 'nestjs-openapi-static';
+
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      serveSwaggerUi: true,
+      swaggerUiPath: '/api-docs',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+## Step 5: Update Build Scripts
+
+Add generation to your build process:
+
+```json
+{
+  "scripts": {
+    "prebuild": "npx nestjs-openapi-static generate -c openapi.config.ts",
+    "build": "nest build"
+  }
+}
+```
+
+Or run separately:
+
+```json
+{
+  "scripts": {
+    "openapi": "nestjs-openapi-static generate -c openapi.config.ts",
+    "build": "nest build"
+  }
+}
+```
+
+## Decorator Migration
+
+### Supported Decorators
+
+These decorators work the same way:
+
+```typescript
+// Routing - fully supported
+@Controller('users')
+@Get(), @Post(), @Put(), @Patch(), @Delete()
+@Param(), @Query(), @Body(), @Headers()
+@HttpCode()
+
+// Documentation - fully supported
+@ApiTags()
+@ApiOperation()
+@ApiParam(), @ApiQuery(), @ApiBody()
+@ApiResponse() // Requires status property
+@ApiConsumes(), @ApiProduces()
+@ApiProperty(), @ApiPropertyOptional()
+@ApiExcludeEndpoint()
+```
+
+### Security Decorators: Config-Based
+
+Security decorators **are supported** and work similarly to `@nestjs/swagger`. Define schemes in config, then use decorators to apply them:
+
+```typescript
+// openapi.config.ts - Define available schemes
+openapi: {
+  security: {
+    schemes: [
+      { name: 'bearerAuth', type: 'http', scheme: 'bearer' },
+      { name: 'admin-key', type: 'apiKey', in: 'header', parameterName: 'X-Admin-Key' },
+    ],
+    // Optional: global requirements for all endpoints
+    global: [{ bearerAuth: [] }],
+  },
+}
+
+// Controller - Use decorators as usual
+@Controller('users')
+@ApiBearerAuth() // Applies to all methods
+export class UsersController {
+  @Get('admin')
+  @ApiSecurity('admin-key') // Method-specific security
+  getAdmin() {}
+}
+```
+
+### CLI Plugin Features
+
+If you use the NestJS Swagger CLI plugin for automatic type inference, note that nestjs-openapi-static performs its own static analysis. You can remove the CLI plugin:
+
+```json
+// nest-cli.json - remove if using nestjs-openapi-static
+{
+  "compilerOptions": {
+    "plugins": ["@nestjs/swagger"] // Can be removed
+  }
+}
+```
+
+## Common Migration Issues
+
+### Issue: Security Decorator Not Appearing in Spec
+
+**Problem**: `@ApiBearerAuth()` or other security decorators don't appear in the generated spec.
+
+**Solution**: Ensure the scheme is defined in config. Decorators reference scheme names that must exist in `openapi.security.schemes`:
+
+```typescript
+// openapi.config.ts
+openapi: {
+  security: {
+    schemes: [
+      { name: 'bearer', type: 'http', scheme: 'bearer' }, // Default name for @ApiBearerAuth()
+      { name: 'jwt', type: 'http', scheme: 'bearer' },    // For @ApiBearerAuth('jwt')
+    ],
+  },
+}
+```
+
+### Issue: @ApiResponse Without Status
+
+**Problem**: Responses don't appear in the spec.
+
+**Solution**: Always include the `status` property:
+
+```typescript
+// Won't work - missing status
+@ApiResponse({ description: 'Success', type: UserDto })
+
+// Works
+@ApiResponse({ status: 200, description: 'Success', type: UserDto })
+```
+
+### Issue: Complex Type Inference
+
+**Problem**: Some complex types aren't properly inferred.
+
+**Solution**: Use explicit `@ApiProperty` decorators:
+
+```typescript
+export class ResponseDto {
+  @ApiProperty({ type: () => UserDto })
+  user: UserDto;
+
+  @ApiProperty({ type: [String] })
+  tags: string[];
+}
+```
+
+### Issue: Dynamic Routes
+
+**Problem**: Routes defined dynamically at runtime can't be analyzed.
+
+**Solution**: Ensure all routes are defined with decorators in source code. Dynamic route registration isn't supported.
+
+## Hybrid Approach
+
+You can run both tools during migration:
+
+```typescript
+// main.ts - Keep @nestjs/swagger for comparison
+if (process.env.USE_RUNTIME_SWAGGER === 'true') {
+  const config = new DocumentBuilder()
+    .setTitle('My API')
+    .setVersion('1.0.0')
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('swagger', app, document);
+}
+```
+
+```typescript
+// app.module.ts - Also use static generation
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      filePath: 'openapi.json',
+      serveSwaggerUi: true,
+      swaggerUiPath: '/docs',  // Different path
+    }),
+  ],
+})
+```
+
+Compare the outputs at `/swagger` vs `/docs` to verify parity.
+
+## Checklist
+
+- [ ] Install `nestjs-openapi-static`
+- [ ] Create `openapi.config.ts` with equivalent settings
+- [ ] Move security configuration from decorators to config
+- [ ] Add `@ApiResponse({ status: ... })` where needed
+- [ ] Run `npx nestjs-openapi-static generate` and validate output
+- [ ] Update build scripts
+- [ ] (Optional) Replace `SwaggerModule.setup` with `OpenApiModule`
+- [ ] (Optional) Remove `@nestjs/swagger` CLI plugin from nest-cli.json
+- [ ] Compare generated specs for parity
+
+## Benefits After Migration
+
+1. **Faster CI/CD** - No app bootstrap needed
+2. **No infrastructure** - Generate specs without database
+3. **Consistent output** - Same spec regardless of environment
+4. **Type safety** - Config is fully typed
+5. **Git-friendly** - Generated spec can be committed and tracked
+
+## Next Steps
+
+- [Configuration Guide](/docs/guides/configuration) - Full config reference
+- [Security Guide](/docs/guides/security) - Configure authentication
+- [CI/CD Recipe](/docs/recipes/ci-cd) - Automate generation

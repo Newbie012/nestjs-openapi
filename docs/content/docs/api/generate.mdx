@@ -1,0 +1,187 @@
+---
+title: generate()
+description: Generate OpenAPI specification from a NestJS application
+---
+
+Generates an OpenAPI specification from a NestJS application by analyzing TypeScript source code.
+
+## Signature
+
+```typescript
+function generate(configPath: string): Promise<GenerateResult>;
+```
+
+## Parameters
+
+| Parameter    | Type     | Description                                           |
+| ------------ | -------- | ----------------------------------------------------- |
+| `configPath` | `string` | Path to the configuration file (relative or absolute) |
+
+## Returns
+
+`Promise<GenerateResult>` - Resolves when generation is complete.
+
+### GenerateResult
+
+```typescript
+interface GenerateResult {
+  /** Absolute path where the OpenAPI spec was written */
+  readonly outputPath: string;
+
+  /** Number of paths in the generated spec */
+  readonly pathCount: number;
+
+  /** Number of operations in the generated spec */
+  readonly operationCount: number;
+
+  /** Number of schemas in the generated spec */
+  readonly schemaCount: number;
+}
+```
+
+## Example
+
+### Basic Usage
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+
+const result = await generate('./openapi.config.ts');
+
+console.log(`Output: ${result.outputPath}`);
+console.log(`Paths: ${result.pathCount}`);
+console.log(`Operations: ${result.operationCount}`);
+console.log(`Schemas: ${result.schemaCount}`);
+```
+
+### With Error Handling
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+
+try {
+  const result = await generate('./openapi.config.ts');
+  console.log(`Generated ${result.operationCount} operations`);
+} catch (error) {
+  if (error instanceof Error) {
+    console.error(`Generation failed: ${error.message}`);
+  }
+  process.exit(1);
+}
+```
+
+### In a Build Script
+
+```typescript
+// scripts/generate-openapi.ts
+import { generate } from 'nestjs-openapi-static';
+
+async function main() {
+  const configs = [
+    'apps/api/openapi.config.ts',
+    'apps/admin/openapi.config.ts',
+  ];
+
+  for (const config of configs) {
+    console.log(`Generating from ${config}...`);
+    const result = await generate(config);
+    console.log(
+      `  -> ${result.outputPath} (${result.operationCount} operations)`,
+    );
+  }
+}
+
+main().catch(console.error);
+```
+
+### With Timing
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+
+const start = performance.now();
+const result = await generate('./openapi.config.ts');
+const duration = ((performance.now() - start) / 1000).toFixed(2);
+
+console.log(`Generated in ${duration}s`);
+console.log(`  ${result.pathCount} paths`);
+console.log(`  ${result.operationCount} operations`);
+console.log(`  ${result.schemaCount} schemas`);
+```
+
+## Errors
+
+The function may throw the following errors:
+
+| Error   | Cause                                           |
+| ------- | ----------------------------------------------- |
+| `Error` | Config file not found                           |
+| `Error` | Invalid configuration (missing required fields) |
+| `Error` | tsconfig.json not found                         |
+| `Error` | Entry module file not found                     |
+| `Error` | AppModule class not found in entry file         |
+
+```typescript
+try {
+  await generate('./openapi.config.ts');
+} catch (error) {
+  if (error instanceof Error) {
+    if (error.message.includes('Configuration file not found')) {
+      // Handle missing config
+    } else if (error.message.includes('tsconfig.json not found')) {
+      // Handle missing tsconfig
+    } else if (error.message.includes('Entry class')) {
+      // Handle missing AppModule
+    }
+  }
+}
+```
+
+## Behavior
+
+1. **Loads configuration** from the specified path
+2. **Resolves tsconfig.json** (uses `files.tsconfig` when provided; otherwise searches upward from the entry file)
+3. **Parses TypeScript** source files using ts-morph
+4. **Traverses modules** following `@Module({ imports })`
+5. **Extracts controllers** and their HTTP methods
+6. **Generates schemas** from DTO files (if `dtoGlob` specified)
+7. **Extracts validation** constraints from class-validator decorators
+8. **Transforms** to OpenAPI 3.0.3 specification
+9. **Writes output** to the specified file (JSON or YAML)
+
+## Path Resolution
+
+Paths in the config file are resolved relative to the config file location:
+
+```typescript
+// openapi.config.ts in /app/configs/
+export default defineConfig({
+  output: '../openapi.json', // -> /app/openapi.json
+  files: {
+    entry: '../src/app.module.ts', // -> /app/src/app.module.ts
+    tsconfig: '../tsconfig.json', // -> /app/tsconfig.json
+    dtoGlob: '../src/**/*.dto.ts', // -> /app/src/**/*.dto.ts
+  },
+});
+```
+
+## CLI Equivalent
+
+The `generate()` function is what the CLI uses internally:
+
+```bash
+npx nestjs-openapi-static generate -c openapi.config.ts
+```
+
+Is equivalent to:
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+await generate('./openapi.config.ts');
+```
+
+## See Also
+
+- [defineConfig()](/docs/api/define-config) - Configuration helper
+- [Configuration Guide](/docs/guides/configuration) - Full config reference
+- [Programmatic API](/docs/advanced/programmatic) - Advanced usage patterns

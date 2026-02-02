@@ -1,0 +1,351 @@
+---
+title: OpenAPI Clients
+description: Generate typed API clients from your OpenAPI specification
+---
+
+Generate typed API clients from your OpenAPI specification. Type errors catch API mismatches at compile time, not runtime.
+
+## openapi-typescript
+
+[openapi-typescript](https://github.com/drwpow/openapi-typescript) generates TypeScript types from OpenAPI specs.
+
+### Installation
+
+```bash
+npm install -D openapi-typescript openapi-fetch
+```
+
+### Generate Types
+
+```bash
+npx openapi-typescript openapi.json -o src/api/schema.d.ts
+```
+
+### Usage with openapi-fetch
+
+```typescript
+import createClient from 'openapi-fetch';
+import type { paths } from './schema';
+
+const client = createClient<paths>({ baseUrl: 'https://api.example.com' });
+
+// Fully typed request and response
+const { data, error } = await client.GET('/users/{id}', {
+  params: {
+    path: { id: '123' },
+  },
+});
+
+if (data) {
+  console.log(data.email); // TypeScript knows the shape
+}
+```
+
+### NPM Script
+
+```json
+{
+  "scripts": {
+    "openapi:generate": "nestjs-openapi-static generate -c openapi.config.ts",
+    "openapi:types": "openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "openapi": "npm run openapi:generate && npm run openapi:types"
+  }
+}
+```
+
+## Orval
+
+[Orval](https://orval.dev/) generates typed clients with React Query, SWR, or Axios support.
+
+### Installation
+
+```bash
+npm install -D orval
+```
+
+### Configuration
+
+```typescript
+// orval.config.ts
+import { defineConfig } from 'orval';
+
+export default defineConfig({
+  api: {
+    input: './openapi.json',
+    output: {
+      mode: 'tags-split',
+      target: 'src/api/endpoints',
+      schemas: 'src/api/models',
+      client: 'react-query',
+      mock: true, // Generate MSW mocks
+    },
+  },
+});
+```
+
+### Generate Client
+
+```bash
+npx orval
+```
+
+### Usage with React Query
+
+```typescript
+import { useGetUsers, useCreateUser } from './api/endpoints/users';
+
+function UserList() {
+  const { data: users, isLoading } = useGetUsers();
+
+  const createUser = useCreateUser();
+
+  const handleCreate = () => {
+    createUser.mutate({
+      data: { email: 'new@example.com', name: 'New User' },
+    });
+  };
+
+  if (isLoading) return <div>Loading...</div>;
+
+  return (
+    <ul>
+      {users?.map(user => (
+        <li key={user.id}>{user.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Orval Output Modes
+
+| Mode         | Description                    |
+| ------------ | ------------------------------ |
+| `single`     | Single file with all endpoints |
+| `split`      | Split by endpoint              |
+| `tags`       | Group by OpenAPI tags          |
+| `tags-split` | Tags + split endpoints         |
+
+### Client Options
+
+```typescript
+output: {
+  client: 'react-query',  // React Query hooks
+  // client: 'swr',       // SWR hooks
+  // client: 'axios',     // Plain axios
+  // client: 'fetch',     // Plain fetch
+}
+```
+
+## hey-api/openapi-ts
+
+[hey-api/openapi-ts](https://github.com/hey-api/openapi-ts) generates TypeScript clients with multiple runtime options.
+
+### Installation
+
+```bash
+npm install -D @hey-api/openapi-ts
+```
+
+### Generate Client
+
+```bash
+npx @hey-api/openapi-ts -i openapi.json -o src/api -c @hey-api/client-fetch
+```
+
+### Usage
+
+```typescript
+import { client, getUsers, createUser } from './api';
+
+// Configure base URL
+client.setConfig({ baseUrl: 'https://api.example.com' });
+
+// Fully typed
+const users = await getUsers();
+const newUser = await createUser({
+  body: { email: 'user@example.com', name: 'User' },
+});
+```
+
+## openapi-generator
+
+[OpenAPI Generator](https://openapi-generator.tech/) supports 50+ languages and frameworks.
+
+### Installation
+
+```bash
+npm install -D @openapitools/openapi-generator-cli
+```
+
+### Generate TypeScript Client
+
+```bash
+npx openapi-generator-cli generate \
+  -i openapi.json \
+  -g typescript-fetch \
+  -o src/api
+```
+
+### Available Generators
+
+| Generator            | Description      |
+| -------------------- | ---------------- |
+| `typescript-fetch`   | Fetch API client |
+| `typescript-axios`   | Axios client     |
+| `typescript-angular` | Angular services |
+| `typescript-node`    | Node.js client   |
+
+### Configuration File
+
+```yaml
+# openapitools.json
+{
+  '$schema': 'node_modules/@openapitools/openapi-generator-cli/config.schema.json',
+  'spaces': 2,
+  'generator-cli':
+    {
+      'version': '7.0.0',
+      'generators':
+        {
+          'typescript-client':
+            {
+              'generatorName': 'typescript-fetch',
+              'output': 'src/api',
+              'inputSpec': 'openapi.json',
+              'additionalProperties':
+                {
+                  'supportsES6': true,
+                  'npmName': '@my-org/api-client',
+                  'npmVersion': '1.0.0',
+                },
+            },
+        },
+    },
+}
+```
+
+## CI/CD Integration
+
+Generate clients automatically in CI:
+
+```yaml
+# .github/workflows/generate-client.yml
+name: Generate API Client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'openapi.json'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Generate client
+        run: npx openapi-typescript openapi.json -o src/api/schema.d.ts
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: regenerate API client'
+          file_pattern: 'src/api/*'
+```
+
+## Monorepo Setup
+
+Share generated clients across packages:
+
+```
+my-monorepo/
+├── apps/
+│   ├── backend/
+│   │   └── openapi.json
+│   └── frontend/
+│       └── src/
+├── packages/
+│   └── api-client/
+│       ├── package.json
+│       ├── src/
+│       │   └── schema.d.ts  # Generated
+│       └── index.ts
+```
+
+```json
+// packages/api-client/package.json
+{
+  "name": "@my-org/api-client",
+  "scripts": {
+    "generate": "openapi-typescript ../../apps/backend/openapi.json -o src/schema.d.ts"
+  }
+}
+```
+
+## Type Safety Example
+
+With generated types, you get full type safety:
+
+```typescript
+import createClient from 'openapi-fetch';
+import type { paths } from './schema';
+
+const client = createClient<paths>({ baseUrl: '/api' });
+
+// TypeScript error: 'usres' is not a valid path
+const { data } = await client.GET('/usres');
+
+// TypeScript error: missing required parameter
+const { data } = await client.GET('/users/{id}');
+
+// Correct usage - fully typed
+const { data } = await client.GET('/users/{id}', {
+  params: { path: { id: '123' } },
+});
+
+// Response type is inferred
+if (data) {
+  console.log(data.email); // string
+  console.log(data.age); // number | undefined
+}
+```
+
+## Comparison
+
+| Tool               | Pros                               | Cons                          |
+| ------------------ | ---------------------------------- | ----------------------------- |
+| openapi-typescript | Lightweight, fast                  | Types only, needs runtime lib |
+| Orval              | React Query/SWR integration, mocks | React-focused                 |
+| hey-api/openapi-ts | Modern, multiple clients           | Newer project                 |
+| openapi-generator  | Many languages                     | Heavy, Java dependency        |
+
+## Recommended Workflow
+
+1. **Generate spec** in CI when backend changes
+2. **Generate client types** automatically
+3. **Commit generated code** or publish as package
+4. **Import in frontend** with full type safety
+
+```json
+{
+  "scripts": {
+    "api:spec": "nestjs-openapi-static generate -c openapi.config.ts",
+    "api:types": "openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "api:client": "npm run api:spec && npm run api:types"
+  }
+}
+```
+
+## Next Steps
+
+- [CI/CD Recipe](/docs/recipes/ci-cd) - Automate client generation
+- [Monorepo Recipe](/docs/recipes/monorepo) - Share clients across apps
+- [Migration Guide](/docs/recipes/migration) - Migrate from @nestjs/swagger
