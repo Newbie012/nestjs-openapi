@@ -310,7 +310,8 @@ const hasMeaningfulReturnType = (
   if (Option.isSome(returnType.type)) {
     const typeName = returnType.type.value.toLowerCase();
     // Don't treat void, undefined, never as meaningful return types
-    if (['void', 'undefined', 'never', 'any'].includes(typeName)) {
+    // any IS meaningful - it means "any JSON value" which maps to { type: 'object' }
+    if (['void', 'undefined', 'never'].includes(typeName)) {
       return false;
     }
     return true;
