@@ -41,7 +41,7 @@ if [[ -z "$label" || -z "$output" ]]; then
   exit 1
 fi
 
-command=(pnpm -C "$repo" tsx src/cli.ts generate -c e2e-applications/comparison-benchmark/openapi.config.ts)
+command=(pnpm --dir "$repo" exec tsx src/cli.ts generate -c e2e-applications/comparison-benchmark/openapi.config.ts)
 
 for ((i=1; i<=warmup; i++)); do
   "${command[@]}" >/dev/null
