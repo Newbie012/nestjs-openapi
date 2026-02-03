@@ -1,5 +1,12 @@
 # nestjs-openapi-static
 
+## 2.2.1
+
+### Patch Changes
+
+- [#7](https://github.com/Newbie012/nestjs-openapi-static/pull/7) [`84cf7fe`](https://github.com/Newbie012/nestjs-openapi-static/commit/84cf7fe3c76b65e2c064951debdb42a9c2932a71) Thanks [@Newbie012](https://github.com/Newbie012)! - - Fix TypeScript config file loading when using tsx loader
+  - Fix discriminated union schemas to preserve `const` values for discriminator properties
+
 ## 2.2.0
 
 ### Minor Changes
