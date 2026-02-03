@@ -68,4 +68,4 @@ E2E tests use fixture apps in `e2e-applications/`:
 |--------------|-----------------|
 | Config option | `types.ts` → `domain.ts` → `config.ts` → `generate.ts` → tests |
 | Decorator support | `methods.ts` → `transformer.ts` → tests |
-| New error type | `errors.ts` (extend `Data.TaggedError`) |
+| New error type | `errors.ts` (extend `Schema.TaggedError`) |

@@ -17,6 +17,10 @@ export interface ProjectOptions {
   readonly entry: string;
 }
 
+/**
+ * ProjectService is an infrastructure context holder.
+ * Context.Tag is appropriate here as it holds externally-provided resources.
+ */
 export class ProjectService extends Context.Tag('ProjectService')<
   ProjectService,
   {
@@ -24,23 +28,24 @@ export class ProjectService extends Context.Tag('ProjectService')<
   }
 >() {}
 
-const initProject = (
+const initProject = Effect.fn('ProjectService.initProject')(function* (
   options: ProjectOptions,
-): Effect.Effect<Project, ProjectInitError> =>
-  Effect.try({
+) {
+  return yield* Effect.try({
     try: () =>
       new Project({
         tsConfigFilePath: options.tsconfig,
         skipAddingFilesFromTsConfig: true,
       }),
-    catch: (error) => ProjectInitError.make(options.tsconfig, error),
+    catch: (error) => ProjectInitError.create(options.tsconfig, error),
   });
+});
 
-const addSourceFiles = (
+const addSourceFiles = Effect.fn('ProjectService.addSourceFiles')(function* (
   project: Project,
   entry: string,
-): Effect.Effect<void, ProjectInitError> =>
-  Effect.try({
+) {
+  return yield* Effect.try({
     try: () => {
       project.addSourceFilesAtPaths(entry);
       project.resolveSourceFileDependencies();
@@ -52,54 +57,51 @@ const addSourceFiles = (
         cause: error,
       }),
   });
+});
 
-const getEntrySourceFile = (
-  project: Project,
-  entry: string,
-): Effect.Effect<SourceFile, EntryNotFoundError> =>
-  Effect.gen(function* () {
+const getEntrySourceFile = Effect.fn('ProjectService.getEntrySourceFile')(
+  function* (project: Project, entry: string) {
     const sourceFile = project.getSourceFile(entry);
     if (!sourceFile) {
       return yield* EntryNotFoundError.fileNotFound(entry);
     }
     return sourceFile;
-  });
+  },
+);
 
-const getEntryClass = (
+const getEntryClass = Effect.fn('ProjectService.getEntryClass')(function* (
   sourceFile: SourceFile,
   entry: string,
   className: string = 'AppModule',
-): Effect.Effect<ClassDeclaration, EntryNotFoundError> =>
-  Effect.gen(function* () {
-    const entryClass = sourceFile.getClass(className);
-    if (!entryClass) {
-      return yield* EntryNotFoundError.classNotFound(entry, className);
-    }
-    return entryClass;
-  });
+) {
+  const entryClass = sourceFile.getClass(className);
+  if (!entryClass) {
+    return yield* EntryNotFoundError.classNotFound(entry, className);
+  }
+  return entryClass;
+});
 
-export const makeProjectContext = (
-  options: ProjectOptions,
-): Effect.Effect<ProjectContext, ProjectError> =>
-  Effect.gen(function* () {
-    yield* Effect.logDebug('Initializing project').pipe(
-      Effect.annotateLogs({ entry: options.entry }),
-    );
+export const makeProjectContext = Effect.fn(
+  'ProjectService.makeProjectContext',
+)(function* (options: ProjectOptions) {
+  yield* Effect.logDebug('Initializing project').pipe(
+    Effect.annotateLogs({ entry: options.entry }),
+  );
 
-    const project = yield* initProject(options);
-    yield* addSourceFiles(project, options.entry);
+  const project = yield* initProject(options);
+  yield* addSourceFiles(project, options.entry);
 
-    const entrySourceFile = yield* getEntrySourceFile(project, options.entry);
-    const entryClass = yield* getEntryClass(entrySourceFile, options.entry);
+  const entrySourceFile = yield* getEntrySourceFile(project, options.entry);
+  const entryClass = yield* getEntryClass(entrySourceFile, options.entry);
 
-    yield* Effect.logDebug('Project initialized successfully');
+  yield* Effect.logDebug('Project initialized successfully');
 
-    return {
-      project,
-      entrySourceFile,
-      entryClass,
-    };
-  });
+  return {
+    project,
+    entrySourceFile,
+    entryClass,
+  };
+});
 
 export const ProjectServiceLive = (
   options: ProjectOptions,

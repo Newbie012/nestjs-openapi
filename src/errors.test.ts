@@ -10,8 +10,8 @@ import {
 
 describe('Error Classes', () => {
   describe('ProjectInitError', () => {
-    it('should create error with make factory', () => {
-      const error = ProjectInitError.make('/path/to/tsconfig.json');
+    it('should create error with create factory', () => {
+      const error = ProjectInitError.create('/path/to/tsconfig.json');
 
       expect(error._tag).toBe('ProjectInitError');
       expect(error.tsconfig).toBe('/path/to/tsconfig.json');
@@ -23,7 +23,7 @@ describe('Error Classes', () => {
 
     it('should create error with cause', () => {
       const cause = new Error('Original error');
-      const error = ProjectInitError.make('/path/to/tsconfig.json', cause);
+      const error = ProjectInitError.create('/path/to/tsconfig.json', cause);
 
       expect(error.cause).toBe(cause);
     });
@@ -131,8 +131,8 @@ describe('Error Classes', () => {
   });
 
   describe('InvalidMethodError', () => {
-    it('should create error with make factory', () => {
-      const error = InvalidMethodError.make(
+    it('should create error with create factory', () => {
+      const error = InvalidMethodError.create(
         'UserController',
         'getUser',
         'Missing return type',

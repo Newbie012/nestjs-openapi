@@ -4,11 +4,11 @@
  * This module generates JSON Schema definitions from TypeScript DTO files.
  */
 
-import { Effect, Data } from 'effect';
+import { Effect, Schema } from 'effect';
 import {
   createGenerator,
   type Config as TsJsonSchemaConfig,
-  type Schema,
+  type Schema as TsJsonSchema,
 } from 'ts-json-schema-generator';
 import { join, dirname } from 'node:path';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
@@ -16,12 +16,13 @@ import { randomUUID } from 'node:crypto';
 
 // Error types
 
-export class SchemaGenerationError extends Data.TaggedError(
+export class SchemaGenerationError extends Schema.TaggedError<SchemaGenerationError>()(
   'SchemaGenerationError',
-)<{
-  readonly message: string;
-  readonly cause?: unknown;
-}> {
+  {
+    message: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  },
+) {
   static fromError(error: unknown): SchemaGenerationError {
     return new SchemaGenerationError({
       message:
@@ -185,7 +186,7 @@ const generateSchemasFromGlob = (
 /**
  * Convert ts-json-schema-generator output to our format
  */
-const convertToGeneratedSchemas = (schema: Schema): GeneratedSchemas => {
+const convertToGeneratedSchemas = (schema: TsJsonSchema): GeneratedSchemas => {
   const definitions: Record<string, JsonSchema> = {};
 
   // ts-json-schema-generator puts definitions under $defs or definitions

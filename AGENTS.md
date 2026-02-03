@@ -8,12 +8,12 @@ Static analysis tool that generates OpenAPI specifications from NestJS applicati
 |------|-------|
 | Package manager | pnpm 10+ |
 | Build | `pnpm build` |
-| Test count | 361 tests |
+| Test count | 412 tests |
 | Quality gate | `pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm publint` |
 
 ## Key Constraints
 
-- **Effect for errors** — Never `throw`, use `Effect.fail` with `Data.TaggedError`
+- **Effect for errors** — Never `throw`, use `Effect.fail` with `Schema.TaggedError` (serializable)
 - **Nested config only** — Use `openapi.info`, not flat `info` at root
 - **ESM imports** — Always use `.js` extensions
 
