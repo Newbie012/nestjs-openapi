@@ -604,7 +604,7 @@ export const generate = async (
       if (resolvedLocations.size > 0) {
         const additionalFiles = [...new Set(resolvedLocations.values())];
 
-        const additionalSchemas = await Effect.runPromise(
+        const additionalSchemas = await runEffect(
           generateSchemasFromFiles(additionalFiles, tsconfig),
         );
 
