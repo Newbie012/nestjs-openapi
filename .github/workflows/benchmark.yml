@@ -1,0 +1,111 @@
+name: OpenAPI Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Benchmark ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - auth-security
+          - comparison-benchmark
+          - complex-generics
+          - config-extends
+          - dto-validation
+          - exclude-decorators
+          - inline-types
+          - multi-entry
+          - openapi-module-demo
+          - security-decorators
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Benchmark head
+        run: |
+          bash scripts/benchmark-openapi.sh \
+            --label head \
+            --output head.json \
+            --repo "$GITHUB_WORKSPACE" \
+            --app "${{ matrix.app }}"
+
+      - name: Checkout base
+        run: git worktree add /tmp/base ${{ github.event.pull_request.base.sha }}
+
+      - name: Install base dependencies
+        run: pnpm --dir /tmp/base install --frozen-lockfile
+
+      - name: Benchmark base
+        run: |
+          bash /tmp/base/scripts/benchmark-openapi.sh \
+            --label base \
+            --output base.json \
+            --repo /tmp/base \
+            --app "${{ matrix.app }}" \
+          || echo '{"name":"${{ matrix.app }}","runs":0,"durations_ms":[],"avg_ms":0}' > base.json
+
+      - name: Cleanup
+        if: always()
+        run: git worktree remove /tmp/base --force || true
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.app }}
+          path: |
+            head.json
+            base.json
+
+  comment:
+    name: Post benchmark comment
+    needs: benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: results
+          pattern: benchmark-*
+
+      - name: Merge and format results
+        run: node scripts/format-benchmark-comment.mjs results benchmark-comment.md
+
+      - name: Find comment
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: '<!-- benchmark-openapi -->'
+
+      - uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          body-file: benchmark-comment.md
+          edit-mode: replace

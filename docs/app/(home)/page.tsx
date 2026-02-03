@@ -9,6 +9,7 @@ import {
   Terminal,
   Shield,
   Code2,
+  Search,
 } from 'lucide-react';
 import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import { CopyButton } from '@/components/copy-button';
@@ -225,7 +226,7 @@ const features = [
     icon: Code2,
     title: 'Full type fidelity',
     description:
-      'Preserves unions, generics, and interfaces that reflect-metadata loses.',
+      'Preserves unions, generics, and import aliases that reflect-metadata loses.',
   },
   {
     icon: Shield,
@@ -238,6 +239,12 @@ const features = [
     title: 'class-validator support',
     description:
       'Extracts validation rules and converts them to JSON Schema constraints.',
+  },
+  {
+    icon: Search,
+    title: 'Spec validation warnings',
+    description:
+      'Detects broken $refs and highlights missing schemas before you ship.',
   },
   {
     icon: Terminal,

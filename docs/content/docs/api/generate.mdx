@@ -36,6 +36,9 @@ interface GenerateResult {
 
   /** Number of schemas in the generated spec */
   readonly schemaCount: number;
+
+  /** Validation result for broken $ref checks */
+  readonly validation: ValidationResult;
 }
 ```
 
@@ -109,6 +112,23 @@ console.log(`  ${result.operationCount} operations`);
 console.log(`  ${result.schemaCount} schemas`);
 ```
 
+## Spec Validation
+
+`generate()` always returns a validation summary for broken `$ref`s. The CLI
+prints warnings when refs are missing but still writes the spec.
+
+```typescript
+import { generate, formatValidationResult } from 'nestjs-openapi-static';
+
+const result = await generate('./openapi.config.ts');
+
+if (!result.validation.valid) {
+  console.warn(formatValidationResult(result.validation));
+}
+```
+
+See [Spec Validation](/docs/api/spec-validation) for the full API.
+
 ## Errors
 
 The function may throw the following errors:
@@ -144,10 +164,12 @@ try {
 3. **Parses TypeScript** source files using ts-morph
 4. **Traverses modules** following `@Module({ imports })`
 5. **Extracts controllers** and their HTTP methods
-6. **Generates schemas** from DTO files (if `dtoGlob` specified)
+6. **Generates schemas** from DTO files (based on `dtoGlob`) and resolves
+   missing types when refs are detected
 7. **Extracts validation** constraints from class-validator decorators
 8. **Transforms** to OpenAPI 3.0.3 specification
-9. **Writes output** to the specified file (JSON or YAML)
+9. **Validates** the spec for broken `$ref`s
+10. **Writes output** to the specified file (JSON or YAML)
 
 ## Path Resolution
 

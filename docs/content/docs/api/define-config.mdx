@@ -52,7 +52,12 @@ export default defineConfig({
   files: {
     entry: 'src/app.module.ts',
     tsconfig: 'tsconfig.json',
-    dtoGlob: 'src/**/*.dto.ts',
+    dtoGlob: [
+      'src/**/*.dto.ts',
+      'src/**/*.entity.ts',
+      'src/**/*.model.ts',
+      'src/**/*.schema.ts',
+    ],
     exclude: ['**/*.spec.ts', '**/*.test.ts'],
   },
 
@@ -169,7 +174,7 @@ defineConfig({
   files: {
     entry: 'src/app.module.ts', // default
     tsconfig: 'tsconfig.json', // generator will try to find it if omitted
-    dtoGlob: 'src/**/*.dto.ts',
+    dtoGlob: ['src/**/*.dto.ts', 'src/**/*.entity.ts', '...'],
     include: ['src/**/*.ts'],
     exclude: ['**/*.spec.ts'],
   },
@@ -206,6 +211,10 @@ defineConfig({
   },
 });
 ```
+
+If a referenced schema isn't generated from your `dtoGlob` patterns, the
+generator will attempt to resolve and merge it automatically. The CLI warns if
+any broken refs remain.
 
 ## Type Inference
 

@@ -97,9 +97,10 @@ export class ConfigValidationError extends Data.TaggedError(
     path: string,
     issues: readonly string[],
   ): ConfigValidationError {
+    const issuesList = issues.length > 0 ? `\n  ${issues.join('\n  ')}` : '';
     return new ConfigValidationError({
       path,
-      message: `Configuration validation failed: ${path}`,
+      message: `Configuration validation failed: ${path}${issuesList}`,
       issues,
     });
   }

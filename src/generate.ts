@@ -24,12 +24,22 @@ import { EntryNotFoundError } from './errors.js';
 import { getModules } from './modules.js';
 import { getControllerMethodInfos } from './methods.js';
 import { transformMethods } from './transformer.js';
-import { generateSchemas, type GeneratedSchemas } from './schema-generator.js';
+import {
+  generateSchemas,
+  generateSchemasFromFiles,
+  type GeneratedSchemas,
+} from './schema-generator.js';
 import { normalizeStructureRefs } from './schema-normalizer.js';
 import { mergeSchemas } from './schema-merger.js';
 import { filterMethods } from './filter.js';
 import { transformSpecForVersion } from './schema-version-transformer.js';
 import { loadConfigFromFile } from './config.js';
+import { validateSpec, type ValidationResult } from './spec-validator.js';
+import {
+  createTypeResolverProject,
+  resolveTypeLocations,
+  resolveTypeLocationsFast,
+} from './type-resolver.js';
 import {
   extractClassConstraints,
   getRequiredProperties,
@@ -128,6 +138,40 @@ const sortObjectKeysDeep = <T>(obj: T): T => {
   }
 
   return sorted as T;
+};
+
+/**
+ * Find all schema refs in paths that aren't defined in schemas.
+ * Returns a set of missing schema names.
+ */
+const findMissingSchemaRefs = (
+  paths: OpenApiSpec['paths'],
+  schemas: Record<string, OpenApiSchema>,
+): Set<string> => {
+  const defined = new Set(Object.keys(schemas));
+  const missing = new Set<string>();
+
+  const findRefs = (obj: unknown): void => {
+    if (!obj || typeof obj !== 'object') return;
+
+    const record = obj as Record<string, unknown>;
+    if (typeof record.$ref === 'string') {
+      const ref = record.$ref as string;
+      if (ref.startsWith('#/components/schemas/')) {
+        const schemaName = ref.replace('#/components/schemas/', '');
+        if (!defined.has(schemaName)) {
+          missing.add(schemaName);
+        }
+      }
+    }
+
+    for (const value of Object.values(record)) {
+      findRefs(value);
+    }
+  };
+
+  findRefs(paths);
+  return missing;
 };
 
 /**
@@ -327,6 +371,8 @@ export interface GenerateResult {
   readonly operationCount: number;
   /** Number of schemas in the generated spec */
   readonly schemaCount: number;
+  /** Validation result checking for broken refs */
+  readonly validation: ValidationResult;
 }
 
 /**
@@ -459,11 +505,128 @@ export const generate = async (
     // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
     generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
-    const mergeResult = mergeSchemas(
+    // First merge to get initial schemas
+    let mergeResult = mergeSchemas(
       paths as unknown as OpenApiSpec['paths'],
       generatedSchemas,
     );
     schemas = mergeResult.schemas;
+
+    // Hybrid approach: Find and resolve any missing schemas automatically
+    const missingRefs = findMissingSchemaRefs(
+      paths as unknown as OpenApiSpec['paths'],
+      schemas,
+    );
+
+    if (missingRefs.size > 0) {
+      const debugEnabled = process.env.DEBUG === 'true';
+      const startTime = debugEnabled ? Date.now() : 0;
+
+      if (debugEnabled) {
+        console.debug(
+          `[nestjs-openapi-static] Resolving ${missingRefs.size} missing type(s): ${[...missingRefs].join(', ')}`,
+        );
+      }
+
+      // Try fast grep-based resolution first (much faster for large codebases)
+      // Search from tsconfig directory (monorepo root) to find types in shared libs
+      const resolveStart = debugEnabled ? Date.now() : 0;
+      const tsconfigDir = dirname(tsconfig);
+      const resolvedLocations = resolveTypeLocationsFast(
+        tsconfigDir,
+        missingRefs,
+      );
+
+      // Fall back to ts-morph if fast resolution didn't find all types
+      const unresolvedTypes = new Set(
+        [...missingRefs].filter(
+          (t) => !resolvedLocations.has(t.replace(/<.*>$/, '')),
+        ),
+      );
+
+      if (unresolvedTypes.size > 0) {
+        if (debugEnabled) {
+          console.debug(
+            `[nestjs-openapi-static]   - Fast resolution: ${Date.now() - resolveStart}ms (found ${resolvedLocations.size}/${missingRefs.size})`,
+          );
+        }
+
+        const projectStart = debugEnabled ? Date.now() : 0;
+        const project = createTypeResolverProject(tsconfig);
+        if (debugEnabled) {
+          console.debug(
+            `[nestjs-openapi-static]   - createTypeResolverProject: ${Date.now() - projectStart}ms`,
+          );
+        }
+
+        const morphStart = debugEnabled ? Date.now() : 0;
+        const morphResolved = resolveTypeLocations(project, unresolvedTypes);
+        if (debugEnabled) {
+          console.debug(
+            `[nestjs-openapi-static]   - resolveTypeLocations (fallback): ${Date.now() - morphStart}ms (found ${morphResolved.size} more)`,
+          );
+        }
+
+        // Merge results
+        for (const [type, path] of morphResolved) {
+          resolvedLocations.set(type, path);
+        }
+      } else if (debugEnabled) {
+        console.debug(
+          `[nestjs-openapi-static]   - Fast resolution: ${Date.now() - resolveStart}ms (found all ${resolvedLocations.size} types)`,
+        );
+      }
+
+      if (resolvedLocations.size > 0) {
+        const additionalFiles = [...new Set(resolvedLocations.values())];
+
+        if (debugEnabled) {
+          console.debug(
+            `[nestjs-openapi-static]   - Additional files to process: ${additionalFiles.length}`,
+          );
+        }
+
+        // Generate schemas from the resolved files
+        const schemaStart = debugEnabled ? Date.now() : 0;
+        const additionalSchemas = await Effect.runPromise(
+          generateSchemasFromFiles(additionalFiles, tsconfig).pipe(
+            Effect.mapError((error) => new Error(error.message)),
+          ),
+        );
+        if (debugEnabled) {
+          console.debug(
+            `[nestjs-openapi-static]   - generateSchemasFromFiles: ${Date.now() - schemaStart}ms`,
+          );
+        }
+
+        // Merge additional schemas
+        if (Object.keys(additionalSchemas.definitions).length > 0) {
+          // Normalize additional schemas (they may contain structure refs)
+          const normalizedAdditional =
+            normalizeStructureRefs(additionalSchemas);
+
+          const combinedSchemas: GeneratedSchemas = {
+            definitions: {
+              ...generatedSchemas.definitions,
+              ...normalizedAdditional.definitions,
+            },
+          };
+
+          // Re-merge with additional schemas
+          mergeResult = mergeSchemas(
+            paths as unknown as OpenApiSpec['paths'],
+            combinedSchemas,
+          );
+          schemas = mergeResult.schemas;
+        }
+      }
+
+      if (debugEnabled) {
+        console.debug(
+          `[nestjs-openapi-static] Hybrid resolution completed in ${Date.now() - startTime}ms`,
+        );
+      }
+    }
   }
 
   const securitySchemes =
@@ -544,10 +707,14 @@ export const generate = async (
   );
   const schemaCount = Object.keys(schemas).length;
 
+  // Validate the spec for broken refs
+  const validation = validateSpec(sortedSpec);
+
   return {
     outputPath: output,
     pathCount,
     operationCount,
     schemaCount,
+    validation,
   };
 };

@@ -83,7 +83,22 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
     (
       returnType as { getAwaitedType?: () => typeof returnType }
     ).getAwaitedType?.() ?? returnType;
-  let text = awaited.getText(method);
+
+  const symbol = awaited.getSymbol?.();
+
+  // Try to get original name for aliased imports (e.g., "import { Foo as Bar }")
+  // This ensures refs match schema names generated from the original export
+  const getOriginalTypeName = (): string | null => {
+    if (!symbol) return null;
+    const aliased = symbol.getAliasedSymbol?.();
+    if (aliased) {
+      const name = aliased.getName();
+      if (name && !name.startsWith('__')) return name;
+    }
+    return null;
+  };
+
+  let text = getOriginalTypeName() ?? awaited.getText(method);
 
   const promiseMatch = text.match(/^Promise<(.+)>$/);
   if (promiseMatch) text = promiseMatch[1].trim();
@@ -92,7 +107,6 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   text = text.replace(/\bimport\([^)]*\)\./g, '');
 
   const resolveFilePath = (): Option.Option<string> => {
-    const symbol = awaited.getSymbol?.();
     if (symbol) {
       const decls = symbol.getDeclarations();
       if (decls && decls.length > 0) {
@@ -255,7 +269,49 @@ const extractParameters = (
 
     const location = PARAMETER_DECORATOR_MAP[decoratorName] ?? 'query';
     const paramType = param.getType();
-    const tsType = paramType.getText(param);
+
+    // Get type name, preferring symbol name for correct resolution of aliased imports
+    // When someone writes "import { Foo as Bar }", getText() returns "Bar" but
+    // symbol.getName() returns "Foo" (the original export name)
+    let tsType = paramType.getText(param);
+    const symbol = paramType.getSymbol?.();
+    if (symbol) {
+      const symbolName = symbol.getName();
+      // Use symbol name if it's a valid identifier (not __type etc.)
+      // But skip built-in types like Array, Promise, etc. - those should use getText()
+      // to preserve the full generic signature like "Array<string>"
+      const builtInTypes = new Set([
+        'Array',
+        'ReadonlyArray',
+        'Promise',
+        'Map',
+        'Set',
+        'WeakMap',
+        'WeakSet',
+        'Record',
+        'Partial',
+        'Required',
+        'Pick',
+        'Omit',
+        'Exclude',
+        'Extract',
+        'NonNullable',
+        'ReturnType',
+        'InstanceType',
+        'Parameters',
+      ]);
+      if (
+        symbolName &&
+        !symbolName.startsWith('__') &&
+        !builtInTypes.has(symbolName)
+      ) {
+        tsType = symbolName;
+      }
+    }
+
+    // Clean import(...).TypeName to just TypeName (for cases where getText returns full path)
+    tsType = tsType.replace(/\bimport\([^)]*\)\./g, '');
+
     const isOptional = param.hasQuestionToken() || param.hasInitializer();
     const description = extractParameterDescription(
       method,

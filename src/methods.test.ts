@@ -514,4 +514,222 @@ describe('getMethodInfo', () => {
       ]);
     });
   });
+
+  describe('Built-in generic types handling', () => {
+    it('should NOT return just "Array" for Array<string> (would create broken ref)', () => {
+      const code = `
+        @Controller('/items')
+        class ItemsController {
+          @Post('batch')
+          createBatch(@Body() ids: Array<string>) {
+            return { ids };
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.parameters).toHaveLength(1);
+      // TypeScript may normalize Array<string> to string[], either is acceptable
+      // What's NOT acceptable is just "Array" (which would create a broken $ref)
+      expect(info?.parameters[0].tsType).not.toBe('Array');
+      expect(['Array<string>', 'string[]']).toContain(
+        info?.parameters[0].tsType,
+      );
+    });
+
+    it('should preserve string[] array syntax', () => {
+      const code = `
+        @Controller('/items')
+        class ItemsController {
+          @Post('batch')
+          createBatch(@Body() ids: string[]) {
+            return { ids };
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.parameters).toHaveLength(1);
+      expect(info?.parameters[0].tsType).toBe('string[]');
+    });
+
+    it('should NOT return just "Array" for Array<UserDto> (would create broken ref)', () => {
+      const code = `
+        @Controller('/users')
+        class UsersController {
+          @Post('batch')
+          createBatch(@Body() users: Array<UserDto>) {
+            return { users };
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.parameters).toHaveLength(1);
+      // TypeScript may normalize Array<UserDto> to UserDto[], either is acceptable
+      // What's NOT acceptable is just "Array" (which would create a broken $ref)
+      expect(info?.parameters[0].tsType).not.toBe('Array');
+      expect(['Array<UserDto>', 'UserDto[]']).toContain(
+        info?.parameters[0].tsType,
+      );
+    });
+
+    it('should NOT return just "Record" for Record<string, number> (would create broken ref)', () => {
+      const code = `
+        @Controller('/stats')
+        class StatsController {
+          @Post()
+          updateStats(@Body() data: Record<string, number>) {
+            return data;
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.parameters).toHaveLength(1);
+      // Should NOT be just "Record" (which would create a broken $ref)
+      expect(info?.parameters[0].tsType).not.toBe('Record');
+      expect(info?.parameters[0].tsType).toContain('Record');
+    });
+
+    it('should NOT return just "Partial" for Partial<UserDto> (would create broken ref)', () => {
+      const code = `
+        @Controller('/users')
+        class UsersController {
+          @Patch(':id')
+          updateUser(@Param('id') id: string, @Body() data: Partial<UserDto>) {
+            return data;
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      const bodyParam = info?.parameters.find((p) => p.location === 'body');
+      // Should NOT be just "Partial" (which would create a broken $ref)
+      expect(bodyParam?.tsType).not.toBe('Partial');
+    });
+
+    it('should NOT return just "Map" for Map<string, UserDto> (would create broken ref)', () => {
+      const code = `
+        @Controller('/cache')
+        class CacheController {
+          @Post()
+          setCache(@Body() data: Map<string, UserDto>) {
+            return {};
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.parameters).toHaveLength(1);
+      // Should NOT be just "Map" (which would create a broken $ref)
+      expect(info?.parameters[0].tsType).not.toBe('Map');
+    });
+  });
+
+  describe('Import alias resolution', () => {
+    it('should use original type name for aliased imports', () => {
+      // Create a multi-file project to test import aliases
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      // Create the original DTO file
+      project.createSourceFile(
+        'dto/user.dto.ts',
+        `
+        export class UserDto {
+          id: string;
+          name: string;
+        }
+      `,
+      );
+
+      // Create controller that imports with alias
+      const controllerFile = project.createSourceFile(
+        'controllers/user.controller.ts',
+        `
+        import { UserDto as UserRequestDto } from '../dto/user.dto';
+
+        @Controller('/users')
+        class UsersController {
+          @Post()
+          createUser(@Body() dto: UserRequestDto) {
+            return dto;
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      expect(info.parameters).toHaveLength(1);
+      // Should use the ORIGINAL name (UserDto), not the alias (UserRequestDto)
+      expect(info.parameters[0].tsType).toBe('UserDto');
+    });
+
+    it('should handle non-aliased imports normally', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      // Create the original DTO file
+      project.createSourceFile(
+        'dto/user.dto.ts',
+        `
+        export class UserDto {
+          id: string;
+          name: string;
+        }
+      `,
+      );
+
+      // Create controller with normal import (no alias)
+      const controllerFile = project.createSourceFile(
+        'controllers/user.controller.ts',
+        `
+        import { UserDto } from '../dto/user.dto';
+
+        @Controller('/users')
+        class UsersController {
+          @Post()
+          createUser(@Body() dto: UserDto) {
+            return dto;
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      expect(info.parameters).toHaveLength(1);
+      expect(info.parameters[0].tsType).toBe('UserDto');
+    });
+  });
 });
