@@ -342,8 +342,8 @@ export const OptionsConfig = Schema.Struct({
   extractValidation: Schema.optional(Schema.Boolean),
   excludeDecorators: Schema.optional(Schema.Array(Schema.String)),
   query: Schema.optional(QueryOptionsConfig),
-  // Note: pathFilter (RegExp | function) cannot be validated by Schema,
-  // it's handled separately in config loading
+  // Note: pathFilter (RegExp | function) is defined in types.ts but cannot be
+  // schema-validated. It's passed through during config loading in config.ts.
 });
 export type OptionsConfig = typeof OptionsConfig.Type;
 

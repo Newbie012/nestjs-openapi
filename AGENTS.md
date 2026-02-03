@@ -8,7 +8,7 @@ Static analysis tool that generates OpenAPI specifications from NestJS applicati
 |------|-------|
 | Package manager | pnpm 10+ |
 | Build | `pnpm build` |
-| Test count | 412 tests |
+| Test count | 416 tests |
 | Quality gate | `pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm publint` |
 
 ## Key Constraints

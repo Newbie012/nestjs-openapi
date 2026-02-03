@@ -102,4 +102,4 @@ Run before every commit:
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm publint
 ```
 
-All 412 tests must pass.
+All 416 tests must pass.

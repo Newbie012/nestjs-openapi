@@ -149,6 +149,8 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   }
   if (schema.description) result['description'] = schema.description;
   if (schema.enum) result['enum'] = schema.enum;
+  // Const value for discriminated unions
+  if (schema.const !== undefined) result['const'] = schema.const;
 
   // Validation constraints - string
   if (schema.minLength !== undefined) result['minLength'] = schema.minLength;
