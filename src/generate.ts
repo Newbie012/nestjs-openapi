@@ -121,23 +121,50 @@ const mergeSecurityWithGlobal = (
 };
 
 /**
- * Recursively sort all object keys alphabetically.
- * This ensures consistent output order matching NestJS Swagger.
+ * Standard OpenAPI top-level field order
  */
-const sortObjectKeysDeep = <T>(obj: T): T => {
+const OPENAPI_FIELD_ORDER = [
+  'openapi',
+  'info',
+  'servers',
+  'paths',
+  'components',
+  'tags',
+  'security',
+];
+
+/**
+ * Recursively sort object keys.
+ * - Top-level OpenAPI fields are ordered per spec convention
+ * - Nested objects are sorted alphabetically for consistency
+ */
+const sortObjectKeysDeep = <T>(obj: T, isTopLevel = false): T => {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(sortObjectKeysDeep) as T;
+    return obj.map((item) => sortObjectKeysDeep(item, false)) as T;
   }
 
   const sorted: Record<string, unknown> = {};
-  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const objRecord = obj as Record<string, unknown>;
+  const keys = Object.keys(objRecord);
 
-  for (const key of keys) {
-    sorted[key] = sortObjectKeysDeep((obj as Record<string, unknown>)[key]);
+  // Sort keys: use OpenAPI order for top-level, alphabetical otherwise
+  const sortedKeys = isTopLevel
+    ? keys.sort((a, b) => {
+        const aIndex = OPENAPI_FIELD_ORDER.indexOf(a);
+        const bIndex = OPENAPI_FIELD_ORDER.indexOf(b);
+        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        return a.localeCompare(b);
+      })
+    : keys.sort();
+
+  for (const key of sortedKeys) {
+    sorted[key] = sortObjectKeysDeep(objRecord[key], false);
   }
 
   return sorted as T;
@@ -689,7 +716,7 @@ export const generate = async (
   }
 
   // Sort keys to match NestJS Swagger output order
-  const sortedSpec = sortObjectKeysDeep(spec);
+  const sortedSpec = sortObjectKeysDeep(spec, true);
 
   const outputDir = dirname(output);
   if (!existsSync(outputDir)) {

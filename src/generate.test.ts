@@ -142,6 +142,52 @@ export default defineConfig({
     });
   });
 
+  describe('spec field order', () => {
+    const testAppDir = resolve(
+      process.cwd(),
+      'e2e-applications/dto-validation',
+    );
+
+    it('should output fields in standard OpenAPI order: openapi, info, servers, paths, components, tags', async () => {
+      const configPath = join(TEST_DIR, 'order.config.ts');
+      const outputPath = join(TEST_DIR, 'order.json');
+
+      const config = `import { defineConfig } from '${resolve(process.cwd(), 'src/config.js').replace(/\\/g, '/')}';
+
+export default defineConfig({
+  output: '${outputPath.replace(/\\/g, '/')}',
+  format: 'json',
+  files: {
+    entry: '${join(testAppDir, 'src/app.module.ts').replace(/\\/g, '/')}',
+    tsconfig: '${resolve(process.cwd(), 'tsconfig.json').replace(/\\/g, '/')}',
+    dtoGlob: '${join(testAppDir, 'src/**/*.dto.ts').replace(/\\/g, '/')}',
+  },
+  openapi: {
+    info: { title: 'Test API', version: '1.0.0' },
+    servers: [{ url: 'http://localhost:3000' }],
+    tags: [{ name: 'test' }],
+  },
+});
+`;
+      writeFileSync(configPath, config, 'utf-8');
+
+      await generate(configPath);
+
+      const content = readFileSync(outputPath, 'utf-8');
+      const keys = Object.keys(JSON.parse(content));
+
+      // Verify exact order
+      expect(keys).toEqual([
+        'openapi',
+        'info',
+        'servers',
+        'paths',
+        'components',
+        'tags',
+      ]);
+    });
+  });
+
   describe('YAML output options', () => {
     const testAppDir = resolve(
       process.cwd(),
