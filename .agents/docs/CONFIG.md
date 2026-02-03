@@ -101,6 +101,41 @@ When `files.tsconfig` is omitted, the Promise API (`generate()`) searches upward
 | `extractValidation` | `boolean` | `true` | Extract class-validator constraints |
 | `excludeDecorators` | `string[]` | `['ApiExcludeEndpoint', 'ApiExcludeController']` | Exclusion decorators |
 | `pathFilter` | `RegExp \| Function` | — | Filter routes |
+| `query.style` | `"inline" \| "ref"` | `"inline"` | How to represent query DTOs |
+
+#### Query DTO Style
+
+By default (`style: "inline"`), when `@Query()` is used without an explicit parameter name (e.g., `@Query() pagination: PaginationDto`), the DTO properties are **inlined as individual query parameters**. This is the standard OpenAPI practice.
+
+```typescript
+// Controller code:
+@Get()
+findAll(@Query() pagination: PaginationDto) { ... }
+
+// Generated OpenAPI (style: "inline" - default):
+parameters:
+  - name: page
+    in: query
+    required: false
+  - name: limit
+    in: query
+    required: false
+```
+
+Set `query.style: "ref"` to keep the entire query object as a single schema reference:
+
+```typescript
+options: {
+  query: { style: 'ref' },
+}
+
+// Generated OpenAPI (style: "ref"):
+parameters:
+  - name: pagination
+    in: query
+    schema:
+      $ref: '#/components/schemas/PaginationDto'
+```
 
 #### Validation Extraction
 

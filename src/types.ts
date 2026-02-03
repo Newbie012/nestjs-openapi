@@ -294,6 +294,37 @@ export interface OptionsConfig {
    * ```
    */
   readonly pathFilter?: RegExp | ((path: string) => boolean);
+
+  /**
+   * Query parameter handling options.
+   */
+  readonly query?: QueryOptions;
+}
+
+/**
+ * Query parameter handling options.
+ */
+export interface QueryOptions {
+  /**
+   * How to represent query object DTOs (e.g., `@Query() dto: PaginationDto`).
+   * - `"inline"` (default): Expand DTO properties as individual query parameters
+   * - `"ref"`: Keep as a single parameter with a schema reference
+   *
+   * @default "inline"
+   *
+   * @example
+   * ```typescript
+   * // With style: "inline" (default)
+   * // @Query() dto: PaginationDto becomes:
+   * // - page: integer (query)
+   * // - limit: integer (query)
+   *
+   * // With style: "ref"
+   * // @Query() dto: PaginationDto becomes:
+   * // - dto: $ref to PaginationDto schema (query)
+   * ```
+   */
+  readonly style?: 'inline' | 'ref';
 }
 
 /**
@@ -399,6 +430,22 @@ export interface OpenApiSchema {
   readonly nullable?: boolean;
   /** Examples array for 3.1+ (replaces single 'example' field) */
   readonly examples?: readonly unknown[];
+  // String validation constraints
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly pattern?: string;
+  // Number validation constraints
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly exclusiveMaximum?: number;
+  // Array validation constraints
+  readonly minItems?: number;
+  readonly maxItems?: number;
+  // Default value
+  readonly default?: unknown;
+  // Additional properties constraint
+  readonly additionalProperties?: boolean | OpenApiSchema;
 }
 
 /**

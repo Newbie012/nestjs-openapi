@@ -193,6 +193,22 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
         convertToOpenApiSchema(value),
       ]),
     );
+    // Add additionalProperties: false for object schemas with properties
+    // unless explicitly set otherwise
+    if (schema.additionalProperties === undefined) {
+      result['additionalProperties'] = false;
+    }
+  }
+
+  // Handle explicit additionalProperties setting
+  if (schema.additionalProperties !== undefined) {
+    if (typeof schema.additionalProperties === 'boolean') {
+      result['additionalProperties'] = schema.additionalProperties;
+    } else {
+      result['additionalProperties'] = convertToOpenApiSchema(
+        schema.additionalProperties,
+      );
+    }
   }
 
   if (schema.required) {

@@ -11,14 +11,41 @@ export const ParameterLocation = Schema.Literal(
 );
 export type ParameterLocation = typeof ParameterLocation.Type;
 
+/** Validation constraints that can be applied to parameters (plain interface for perf) */
+export interface ParameterConstraints {
+  // String constraints
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly pattern?: string;
+  readonly format?: string;
+  // Number constraints
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly exclusiveMaximum?: number;
+  // Array constraints
+  readonly minItems?: number;
+  readonly maxItems?: number;
+  // Enum constraint
+  readonly enum?: readonly unknown[];
+  // Type override
+  readonly type?: string;
+}
+
 export const ResolvedParameter = Schema.Struct({
   name: Schema.String,
   location: ParameterLocation,
   tsType: Schema.String,
   required: Schema.Boolean,
   description: Schema.OptionFromNullOr(Schema.String),
+  // Note: constraints uses plain interface to avoid Schema initialization overhead
 });
-export type ResolvedParameter = typeof ResolvedParameter.Type;
+export interface ResolvedParameter extends Schema.Schema.Type<
+  typeof ResolvedParameter
+> {
+  /** Validation constraints from decorators like @Min, @Max, @IsEnum, etc. */
+  readonly constraints?: ParameterConstraints;
+}
 
 // Return Type
 
@@ -306,10 +333,15 @@ export const OpenApiConfig = Schema.Struct({
 });
 export type OpenApiConfig = typeof OpenApiConfig.Type;
 
+export const QueryOptionsConfig = Schema.Struct({
+  style: Schema.optional(Schema.Literal('inline', 'ref')),
+});
+
 export const OptionsConfig = Schema.Struct({
   basePath: Schema.optional(Schema.String),
   extractValidation: Schema.optional(Schema.Boolean),
   excludeDecorators: Schema.optional(Schema.Array(Schema.String)),
+  query: Schema.optional(QueryOptionsConfig),
   // Note: pathFilter (RegExp | function) cannot be validated by Schema,
   // it's handled separately in config loading
 });

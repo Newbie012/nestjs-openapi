@@ -226,16 +226,26 @@ const getParameterLocation = (
   }
 };
 
-const transformParameter = (param: ResolvedParameter): OpenApiParameter => ({
-  name: param.name,
-  in: getParameterLocation(param.location),
-  description: Option.getOrElse(
-    param.description,
-    () => `${param.location} parameter: ${param.name}`,
-  ),
-  required: param.location === 'path' ? true : param.required,
-  schema: tsTypeToOpenApiSchema(param.tsType),
-});
+const transformParameter = (param: ResolvedParameter): OpenApiParameter => {
+  // Build base schema from TypeScript type
+  const baseSchema = tsTypeToOpenApiSchema(param.tsType);
+
+  // Merge validation constraints if present
+  const schema = param.constraints
+    ? { ...baseSchema, ...param.constraints }
+    : baseSchema;
+
+  return {
+    name: param.name,
+    in: getParameterLocation(param.location),
+    description: Option.getOrElse(
+      param.description,
+      () => `${param.location} parameter: ${param.name}`,
+    ),
+    required: param.location === 'path' ? true : param.required,
+    schema,
+  };
+};
 
 const buildResponseSchema = (
   returnType: MethodInfo['returnType'],

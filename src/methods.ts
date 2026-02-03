@@ -29,6 +29,7 @@ import {
   hasMethodSecurityDecorators,
   combineSecurityRequirements,
 } from './security-decorators.js';
+import { extractPropertyValidationInfo } from './validation-mapper.js';
 
 const HTTP_METHOD_MAP: Record<string, HttpMethod> = {
   Get: 'GET',
@@ -47,6 +48,33 @@ const PARAMETER_DECORATOR_MAP: Record<string, ParameterLocation> = {
   Body: 'body',
   Headers: 'header',
 };
+
+/** Configuration options for parameter extraction */
+export interface ExtractParametersOptions {
+  /** Query parameter handling options */
+  readonly query?: {
+    /** How to represent query DTOs: "inline" (default) or "ref" */
+    readonly style?: 'inline' | 'ref';
+  };
+}
+
+/** Primitive types that should not be expanded */
+const PRIMITIVE_TYPES = new Set([
+  'string',
+  'number',
+  'boolean',
+  'any',
+  'unknown',
+  'void',
+  'null',
+  'undefined',
+  'never',
+  'object',
+  'String',
+  'Number',
+  'Boolean',
+  'Date',
+]);
 
 const buildFullPath = (
   controllerPrefix: string,
@@ -245,8 +273,129 @@ const extractParameterDescription = (
   return Option.none();
 };
 
+/** Built-in utility types that need full generic signature preserved */
+const BUILT_IN_TYPES = new Set([
+  'Array',
+  'ReadonlyArray',
+  'Promise',
+  'Map',
+  'Set',
+  'WeakMap',
+  'WeakSet',
+  'Record',
+  'Partial',
+  'Required',
+  'Pick',
+  'Omit',
+  'Exclude',
+  'Extract',
+  'NonNullable',
+  'ReturnType',
+  'InstanceType',
+  'Parameters',
+]);
+
+/** Check if a type is a class/interface that can be expanded */
+const isExpandableType = (typeName: string): boolean => {
+  // Primitives and built-ins should not be expanded
+  if (PRIMITIVE_TYPES.has(typeName)) return false;
+  if (BUILT_IN_TYPES.has(typeName.split('<')[0])) return false;
+  // Union types, intersection types, etc. should not be expanded
+  if (typeName.includes(' | ') || typeName.includes(' & ')) return false;
+  // Array types should not be expanded
+  if (typeName.endsWith('[]')) return false;
+  // Only expand PascalCase class names
+  return /^[A-Z][a-zA-Z0-9]*$/.test(typeName);
+};
+
+/** Convert TypeScript type to simpler type string for OpenAPI */
+const tsTypeToString = (typeText: string): string => {
+  const trimmed = typeText.trim();
+  // Handle common types
+  if (trimmed === 'string' || trimmed === 'String') return 'string';
+  if (trimmed === 'number' || trimmed === 'Number') return 'number';
+  if (trimmed === 'boolean' || trimmed === 'Boolean') return 'boolean';
+  if (trimmed === 'Date') return 'Date';
+  // For union with undefined, extract the non-undefined type
+  if (trimmed.includes(' | undefined')) {
+    return trimmed.replace(' | undefined', '').trim();
+  }
+  return trimmed;
+};
+
+/** Extract class properties as individual query parameters */
+const expandQueryDtoProperties = (
+  method: MethodDeclaration,
+  param: ParameterDeclaration,
+  paramType: ReturnType<ParameterDeclaration['getType']>,
+): ResolvedParameter[] => {
+  const expandedParams: ResolvedParameter[] = [];
+  const properties = paramType.getProperties();
+
+  for (const prop of properties) {
+    const propName = prop.getName();
+    // Skip internal properties
+    if (propName.startsWith('_')) continue;
+
+    // Get property type from declarations
+    const declarations = prop.getDeclarations();
+    let propTypeText = 'unknown';
+    let isOptional = false;
+    let constraints: ResolvedParameter['constraints'] = undefined;
+
+    if (declarations.length > 0) {
+      const decl = declarations[0];
+      // Check if property declaration (class property with decorators)
+      const propDecl = decl.asKind?.(ts.SyntaxKind.PropertyDeclaration);
+      // Check if property signature (interface property)
+      const propSig = decl.asKind?.(ts.SyntaxKind.PropertySignature);
+
+      if (propDecl) {
+        propTypeText = tsTypeToString(propDecl.getType().getText(propDecl));
+
+        // Extract optionality and constraints in a single pass for performance
+        const validationInfo = extractPropertyValidationInfo(propDecl);
+
+        // Check for optionality: ? token, initializer, OR @IsOptional() decorator
+        isOptional =
+          propDecl.hasQuestionToken() ||
+          propDecl.hasInitializer?.() ||
+          validationInfo.isOptional;
+
+        // Use extracted validation constraints
+        if (Object.keys(validationInfo.constraints).length > 0) {
+          constraints = validationInfo.constraints;
+        }
+      } else if (propSig) {
+        propTypeText = tsTypeToString(propSig.getType().getText(propSig));
+        isOptional = propSig.hasQuestionToken();
+        // Interface properties don't have decorators, so no constraints to extract
+      }
+    }
+
+    // Try to get description from @ApiQuery decorators on the method
+    const description = extractDescriptionByName(
+      method.getDecorators().find((d) => getDecoratorName(d) === 'ApiQuery') ??
+        param.getDecorators()[0],
+      propName,
+    );
+
+    expandedParams.push({
+      name: propName,
+      location: 'query',
+      tsType: propTypeText,
+      required: !isOptional,
+      description,
+      constraints,
+    });
+  }
+
+  return expandedParams;
+};
+
 const extractParameters = (
   method: MethodDeclaration,
+  options: ExtractParametersOptions = {},
 ): readonly ResolvedParameter[] =>
   method.getParameters().reduce<ResolvedParameter[]>((params, param) => {
     const relevantDecorator = param
@@ -259,10 +408,12 @@ const extractParameters = (
     const args = relevantDecorator.getArguments();
 
     let paramName = param.getName();
+    let hasExplicitName = false;
     for (const arg of args) {
       const stringLit = arg.asKind?.(ts.SyntaxKind.StringLiteral);
       if (stringLit) {
         paramName = stringLit.getLiteralValue();
+        hasExplicitName = true;
         break;
       }
     }
@@ -280,30 +431,10 @@ const extractParameters = (
       // Use symbol name if it's a valid identifier (not __type etc.)
       // But skip built-in types like Array, Promise, etc. - those should use getText()
       // to preserve the full generic signature like "Array<string>"
-      const builtInTypes = new Set([
-        'Array',
-        'ReadonlyArray',
-        'Promise',
-        'Map',
-        'Set',
-        'WeakMap',
-        'WeakSet',
-        'Record',
-        'Partial',
-        'Required',
-        'Pick',
-        'Omit',
-        'Exclude',
-        'Extract',
-        'NonNullable',
-        'ReturnType',
-        'InstanceType',
-        'Parameters',
-      ]);
       if (
         symbolName &&
         !symbolName.startsWith('__') &&
-        !builtInTypes.has(symbolName)
+        !BUILT_IN_TYPES.has(symbolName)
       ) {
         tsType = symbolName;
       }
@@ -311,6 +442,23 @@ const extractParameters = (
 
     // Clean import(...).TypeName to just TypeName (for cases where getText returns full path)
     tsType = tsType.replace(/\bimport\([^)]*\)\./g, '');
+
+    // Check if we should expand query DTO to individual parameters
+    // Conditions: @Query() without explicit name, type is a class, style is not "ref"
+    if (
+      decoratorName === 'Query' &&
+      !hasExplicitName &&
+      options.query?.style !== 'ref' &&
+      isExpandableType(tsType)
+    ) {
+      // Expand DTO properties to individual query parameters
+      const expandedParams = expandQueryDtoProperties(method, param, paramType);
+      if (expandedParams.length > 0) {
+        params.push(...expandedParams);
+        return params;
+      }
+      // If expansion failed (no properties found), fall through to default behavior
+    }
 
     const isOptional = param.hasQuestionToken() || param.hasInitializer();
     const description = extractParameterDescription(
@@ -646,6 +794,7 @@ const extractApiOperationMetadata = (
 export const getMethodInfo = (
   controller: ClassDeclaration,
   method: MethodDeclaration,
+  options: ExtractParametersOptions = {},
 ): Option.Option<MethodInfo> => {
   const httpDecorator = getHttpDecorator(method);
   if (!httpDecorator) return Option.none();
@@ -675,7 +824,7 @@ export const getMethodInfo = (
     controllerName: getControllerName(controller),
     controllerTags: [...getControllerTags(controller)],
     returnType: getReturnTypeInfo(method),
-    parameters: extractParameters(method),
+    parameters: extractParameters(method, options),
     decorators: [...extractDecoratorNames(method)],
     operation: extractApiOperationMetadata(method),
     responses: [...extractApiResponses(method)],
@@ -688,9 +837,10 @@ export const getMethodInfo = (
 
 export const getControllerMethodInfos = (
   controller: ClassDeclaration,
+  options: ExtractParametersOptions = {},
 ): readonly MethodInfo[] =>
   controller
     .getMethods()
-    .map((method) => getMethodInfo(controller, method))
+    .map((method) => getMethodInfo(controller, method, options))
     .filter(Option.isSome)
     .map((opt) => opt.value);

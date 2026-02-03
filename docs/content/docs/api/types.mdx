@@ -287,6 +287,27 @@ interface OptionsConfig {
    * Paths matching are INCLUDED.
    */
   readonly pathFilter?: RegExp | ((path: string) => boolean);
+
+  /**
+   * Query parameter handling options.
+   */
+  readonly query?: QueryOptions;
+}
+```
+
+### QueryOptions
+
+Query parameter handling options:
+
+```typescript
+interface QueryOptions {
+  /**
+   * How to represent query object DTOs (e.g., `@Query() dto: PaginationDto`).
+   * - "inline" (default): Expand DTO properties as individual query parameters
+   * - "ref": Keep as a single parameter with a schema reference
+   * @default "inline"
+   */
+  readonly style?: 'inline' | 'ref';
 }
 ```
 

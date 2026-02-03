@@ -1,244 +1,11 @@
 {
-  "components": {
-    "schemas": {
-      "Address": {
-        "properties": {
-          "city": {
-            "type": "string"
-          },
-          "street": {
-            "type": "string"
-          },
-          "zipCode": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "street",
-          "city",
-          "zipCode"
-        ],
-        "type": "object"
-      },
-      "CatDto": {
-        "properties": {
-          "meow": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "meow"
-        ],
-        "type": "object"
-      },
-      "CreateOrderDto": {
-        "properties": {
-          "notes": {
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/OrderStatus"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "type": "object"
-      },
-      "CreateUserDto": {
-        "properties": {
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role"
-          }
-        },
-        "required": [
-          "name",
-          "email",
-          "role",
-          "address"
-        ],
-        "type": "object"
-      },
-      "DecoratedUserDto": {
-        "properties": {
-          "bio": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "email": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "email",
-          "role"
-        ],
-        "type": "object"
-      },
-      "DogDto": {
-        "properties": {
-          "bark": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "bark"
-        ],
-        "type": "object"
-      },
-      "IUserProfile": {
-        "properties": {
-          "avatarUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "username",
-          "displayName",
-          "avatarUrl"
-        ],
-        "type": "object"
-      },
-      "OrderStatus": {
-        "enum": [
-          "pending",
-          "shipped",
-          "delivered"
-        ],
-        "type": "string"
-      },
-      "PetOwnerDto": {
-        "properties": {
-          "ownerName": {
-            "type": "string"
-          },
-          "pet": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CatDto"
-              },
-              {
-                "$ref": "#/components/schemas/DogDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "ownerName",
-          "pet"
-        ],
-        "type": "object"
-      },
-      "Role": {
-        "enum": [
-          "admin",
-          "user",
-          "guest"
-        ],
-        "type": "string"
-      },
-      "UpdateUserDto": {
-        "properties": {
-          "age": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "bio": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "bio",
-          "age"
-        ],
-        "type": "object"
-      },
-      "UserDto": {
-        "properties": {
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "email": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "email",
-          "role",
-          "address"
-        ],
-        "type": "object"
-      }
-    }
-  },
+  "openapi": "3.0.3",
   "info": {
     "description": "API for testing nestjs-openapi-static output",
     "title": "Comparison Benchmark API",
     "version": "1.0"
   },
-  "openapi": "3.0.3",
+  "servers": [],
   "paths": {
     "/api/decorated-user": {
       "get": {
@@ -590,6 +357,249 @@
       }
     }
   },
-  "servers": [],
+  "components": {
+    "schemas": {
+      "Address": {
+        "additionalProperties": false,
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "street": {
+            "type": "string"
+          },
+          "zipCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "street",
+          "city",
+          "zipCode"
+        ],
+        "type": "object"
+      },
+      "CatDto": {
+        "additionalProperties": false,
+        "properties": {
+          "meow": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "meow"
+        ],
+        "type": "object"
+      },
+      "CreateOrderDto": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "role",
+          "address"
+        ],
+        "type": "object"
+      },
+      "DecoratedUserDto": {
+        "additionalProperties": false,
+        "properties": {
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role"
+        ],
+        "type": "object"
+      },
+      "DogDto": {
+        "additionalProperties": false,
+        "properties": {
+          "bark": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "bark"
+        ],
+        "type": "object"
+      },
+      "IUserProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "avatarUrl"
+        ],
+        "type": "object"
+      },
+      "OrderStatus": {
+        "enum": [
+          "pending",
+          "shipped",
+          "delivered"
+        ],
+        "type": "string"
+      },
+      "PetOwnerDto": {
+        "additionalProperties": false,
+        "properties": {
+          "ownerName": {
+            "type": "string"
+          },
+          "pet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatDto"
+              },
+              {
+                "$ref": "#/components/schemas/DogDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ownerName",
+          "pet"
+        ],
+        "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "admin",
+          "user",
+          "guest"
+        ],
+        "type": "string"
+      },
+      "UpdateUserDto": {
+        "additionalProperties": false,
+        "properties": {
+          "age": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bio",
+          "age"
+        ],
+        "type": "object"
+      },
+      "UserDto": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "address"
+        ],
+        "type": "object"
+      }
+    }
+  },
   "tags": []
 }
