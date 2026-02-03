@@ -150,6 +150,18 @@ const validateConfig = (
   );
 
 /**
+ * Unwrap nested default export if tsx loader double-wrapped it.
+ * tsx sometimes produces: module.default = { default: actualConfig }
+ */
+const unwrapTsxDoubleDefault = (value: unknown): unknown =>
+  value &&
+  typeof value === 'object' &&
+  'default' in value &&
+  Object.keys(value).length === 1
+    ? (value as { default: unknown }).default
+    : value;
+
+/**
  * Load raw config from file without validation (for extends resolution)
  */
 const loadRawConfigFromFile = (
@@ -176,7 +188,7 @@ const loadRawConfigFromFile = (
       catch: (error) => ConfigLoadError.importFailed(absolutePath, error),
     });
 
-    const rawConfig = module.default ?? module.config;
+    const rawConfig = unwrapTsxDoubleDefault(module.default ?? module.config);
 
     if (!rawConfig) {
       return yield* ConfigLoadError.noExport(absolutePath);

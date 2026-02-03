@@ -1,13 +1,16 @@
-import { Data } from 'effect';
+import { Schema } from 'effect';
 
 // Project Errors
 
-export class ProjectInitError extends Data.TaggedError('ProjectInitError')<{
-  readonly tsconfig: string;
-  readonly message: string;
-  readonly cause?: unknown;
-}> {
-  static make(tsconfig: string, cause?: unknown): ProjectInitError {
+export class ProjectInitError extends Schema.TaggedError<ProjectInitError>()(
+  'ProjectInitError',
+  {
+    tsconfig: Schema.String,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  },
+) {
+  static create(tsconfig: string, cause?: unknown): ProjectInitError {
     return new ProjectInitError({
       tsconfig,
       message: `Failed to initialize project with tsconfig: ${tsconfig}`,
@@ -16,11 +19,14 @@ export class ProjectInitError extends Data.TaggedError('ProjectInitError')<{
   }
 }
 
-export class EntryNotFoundError extends Data.TaggedError('EntryNotFoundError')<{
-  readonly entry: string;
-  readonly className: string;
-  readonly message: string;
-}> {
+export class EntryNotFoundError extends Schema.TaggedError<EntryNotFoundError>()(
+  'EntryNotFoundError',
+  {
+    entry: Schema.String,
+    className: Schema.String,
+    message: Schema.String,
+  },
+) {
   static fileNotFound(entry: string): EntryNotFoundError {
     return new EntryNotFoundError({
       entry,
@@ -42,13 +48,14 @@ export type ProjectError = ProjectInitError | EntryNotFoundError;
 
 // Config Errors
 
-export class ConfigNotFoundError extends Data.TaggedError(
+export class ConfigNotFoundError extends Schema.TaggedError<ConfigNotFoundError>()(
   'ConfigNotFoundError',
-)<{
-  readonly path?: string;
-  readonly searchDir?: string;
-  readonly message: string;
-}> {
+  {
+    path: Schema.optional(Schema.String),
+    searchDir: Schema.optional(Schema.String),
+    message: Schema.String,
+  },
+) {
   static notFound(searchDir: string): ConfigNotFoundError {
     return new ConfigNotFoundError({
       searchDir,
@@ -65,11 +72,14 @@ export class ConfigNotFoundError extends Data.TaggedError(
   }
 }
 
-export class ConfigLoadError extends Data.TaggedError('ConfigLoadError')<{
-  readonly path: string;
-  readonly message: string;
-  readonly cause?: unknown;
-}> {
+export class ConfigLoadError extends Schema.TaggedError<ConfigLoadError>()(
+  'ConfigLoadError',
+  {
+    path: Schema.String,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  },
+) {
   static importFailed(path: string, cause?: unknown): ConfigLoadError {
     return new ConfigLoadError({
       path,
@@ -86,13 +96,14 @@ export class ConfigLoadError extends Data.TaggedError('ConfigLoadError')<{
   }
 }
 
-export class ConfigValidationError extends Data.TaggedError(
+export class ConfigValidationError extends Schema.TaggedError<ConfigValidationError>()(
   'ConfigValidationError',
-)<{
-  readonly path: string;
-  readonly message: string;
-  readonly issues: readonly string[];
-}> {
+  {
+    path: Schema.String,
+    message: Schema.String,
+    issues: Schema.Array(Schema.String),
+  },
+) {
   static fromIssues(
     path: string,
     issues: readonly string[],
@@ -101,7 +112,7 @@ export class ConfigValidationError extends Data.TaggedError(
     return new ConfigValidationError({
       path,
       message: `Configuration validation failed: ${path}${issuesList}`,
-      issues,
+      issues: [...issues],
     });
   }
 }
@@ -113,12 +124,15 @@ export type ConfigError =
 
 // Analysis Errors
 
-export class InvalidMethodError extends Data.TaggedError('InvalidMethodError')<{
-  readonly controllerName: string;
-  readonly methodName: string;
-  readonly message: string;
-}> {
-  static make(
+export class InvalidMethodError extends Schema.TaggedError<InvalidMethodError>()(
+  'InvalidMethodError',
+  {
+    controllerName: Schema.String,
+    methodName: Schema.String,
+    message: Schema.String,
+  },
+) {
+  static create(
     controllerName: string,
     methodName: string,
     reason: string,

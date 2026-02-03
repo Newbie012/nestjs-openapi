@@ -11,60 +11,59 @@ const moduleKey = (mod: ClassDeclaration): string =>
   `${mod.getSourceFile().getFilePath()}::${mod.getName() ?? '<anonymous>'}`;
 
 /** Iterative BFS to avoid stack overflow on deep module graphs */
-export const getModules = (
+export const getModules = Effect.fn('Modules.getModules')(function* (
   root: ClassDeclaration,
-): Effect.Effect<readonly ModuleWithControllers[]> =>
-  Effect.gen(function* () {
-    if (!isModuleClass(root)) {
-      yield* Effect.logWarning('Root is not a NestJS module').pipe(
-        Effect.annotateLogs({
-          className: root.getName() ?? '<anonymous>',
-          file: root.getSourceFile().getFilePath(),
-        }),
-      );
-      return [];
-    }
-
-    yield* Effect.logDebug('Starting module traversal').pipe(
+) {
+  if (!isModuleClass(root)) {
+    yield* Effect.logWarning('Root is not a NestJS module').pipe(
       Effect.annotateLogs({
-        root: root.getName() ?? '<anonymous>',
+        className: root.getName() ?? '<anonymous>',
         file: root.getSourceFile().getFilePath(),
       }),
     );
+    return [] as readonly ModuleWithControllers[];
+  }
 
-    const results: ModuleWithControllers[] = [];
-    const visited = new Set<string>();
-    const stack: ClassDeclaration[] = [root];
+  yield* Effect.logDebug('Starting module traversal').pipe(
+    Effect.annotateLogs({
+      root: root.getName() ?? '<anonymous>',
+      file: root.getSourceFile().getFilePath(),
+    }),
+  );
 
-    while (stack.length > 0) {
-      const mod = stack.pop()!;
-      const key = moduleKey(mod);
+  const results: ModuleWithControllers[] = [];
+  const visited = new Set<string>();
+  const stack: ClassDeclaration[] = [root];
 
-      if (visited.has(key)) continue;
-      visited.add(key);
+  while (stack.length > 0) {
+    const mod = stack.pop()!;
+    const key = moduleKey(mod);
 
-      const { controllers, imports } = getModuleMetadata(mod);
+    if (visited.has(key)) continue;
+    visited.add(key);
 
-      if (controllers.length > 0) {
-        results.push({ declaration: mod, controllers });
-      }
+    const { controllers, imports } = getModuleMetadata(mod);
 
-      stack.push(...imports);
+    if (controllers.length > 0) {
+      results.push({ declaration: mod, controllers });
     }
 
-    yield* Effect.logDebug('Module traversal complete').pipe(
-      Effect.annotateLogs({
-        modulesWithControllers: results.length,
-        totalVisited: visited.size,
-      }),
-    );
+    stack.push(...imports);
+  }
 
-    return results;
-  });
-
-export const getAllControllers = (
-  root: ClassDeclaration,
-): Effect.Effect<readonly ClassDeclaration[]> =>
-  Effect.map(getModules(root), (modules) =>
-    modules.flatMap((m) => m.controllers),
+  yield* Effect.logDebug('Module traversal complete').pipe(
+    Effect.annotateLogs({
+      modulesWithControllers: results.length,
+      totalVisited: visited.size,
+    }),
   );
+
+  return results as readonly ModuleWithControllers[];
+});
+
+export const getAllControllers = Effect.fn('Modules.getAllControllers')(
+  function* (root: ClassDeclaration) {
+    const modules = yield* getModules(root);
+    return modules.flatMap((m) => m.controllers);
+  },
+);
