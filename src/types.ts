@@ -430,6 +430,22 @@ export interface OpenApiSchema {
   readonly nullable?: boolean;
   /** Examples array for 3.1+ (replaces single 'example' field) */
   readonly examples?: readonly unknown[];
+  // String validation constraints
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly pattern?: string;
+  // Number validation constraints
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly exclusiveMaximum?: number;
+  // Array validation constraints
+  readonly minItems?: number;
+  readonly maxItems?: number;
+  // Default value
+  readonly default?: unknown;
+  // Additional properties constraint
+  readonly additionalProperties?: boolean | OpenApiSchema;
 }
 
 /**

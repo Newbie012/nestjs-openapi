@@ -4,6 +4,7 @@ import {
   PaginationQueryDto,
   FilterQueryDto,
   CombinedQueryDto,
+  ValidatedQueryDto,
 } from './query.dto';
 
 @ApiTags('Items')
@@ -59,6 +60,15 @@ export class ItemsController {
     @Query('count') _count?: number,
     @Query('active') _active?: boolean,
   ): string[] {
+    return [];
+  }
+
+  /**
+   * DTO with validation decorators - @IsOptional and constraints should be preserved
+   */
+  @Get('validated')
+  @ApiOperation({ summary: 'Search with validated query params' })
+  validatedSearch(@Query() _query: ValidatedQueryDto): string[] {
     return [];
   }
 }

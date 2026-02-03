@@ -142,6 +142,76 @@ describe('Query DTO Inlining E2E', () => {
         expect(param.in).toBe('query');
       }
     });
+
+    it('should respect @IsOptional decorator for required status', async () => {
+      await generate(inlineConfigPath);
+
+      const spec: OpenApiSpec = JSON.parse(
+        readFileSync(inlineOutputPath, 'utf-8'),
+      );
+
+      // ValidatedQueryDto: search is required, page has @IsOptional without ?, limit has @IsOptional with ?
+      const params = spec.paths['/items/validated'].get?.parameters ?? [];
+
+      const searchParam = params.find((p) => p.name === 'search');
+      const pageParam = params.find((p) => p.name === 'page');
+      const limitParam = params.find((p) => p.name === 'limit');
+      const sortOrderParam = params.find((p) => p.name === 'sortOrder');
+
+      // search - no @IsOptional, no ? - should be required
+      expect(searchParam).toBeDefined();
+      expect(searchParam?.required).toBe(true);
+
+      // page - has @IsOptional but NO ? token - should be optional due to @IsOptional
+      expect(pageParam).toBeDefined();
+      expect(pageParam?.required).toBe(false);
+
+      // limit - has both @IsOptional and ? - should be optional
+      expect(limitParam).toBeDefined();
+      expect(limitParam?.required).toBe(false);
+
+      // sortOrder - has @IsOptional and ? - should be optional
+      expect(sortOrderParam).toBeDefined();
+      expect(sortOrderParam?.required).toBe(false);
+    });
+
+    it('should preserve validation constraints from decorators', async () => {
+      await generate(inlineConfigPath);
+
+      const spec: OpenApiSpec = JSON.parse(
+        readFileSync(inlineOutputPath, 'utf-8'),
+      );
+
+      const params = spec.paths['/items/validated'].get?.parameters ?? [];
+
+      // search has @MinLength(1)
+      const searchParam = params.find((p) => p.name === 'search');
+      expect(searchParam?.schema?.minLength).toBe(1);
+
+      // page has @Min(1) @Max(100)
+      const pageParam = params.find((p) => p.name === 'page');
+      expect(pageParam?.schema?.minimum).toBe(1);
+      expect(pageParam?.schema?.maximum).toBe(100);
+
+      // limit has @Min(1) @Max(1000)
+      const limitParam = params.find((p) => p.name === 'limit');
+      expect(limitParam?.schema?.minimum).toBe(1);
+      expect(limitParam?.schema?.maximum).toBe(1000);
+    });
+
+    it('should extract enum values from @IsEnum decorator', async () => {
+      await generate(inlineConfigPath);
+
+      const spec: OpenApiSpec = JSON.parse(
+        readFileSync(inlineOutputPath, 'utf-8'),
+      );
+
+      const params = spec.paths['/items/validated'].get?.parameters ?? [];
+
+      // sortOrder has @IsEnum(SortOrder) where SortOrder = { ASC: 'asc', DESC: 'desc' }
+      const sortOrderParam = params.find((p) => p.name === 'sortOrder');
+      expect(sortOrderParam?.schema?.enum).toEqual(['asc', 'desc']);
+    });
   });
 
   describe('query.style: "ref" (schema refs mode)', () => {

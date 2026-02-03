@@ -11,12 +11,36 @@ export const ParameterLocation = Schema.Literal(
 );
 export type ParameterLocation = typeof ParameterLocation.Type;
 
+/** Validation constraints that can be applied to parameters */
+export const ParameterConstraints = Schema.Struct({
+  // String constraints
+  minLength: Schema.optional(Schema.Number),
+  maxLength: Schema.optional(Schema.Number),
+  pattern: Schema.optional(Schema.String),
+  format: Schema.optional(Schema.String),
+  // Number constraints
+  minimum: Schema.optional(Schema.Number),
+  maximum: Schema.optional(Schema.Number),
+  exclusiveMinimum: Schema.optional(Schema.Number),
+  exclusiveMaximum: Schema.optional(Schema.Number),
+  // Array constraints
+  minItems: Schema.optional(Schema.Number),
+  maxItems: Schema.optional(Schema.Number),
+  // Enum constraint
+  enum: Schema.optional(Schema.Array(Schema.Unknown)),
+  // Type override
+  type: Schema.optional(Schema.String),
+});
+export type ParameterConstraints = typeof ParameterConstraints.Type;
+
 export const ResolvedParameter = Schema.Struct({
   name: Schema.String,
   location: ParameterLocation,
   tsType: Schema.String,
   required: Schema.Boolean,
   description: Schema.OptionFromNullOr(Schema.String),
+  /** Validation constraints from decorators like @Min, @Max, @IsEnum, etc. */
+  constraints: Schema.optional(ParameterConstraints),
 });
 export type ResolvedParameter = typeof ResolvedParameter.Type;
 

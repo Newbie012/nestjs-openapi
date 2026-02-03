@@ -29,6 +29,10 @@ import {
   hasMethodSecurityDecorators,
   combineSecurityRequirements,
 } from './security-decorators.js';
+import {
+  isPropertyOptional,
+  extractPropertyConstraints,
+} from './validation-mapper.js';
 
 const HTTP_METHOD_MAP: Record<string, HttpMethod> = {
   Get: 'GET',
@@ -340,20 +344,33 @@ const expandQueryDtoProperties = (
     const declarations = prop.getDeclarations();
     let propTypeText = 'unknown';
     let isOptional = false;
+    let constraints: ResolvedParameter['constraints'] = undefined;
 
     if (declarations.length > 0) {
       const decl = declarations[0];
-      // Check if property declaration
+      // Check if property declaration (class property with decorators)
       const propDecl = decl.asKind?.(ts.SyntaxKind.PropertyDeclaration);
+      // Check if property signature (interface property)
       const propSig = decl.asKind?.(ts.SyntaxKind.PropertySignature);
 
       if (propDecl) {
         propTypeText = tsTypeToString(propDecl.getType().getText(propDecl));
+        // Check for optionality: ? token, initializer, OR @IsOptional() decorator
         isOptional =
-          propDecl.hasQuestionToken() || propDecl.hasInitializer?.() || false;
+          propDecl.hasQuestionToken() ||
+          propDecl.hasInitializer?.() ||
+          isPropertyOptional(propDecl) ||
+          false;
+
+        // Extract validation constraints from decorators like @Min, @Max, @IsEnum, etc.
+        const extractedConstraints = extractPropertyConstraints(propDecl);
+        if (Object.keys(extractedConstraints).length > 0) {
+          constraints = extractedConstraints;
+        }
       } else if (propSig) {
         propTypeText = tsTypeToString(propSig.getType().getText(propSig));
         isOptional = propSig.hasQuestionToken();
+        // Interface properties don't have decorators, so no constraints to extract
       }
     }
 
@@ -370,6 +387,7 @@ const expandQueryDtoProperties = (
       tsType: propTypeText,
       required: !isOptional,
       description,
+      constraints,
     });
   }
 
