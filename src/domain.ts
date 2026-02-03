@@ -337,13 +337,29 @@ export const QueryOptionsConfig = Schema.Struct({
   style: Schema.optional(Schema.Literal('inline', 'ref')),
 });
 
+// Schema for path filter functions: (path: string) => boolean
+const PathFilterFunction = Schema.declare(
+  (input: unknown): input is (path: string) => boolean =>
+    typeof input === 'function',
+  {
+    identifier: 'PathFilterFunction',
+    description: 'A function that takes a path string and returns a boolean',
+  },
+);
+
+// PathFilter can be either a RegExp or a filter function
+export const PathFilter = Schema.Union(
+  Schema.instanceOf(RegExp),
+  PathFilterFunction,
+);
+export type PathFilter = typeof PathFilter.Type;
+
 export const OptionsConfig = Schema.Struct({
   basePath: Schema.optional(Schema.String),
   extractValidation: Schema.optional(Schema.Boolean),
   excludeDecorators: Schema.optional(Schema.Array(Schema.String)),
   query: Schema.optional(QueryOptionsConfig),
-  // Note: pathFilter (RegExp | function) is defined in types.ts but cannot be
-  // schema-validated. It's passed through during config loading in config.ts.
+  pathFilter: Schema.optional(PathFilter),
 });
 export type OptionsConfig = typeof OptionsConfig.Type;
 
@@ -366,6 +382,7 @@ export const ResolvedConfig = Schema.Struct({
   dtoGlob: Schema.Array(Schema.String),
   extractValidation: Schema.Boolean,
   basePath: Schema.optional(Schema.String),
+  pathFilter: Schema.optional(PathFilter),
   version: Schema.optional(Schema.String),
   info: OpenApiInfoConfig,
   servers: Schema.Array(OpenApiServerConfig),

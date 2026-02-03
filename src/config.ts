@@ -252,14 +252,7 @@ const resolveConfigExtends = (
 
 export const loadConfigFromFile = (
   configPath: string,
-): Effect.Effect<
-  typeof OpenApiGeneratorConfig.Type & {
-    readonly options?: {
-      readonly pathFilter?: RegExp | ((path: string) => boolean);
-    };
-  },
-  ConfigError
-> =>
+): Effect.Effect<typeof OpenApiGeneratorConfig.Type, ConfigError> =>
   Effect.gen(function* () {
     // Load raw config
     const rawConfig = yield* loadRawConfigFromFile(configPath);
@@ -267,26 +260,8 @@ export const loadConfigFromFile = (
     // Resolve extends chain
     const mergedConfig = yield* resolveConfigExtends(rawConfig, configPath);
 
-    // Validate merged config
-    const validatedConfig = yield* validateConfig(mergedConfig, configPath);
-
-    // Preserve pathFilter from merged config (can't be validated by Schema - RegExp/function)
-    const pathFilter = (mergedConfig as { options?: { pathFilter?: unknown } })
-      ?.options?.pathFilter;
-    if (
-      pathFilter &&
-      (pathFilter instanceof RegExp || typeof pathFilter === 'function')
-    ) {
-      return {
-        ...validatedConfig,
-        options: {
-          ...validatedConfig.options,
-          pathFilter: pathFilter as RegExp | ((path: string) => boolean),
-        },
-      };
-    }
-
-    return validatedConfig;
+    // Validate merged config (pathFilter is now schema-validated)
+    return yield* validateConfig(mergedConfig, configPath);
   });
 
 export const loadConfig = (
