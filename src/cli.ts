@@ -28,6 +28,8 @@ interface CliArgs {
   f?: string;
   quiet?: boolean;
   q?: boolean;
+  debug?: boolean;
+  d?: boolean;
   help?: boolean;
   h?: boolean;
   version?: boolean;
@@ -48,13 +50,14 @@ Options:
   -c, --config <path>     Path to configuration file (required)
   -f, --format <format>   Output format: json or yaml (overrides config)
   -q, --quiet             Suppress output (only show errors)
+  -d, --debug             Enable debug output (verbose logging, full stack traces)
   -h, --help              Show this help message
   -v, --version           Show version
 
 Examples:
   nestjs-openapi-static generate -c openapi.config.ts
   nestjs-openapi-static generate -c openapi.config.ts --format yaml
-  nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts --quiet
+  nestjs-openapi-static generate -c openapi.config.ts --debug
 `.trim();
 
 const formatDuration = (ms: number): string => {
@@ -77,11 +80,12 @@ const error = (message: string): void => {
 const main = async (): Promise<void> => {
   const args = minimist<CliArgs>(process.argv.slice(2), {
     string: ['c', 'config', 'f', 'format'],
-    boolean: ['quiet', 'q', 'help', 'h', 'version', 'v'],
+    boolean: ['quiet', 'q', 'debug', 'd', 'help', 'h', 'version', 'v'],
     alias: {
       c: 'config',
       f: 'format',
       q: 'quiet',
+      d: 'debug',
       h: 'help',
       v: 'version',
     },
@@ -118,6 +122,7 @@ const main = async (): Promise<void> => {
   const configPath = args.config || args.c;
   const format = args.format || args.f;
   const quiet = args.quiet || args.q;
+  const debug = args.debug || args.d;
 
   if (!configPath) {
     error('Config path is required. Use -c or --config to specify the path.');
@@ -136,10 +141,10 @@ const main = async (): Promise<void> => {
   const startTime = performance.now();
 
   try {
-    const result = await generate(
-      configPath,
-      format ? { format: format as 'json' | 'yaml' } : undefined,
-    );
+    const result = await generate(configPath, {
+      format: format as 'json' | 'yaml' | undefined,
+      debug,
+    });
     const duration = performance.now() - startTime;
 
     if (!quiet) {
@@ -167,6 +172,14 @@ const main = async (): Promise<void> => {
 
     error(`Generation failed (${formatDuration(Math.round(duration))})`);
     console.error(`  ${message}`);
+
+    if (debug && err instanceof Error && err.stack) {
+      console.error('\nStack trace:');
+      console.error(err.stack);
+      if (err.cause) {
+        console.error('\nCause:', err.cause);
+      }
+    }
 
     process.exit(1);
   }

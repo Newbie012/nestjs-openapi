@@ -11,6 +11,7 @@ import {
   type Schema as TsJsonSchema,
 } from 'ts-json-schema-generator';
 import { join, dirname } from 'node:path';
+import { globSync } from 'glob';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
@@ -23,12 +24,15 @@ export class SchemaGenerationError extends Schema.TaggedError<SchemaGenerationEr
     cause: Schema.optional(Schema.Unknown),
   },
 ) {
-  static fromError(error: unknown): SchemaGenerationError {
+  static fromError(error: unknown, context?: string): SchemaGenerationError {
+    const baseMessage =
+      error instanceof Error
+        ? error.message
+        : 'Unknown schema generation error';
+    const message = context ? `${baseMessage} (${context})` : baseMessage;
+
     return new SchemaGenerationError({
-      message:
-        error instanceof Error
-          ? error.message
-          : 'Unknown schema generation error',
+      message,
       cause: error,
     });
   }
@@ -84,104 +88,113 @@ export interface SchemaGeneratorOptions {
 /**
  * Generate JSON Schema definitions from TypeScript DTO files
  */
-export const generateSchemas = (
+export const generateSchemas = Effect.fn('SchemaGenerator.generate')(function* (
   options: SchemaGeneratorOptions,
-): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.gen(function* () {
-    yield* Effect.logDebug('Starting schema generation').pipe(
-      Effect.annotateLogs({
-        dtoGlob: options.dtoGlob.join(', '),
-        tsconfig: options.tsconfig,
-      }),
+) {
+  yield* Effect.logDebug('Starting schema generation').pipe(
+    Effect.annotateLogs({
+      dtoGlob: options.dtoGlob.join(', '),
+      tsconfig: options.tsconfig,
+    }),
+  );
+
+  const patterns = options.dtoGlob.map((pattern) => ({
+    pattern,
+    combinable: !pattern.startsWith('/') && !pattern.includes('..'),
+  }));
+
+  const combinable = patterns.filter((p) => p.combinable);
+  const nonCombinable = patterns.filter((p) => !p.combinable);
+
+  const groupedPatterns: string[] = [];
+  if (combinable.length > 0) {
+    groupedPatterns.push(
+      combinable.length === 1
+        ? combinable[0]!.pattern
+        : `{${combinable.map((p) => p.pattern).join(',')}}`,
     );
+  }
+  groupedPatterns.push(...nonCombinable.map((p) => p.pattern));
 
-    // Group patterns: combine src-local patterns, keep external patterns separate
-    const patterns = options.dtoGlob.map((pattern) => ({
-      pattern,
-      combinable: !pattern.startsWith('/') && !pattern.includes('..'),
-    }));
+  const schemaResults = yield* Effect.all(
+    groupedPatterns.map((pattern) =>
+      generateSchemasFromGlob(pattern, options.tsconfig, options.basePath),
+    ),
+    { concurrency: 'unbounded' },
+  );
 
-    const combinable = patterns.filter((p) => p.combinable);
-    const nonCombinable = patterns.filter((p) => !p.combinable);
+  const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
+    (acc, schemas) => ({ ...acc, ...schemas.definitions }),
+    {},
+  );
 
-    const groupedPatterns: string[] = [];
-    if (combinable.length > 0) {
-      groupedPatterns.push(
-        combinable.length === 1
-          ? combinable[0]!.pattern
-          : `{${combinable.map((p) => p.pattern).join(',')}}`,
-      );
-    }
-    groupedPatterns.push(...nonCombinable.map((p) => p.pattern));
+  yield* Effect.logDebug('Schema generation complete').pipe(
+    Effect.annotateLogs({
+      definitionCount: Object.keys(allDefinitions).length,
+    }),
+  );
 
-    // Generate schemas for all pattern groups in parallel
-    const schemaResults = yield* Effect.all(
-      groupedPatterns.map((pattern) =>
-        generateSchemasFromGlob(pattern, options.tsconfig, options.basePath),
-      ),
-      { concurrency: 'unbounded' },
-    );
-
-    const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
-      (acc, schemas) => ({ ...acc, ...schemas.definitions }),
-      {},
-    );
-
-    yield* Effect.logDebug('Schema generation complete').pipe(
-      Effect.annotateLogs({
-        definitionCount: Object.keys(allDefinitions).length,
-      }),
-    );
-
-    return { definitions: allDefinitions };
-  });
+  return { definitions: allDefinitions } as GeneratedSchemas;
+});
 
 /**
  * Generate schemas from a glob pattern
  */
-const generateSchemasFromGlob = (
-  pattern: string,
-  tsconfig: string,
-  basePath: string,
-): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.try({
-    try: () => {
-      // Resolve the pattern relative to basePath. Brace patterns may include
-      // multiple absolute paths, so we detect that case and skip joining.
-      const isBraceAbsolute =
-        pattern.startsWith('{') &&
-        pattern
-          .slice(1, -1)
-          .split(',')
-          .map((entry) => entry.trim())
-          .every((entry) => entry.startsWith('/'));
+const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
+  function* (pattern: string, tsconfig: string, basePath: string) {
+    // Resolve the pattern relative to basePath. Brace patterns may include
+    // multiple absolute paths, so we detect that case and skip joining.
+    const isBraceAbsolute =
+      pattern.startsWith('{') &&
+      pattern
+        .slice(1, -1)
+        .split(',')
+        .map((entry) => entry.trim())
+        .every((entry) => entry.startsWith('/'));
 
-      const absolutePattern =
-        pattern.startsWith('/') || isBraceAbsolute
-          ? pattern
-          : join(basePath, pattern);
+    const absolutePattern =
+      pattern.startsWith('/') || isBraceAbsolute
+        ? pattern
+        : join(basePath, pattern);
 
-      const config: TsJsonSchemaConfig = {
-        path: absolutePattern,
-        tsconfig,
-        type: '*', // Generate schemas for all exported types
-        skipTypeCheck: true,
-        // Note: topRef must NOT be set to false, as it prevents interface schemas from being generated
-        expose: 'export', // Only export explicitly exported types
-        jsDoc: 'extended', // Include JSDoc comments
-        sortProps: true,
-        strictTuples: false,
-        encodeRefs: false,
-        additionalProperties: false,
-      };
+    yield* Effect.annotateCurrentSpan('pattern', absolutePattern);
 
-      const generator = createGenerator(config);
-      const schema = generator.createSchema(config.type);
+    // Check if any files match the pattern - ts-json-schema-generator
+    // doesn't handle empty patterns gracefully
+    const matchedFiles = globSync(absolutePattern);
+    if (matchedFiles.length === 0) {
+      yield* Effect.logDebug('No files matched pattern, skipping').pipe(
+        Effect.annotateLogs({ pattern: absolutePattern }),
+      );
+      return { definitions: {} } as GeneratedSchemas;
+    }
 
-      return convertToGeneratedSchemas(schema);
-    },
-    catch: SchemaGenerationError.fromError,
-  });
+    return yield* Effect.try({
+      try: () => {
+        const config: TsJsonSchemaConfig = {
+          path: absolutePattern,
+          tsconfig,
+          type: '*', // Generate schemas for all exported types
+          skipTypeCheck: true,
+          // Note: topRef must NOT be set to false, as it prevents interface schemas from being generated
+          expose: 'export', // Only export explicitly exported types
+          jsDoc: 'extended', // Include JSDoc comments
+          sortProps: true,
+          strictTuples: false,
+          encodeRefs: false,
+          additionalProperties: false,
+        };
+
+        const generator = createGenerator(config);
+        const schema = generator.createSchema(config.type);
+
+        return convertToGeneratedSchemas(schema);
+      },
+      catch: (error) =>
+        SchemaGenerationError.fromError(error, `pattern: ${pattern}`),
+    });
+  },
+);
 
 /**
  * Convert ts-json-schema-generator output to our format
@@ -210,40 +223,36 @@ const convertToGeneratedSchemas = (schema: TsJsonSchema): GeneratedSchemas => {
  * Uses a temporary tsconfig with only the specified files for better performance.
  * Falls back to individual file processing if the batched approach fails.
  */
-export const generateSchemasFromFiles = (
-  filePaths: readonly string[],
-  tsconfig: string,
-): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.gen(function* () {
-    if (filePaths.length === 0) {
-      return { definitions: {} };
-    }
+export const generateSchemasFromFiles = Effect.fn(
+  'SchemaGenerator.generateFromFiles',
+)(function* (filePaths: readonly string[], tsconfig: string) {
+  if (filePaths.length === 0) {
+    return { definitions: {} } as GeneratedSchemas;
+  }
 
-    yield* Effect.logDebug('Generating schemas from resolved files').pipe(
-      Effect.annotateLogs({
-        fileCount: filePaths.length,
-      }),
-    );
+  yield* Effect.logDebug('Generating schemas from resolved files').pipe(
+    Effect.annotateLogs({
+      fileCount: filePaths.length,
+    }),
+  );
 
-    // Try batched approach with temporary tsconfig (much faster)
-    const batchedResult = yield* generateSchemasWithTempTsconfig(
-      filePaths,
-      tsconfig,
-    ).pipe(
-      Effect.catchAll(() => {
-        // Batch failed, fall back to individual files with error resilience
-        return generateSchemasFromFilesIndividual(filePaths, tsconfig);
-      }),
-    );
+  const batchedResult = yield* generateSchemasWithTempTsconfig(
+    filePaths,
+    tsconfig,
+  ).pipe(
+    Effect.catchTag('SchemaGenerationError', () =>
+      generateSchemasFromFilesIndividual(filePaths, tsconfig),
+    ),
+  );
 
-    yield* Effect.logDebug('Additional schema generation complete').pipe(
-      Effect.annotateLogs({
-        definitionCount: Object.keys(batchedResult.definitions).length,
-      }),
-    );
+  yield* Effect.logDebug('Additional schema generation complete').pipe(
+    Effect.annotateLogs({
+      definitionCount: Object.keys(batchedResult.definitions).length,
+    }),
+  );
 
-    return batchedResult;
-  });
+  return batchedResult;
+});
 
 /**
  * Generate schemas using a temporary tsconfig that only includes the specified files.
@@ -255,10 +264,8 @@ const generateSchemasWithTempTsconfig = (
 ): Effect.Effect<GeneratedSchemas, SchemaError> =>
   Effect.try({
     try: () => {
-      // Read the original tsconfig
       const originalConfig = JSON.parse(readFileSync(tsconfig, 'utf-8'));
 
-      // Create a minimal tsconfig that only includes the specified files
       const tempConfig = {
         ...originalConfig,
         compilerOptions: {
@@ -267,14 +274,12 @@ const generateSchemasWithTempTsconfig = (
           skipDefaultLibCheck: true,
           noEmit: true,
         },
-        // Only include the files we need
         files: [...filePaths],
-        // Remove include/exclude to prevent loading other files
+        // Prevent loading other files from the project
         include: undefined,
         exclude: undefined,
       };
 
-      // Write to a temporary file
       const tempTsconfigPath = join(
         dirname(tsconfig),
         `.tsconfig.schema-gen.${randomUUID()}.json`,
@@ -283,7 +288,6 @@ const generateSchemasWithTempTsconfig = (
       try {
         writeFileSync(tempTsconfigPath, JSON.stringify(tempConfig, null, 2));
 
-        // Create brace pattern for all files
         const pattern =
           filePaths.length === 1 ? filePaths[0]! : `{${filePaths.join(',')}}`;
 
@@ -311,62 +315,67 @@ const generateSchemasWithTempTsconfig = (
         }
       }
     },
-    catch: SchemaGenerationError.fromError,
+    catch: (error) =>
+      SchemaGenerationError.fromError(
+        error,
+        `files: ${filePaths.slice(0, 3).join(', ')}${filePaths.length > 3 ? ` (+${filePaths.length - 3} more)` : ''}`,
+      ),
   });
 
 /**
  * Generate schemas from files individually with error resilience.
  * Fallback when batched approach fails.
  */
-const generateSchemasFromFilesIndividual = (
-  filePaths: readonly string[],
-  tsconfig: string,
-): Effect.Effect<GeneratedSchemas, never> =>
-  Effect.gen(function* () {
-    const schemaResults = yield* Effect.all(
-      filePaths.map((filePath) =>
-        generateSchemasFromFile(filePath, tsconfig).pipe(
-          // On error, return empty definitions instead of failing
-          Effect.catchAll(() => Effect.succeed({ definitions: {} })),
+const generateSchemasFromFilesIndividual = Effect.fn(
+  'SchemaGenerator.generateFromFilesIndividual',
+)(function* (filePaths: readonly string[], tsconfig: string) {
+  const schemaResults = yield* Effect.all(
+    filePaths.map((filePath) =>
+      generateSchemasFromFile(filePath, tsconfig).pipe(
+        // Intentional: continue even if individual files fail
+        Effect.catchTag('SchemaGenerationError', () =>
+          Effect.succeed({ definitions: {} } as GeneratedSchemas),
         ),
       ),
-      { concurrency: 'unbounded' },
-    );
+    ),
+    { concurrency: 'unbounded' },
+  );
 
-    const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
-      (acc, schemas) => ({ ...acc, ...schemas.definitions }),
-      {},
-    );
+  const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
+    (acc, schemas) => ({ ...acc, ...schemas.definitions }),
+    {},
+  );
 
-    return { definitions: allDefinitions };
-  });
+  return { definitions: allDefinitions } as GeneratedSchemas;
+});
 
 /**
  * Generate schemas from a single file
  */
-const generateSchemasFromFile = (
-  filePath: string,
-  tsconfig: string,
-): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.try({
-    try: () => {
-      const config: TsJsonSchemaConfig = {
-        path: filePath,
-        tsconfig,
-        type: '*',
-        skipTypeCheck: true,
-        expose: 'export',
-        jsDoc: 'extended',
-        sortProps: true,
-        strictTuples: false,
-        encodeRefs: false,
-        additionalProperties: false,
-      };
+const generateSchemasFromFile = Effect.fn('SchemaGenerator.generateFromFile')(
+  function* (filePath: string, tsconfig: string) {
+    return yield* Effect.try({
+      try: () => {
+        const config: TsJsonSchemaConfig = {
+          path: filePath,
+          tsconfig,
+          type: '*',
+          skipTypeCheck: true,
+          expose: 'export',
+          jsDoc: 'extended',
+          sortProps: true,
+          strictTuples: false,
+          encodeRefs: false,
+          additionalProperties: false,
+        };
 
-      const generator = createGenerator(config);
-      const schema = generator.createSchema(config.type);
+        const generator = createGenerator(config);
+        const schema = generator.createSchema(config.type);
 
-      return convertToGeneratedSchemas(schema);
-    },
-    catch: (error) => SchemaGenerationError.fromError(error),
-  });
+        return convertToGeneratedSchemas(schema);
+      },
+      catch: (error) =>
+        SchemaGenerationError.fromError(error, `file: ${filePath}`),
+    });
+  },
+);

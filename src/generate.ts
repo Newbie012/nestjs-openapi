@@ -5,14 +5,13 @@
  * Effect-TS implementation from consumers.
  */
 
-import { Effect } from 'effect';
+import { Effect, Layer, Logger, LogLevel } from 'effect';
 import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { Project } from 'ts-morph';
 import { glob as nodeGlob } from 'glob';
 import yaml from 'js-yaml';
 import type {
-  Config,
   GenerateOverrides,
   OpenApiSpec,
   OpenApiSchema,
@@ -298,14 +297,6 @@ const findTsConfig = (startDir: string): string | undefined => {
 };
 
 /**
- * Loads and validates a config file using Effect-based validation
- */
-const loadConfigFile = async (configPath: string): Promise<Config> => {
-  const result = await Effect.runPromise(loadConfigFromFile(configPath));
-  return result;
-};
-
-/**
  * Internal Effect-based logic to extract method infos from a single entry
  */
 const extractMethodInfosFromEntry = (
@@ -431,26 +422,42 @@ export const generate = async (
   configPath: string,
   overrides?: GenerateOverrides,
 ): Promise<GenerateResult> => {
+  const debug = overrides?.debug ?? false;
+
+  const loggerLayer = debug
+    ? Logger.replace(Logger.defaultLogger, Logger.prettyLoggerDefault).pipe(
+        Layer.merge(Logger.minimumLogLevel(LogLevel.Debug)),
+      )
+    : Logger.minimumLogLevel(LogLevel.Info);
+
+  const runEffect = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
+    Effect.runPromise(effect.pipe(Effect.provide(loggerLayer)));
+
   const absoluteConfigPath = resolve(configPath);
   const configDir = dirname(absoluteConfigPath);
 
-  // Load and validate config
-  const config = await loadConfigFile(absoluteConfigPath);
+  const config = await runEffect(
+    loadConfigFromFile(absoluteConfigPath).pipe(
+      Effect.tap(() =>
+        Effect.logDebug('Config loaded').pipe(
+          Effect.annotateLogs({ configPath: absoluteConfigPath }),
+        ),
+      ),
+      Effect.mapError((e) => new Error(e.message)),
+    ),
+  );
 
-  // Extract nested config sections
   const files = config.files ?? {};
   const options = config.options ?? {};
   const openapi = config.openapi;
   const security = openapi.security ?? {};
 
-  // Resolve paths relative to config file
   const rawEntry = files.entry ?? DEFAULT_ENTRY;
   const entries = (Array.isArray(rawEntry) ? rawEntry : [rawEntry]).map((e) =>
     resolve(configDir, e),
   );
   const output = resolve(configDir, config.output);
 
-  // Find or use specified tsconfig
   const tsconfig = files.tsconfig
     ? resolve(configDir, files.tsconfig)
     : findTsConfig(dirname(entries[0]));
@@ -465,15 +472,9 @@ export const generate = async (
     throw new Error(`tsconfig.json not found at: ${tsconfig}`);
   }
 
-  // Prepare Effect programs for method extraction and schema generation
   const extractOptions: ExtractParametersOptions = {
     query: options.query,
   };
-  const methodInfosProgram = extractMethodInfosEffect(
-    tsconfig,
-    entries,
-    extractOptions,
-  ).pipe(Effect.mapError((error) => new Error(error.message)));
 
   const dtoGlobArray = files.dtoGlob
     ? Array.isArray(files.dtoGlob)
@@ -481,18 +482,36 @@ export const generate = async (
       : [files.dtoGlob]
     : null;
 
-  const schemaProgram = dtoGlobArray
-    ? generateSchemas({
-        dtoGlob: dtoGlobArray as string[],
-        tsconfig,
-        basePath: configDir,
-      }).pipe(Effect.mapError((error) => new Error(error.message)))
-    : null;
-
-  // Run method extraction and schema generation in parallel
   const [extractedMethodInfos, initialSchemas] = await Promise.all([
-    Effect.runPromise(methodInfosProgram),
-    schemaProgram ? Effect.runPromise(schemaProgram) : Promise.resolve(null),
+    runEffect(
+      extractMethodInfosEffect(tsconfig, entries, extractOptions).pipe(
+        Effect.tap((methods) =>
+          Effect.logDebug('Method extraction complete').pipe(
+            Effect.annotateLogs({ methodCount: methods.length, entries }),
+          ),
+        ),
+        Effect.mapError((error) => new Error(error.message)),
+      ),
+    ),
+    dtoGlobArray
+      ? runEffect(
+          generateSchemas({
+            dtoGlob: dtoGlobArray as string[],
+            tsconfig,
+            basePath: configDir,
+          }).pipe(
+            Effect.tap((schemas) =>
+              Effect.logDebug('Schema generation complete').pipe(
+                Effect.annotateLogs({
+                  schemaCount: Object.keys(schemas.definitions).length,
+                  dtoGlob: dtoGlobArray,
+                }),
+              ),
+            ),
+            Effect.mapError((error) => new Error(error.message)),
+          ),
+        )
+      : Promise.resolve(null),
   ]);
 
   // Process method infos into paths
@@ -559,25 +578,14 @@ export const generate = async (
     );
 
     if (missingRefs.size > 0) {
-      const debugEnabled = process.env.DEBUG === 'true';
-      const startTime = debugEnabled ? Date.now() : 0;
-
-      if (debugEnabled) {
-        console.debug(
-          `[nestjs-openapi-static] Resolving ${missingRefs.size} missing type(s): ${[...missingRefs].join(', ')}`,
-        );
-      }
-
-      // Try fast grep-based resolution first (much faster for large codebases)
-      // Search from tsconfig directory (monorepo root) to find types in shared libs
-      const resolveStart = debugEnabled ? Date.now() : 0;
+      // Fast grep-based resolution (much faster for large codebases)
       const tsconfigDir = dirname(tsconfig);
       const resolvedLocations = resolveTypeLocationsFast(
         tsconfigDir,
         missingRefs,
       );
 
-      // Fall back to ts-morph if fast resolution didn't find all types
+      // Fall back to ts-morph for types not found by fast resolution
       const unresolvedTypes = new Set(
         [...missingRefs].filter(
           (t) => !resolvedLocations.has(t.replace(/<.*>$/, '')),
@@ -585,63 +593,22 @@ export const generate = async (
       );
 
       if (unresolvedTypes.size > 0) {
-        if (debugEnabled) {
-          console.debug(
-            `[nestjs-openapi-static]   - Fast resolution: ${Date.now() - resolveStart}ms (found ${resolvedLocations.size}/${missingRefs.size})`,
-          );
-        }
-
-        const projectStart = debugEnabled ? Date.now() : 0;
         const project = createTypeResolverProject(tsconfig);
-        if (debugEnabled) {
-          console.debug(
-            `[nestjs-openapi-static]   - createTypeResolverProject: ${Date.now() - projectStart}ms`,
-          );
-        }
-
-        const morphStart = debugEnabled ? Date.now() : 0;
         const morphResolved = resolveTypeLocations(project, unresolvedTypes);
-        if (debugEnabled) {
-          console.debug(
-            `[nestjs-openapi-static]   - resolveTypeLocations (fallback): ${Date.now() - morphStart}ms (found ${morphResolved.size} more)`,
-          );
-        }
 
-        // Merge results
         for (const [type, path] of morphResolved) {
           resolvedLocations.set(type, path);
         }
-      } else if (debugEnabled) {
-        console.debug(
-          `[nestjs-openapi-static]   - Fast resolution: ${Date.now() - resolveStart}ms (found all ${resolvedLocations.size} types)`,
-        );
       }
 
       if (resolvedLocations.size > 0) {
         const additionalFiles = [...new Set(resolvedLocations.values())];
 
-        if (debugEnabled) {
-          console.debug(
-            `[nestjs-openapi-static]   - Additional files to process: ${additionalFiles.length}`,
-          );
-        }
-
-        // Generate schemas from the resolved files
-        const schemaStart = debugEnabled ? Date.now() : 0;
         const additionalSchemas = await Effect.runPromise(
-          generateSchemasFromFiles(additionalFiles, tsconfig).pipe(
-            Effect.mapError((error) => new Error(error.message)),
-          ),
+          generateSchemasFromFiles(additionalFiles, tsconfig),
         );
-        if (debugEnabled) {
-          console.debug(
-            `[nestjs-openapi-static]   - generateSchemasFromFiles: ${Date.now() - schemaStart}ms`,
-          );
-        }
 
-        // Merge additional schemas
         if (Object.keys(additionalSchemas.definitions).length > 0) {
-          // Normalize additional schemas (they may contain structure refs)
           const normalizedAdditional =
             normalizeStructureRefs(additionalSchemas);
 
@@ -652,19 +619,12 @@ export const generate = async (
             },
           };
 
-          // Re-merge with additional schemas
           mergeResult = mergeSchemas(
             paths as unknown as OpenApiSpec['paths'],
             combinedSchemas,
           );
           schemas = mergeResult.schemas;
         }
-      }
-
-      if (debugEnabled) {
-        console.debug(
-          `[nestjs-openapi-static] Hybrid resolution completed in ${Date.now() - startTime}ms`,
-        );
       }
     }
   }

@@ -18,6 +18,24 @@ console.log(`Operations: ${result.operationCount}`);
 console.log(`Schemas: ${result.schemaCount}`);
 ```
 
+## Options
+
+The `generate()` function accepts an optional second parameter for overrides:
+
+```typescript
+import { generate } from 'nestjs-openapi-static';
+
+const result = await generate('./openapi.config.ts', {
+  format: 'yaml', // Override output format
+  debug: true, // Enable verbose logging
+});
+```
+
+| Option   | Type               | Description                    |
+| -------- | ------------------ | ------------------------------ |
+| `format` | `'json' \| 'yaml'` | Override the output format     |
+| `debug`  | `boolean`          | Enable debug logging to stdout |
+
 ## Build Script Examples
 
 ### Simple Build Script

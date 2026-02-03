@@ -187,15 +187,55 @@ export default defineConfig({
 });
 ```
 
-## CLI Equivalent
+## CLI Reference
 
-The `generate()` function is what the CLI uses internally:
+The `generate()` function is what the CLI uses internally.
+
+### Usage
 
 ```bash
-npx nestjs-openapi-static generate -c openapi.config.ts
+npx nestjs-openapi-static generate -c <config-path> [options]
 ```
 
-Is equivalent to:
+### Options
+
+| Option          | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `-c, --config`  | Path to configuration file (required)               |
+| `-f, --format`  | Output format: `json` or `yaml` (overrides config)  |
+| `-q, --quiet`   | Suppress output (only show errors)                  |
+| `-d, --debug`   | Enable debug output (verbose logging, stack traces) |
+| `-h, --help`    | Show help message                                   |
+| `-v, --version` | Show version                                        |
+
+### Examples
+
+```bash
+# Basic generation
+npx nestjs-openapi-static generate -c openapi.config.ts
+
+# Override output format
+npx nestjs-openapi-static generate -c openapi.config.ts --format yaml
+
+# Quiet mode for CI
+npx nestjs-openapi-static generate -c openapi.config.ts --quiet
+
+# Debug mode for troubleshooting
+npx nestjs-openapi-static generate -c openapi.config.ts --debug
+```
+
+### Debug Mode
+
+The `--debug` flag enables verbose logging that shows:
+
+- Config loading and validation
+- Module traversal progress
+- Schema generation details
+- Full stack traces on errors
+
+This is useful for troubleshooting issues with type resolution or understanding why certain schemas aren't being generated.
+
+### Programmatic Equivalent
 
 ```typescript
 import { generate } from 'nestjs-openapi-static';
