@@ -4,6 +4,7 @@ set -euo pipefail
 label=""
 output=""
 repo="."
+app=""
 runs=3
 warmup=1
 
@@ -25,6 +26,10 @@ while [[ $# -gt 0 ]]; do
       repo="$2"
       shift 2
       ;;
+    --app)
+      app="$2"
+      shift 2
+      ;;
     --warmup)
       warmup="$2"
       shift 2
@@ -37,28 +42,69 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$label" || -z "$output" ]]; then
-  echo "Usage: $0 --label <label> --output <file> [--repo PATH] [--runs N] [--warmup N]" >&2
+  echo "Usage: $0 --label <label> --output <file> [--repo PATH] [--app NAME] [--runs N] [--warmup N]" >&2
   exit 1
 fi
 
-# Find all e2e apps with openapi.config.ts
-configs=()
-for config in "$repo"/e2e-applications/*/openapi.config.ts; do
-  if [[ -f "$config" ]]; then
-    configs+=("$config")
+# If --app specified, benchmark single app; otherwise benchmark all
+if [[ -n "$app" ]]; then
+  config="$repo/e2e-applications/$app/openapi.config.ts"
+  if [[ ! -f "$config" ]]; then
+    echo "Config not found: $config" >&2
+    exit 1
   fi
-done
+  configs=("$config")
+else
+  configs=()
+  for config in "$repo"/e2e-applications/*/openapi.config.ts; do
+    if [[ -f "$config" ]]; then
+      configs+=("$config")
+    fi
+  done
+fi
 
 if [[ ${#configs[@]} -eq 0 ]]; then
-  echo "No openapi.config.ts files found in $repo/e2e-applications" >&2
+  echo "No openapi.config.ts files found" >&2
   exit 1
 fi
 
+# Single app mode: output flat JSON
+if [[ -n "$app" ]]; then
+  echo "Benchmarking $app..." >&2
+  
+  # Warmup
+  for ((i=1; i<=warmup; i++)); do
+    pnpm --dir "$repo" exec tsx src/cli.ts generate -c "${configs[0]}" >/dev/null 2>&1 || true
+  done
+  
+  # Benchmark runs
+  durations=()
+  for ((i=1; i<=runs; i++)); do
+    start_ns=$(date +%s%N)
+    pnpm --dir "$repo" exec tsx src/cli.ts generate -c "${configs[0]}" >/dev/null 2>&1
+    end_ns=$(date +%s%N)
+    duration_ms=$(( (end_ns - start_ns) / 1000000 ))
+    durations+=("$duration_ms")
+  done
+  
+  # Calculate average
+  sum=0
+  for d in "${durations[@]}"; do
+    sum=$((sum + d))
+  done
+  avg=$((sum / ${#durations[@]}))
+  
+  durations_json=$(printf '%s,' "${durations[@]}" | sed 's/,$//')
+  echo '{"name":"'"$app"'","runs":'"${#durations[@]}"',"durations_ms":['"$durations_json"'],"avg_ms":'"$avg"'}' > "$output"
+  echo "Results written to $output" >&2
+  exit 0
+fi
+
+# Multi-app mode: output nested JSON with targets array
 results_json='{"label":"'"$label"'","targets":['
 
 first=true
 for config in "${configs[@]}"; do
-  # Extract app name from path
   app_name=$(basename "$(dirname "$config")")
   
   echo "Benchmarking $app_name..." >&2
@@ -85,7 +131,6 @@ for config in "${configs[@]}"; do
   done
   avg=$((sum / ${#durations[@]}))
   
-  # Build JSON for this target
   durations_json=$(printf '%s,' "${durations[@]}" | sed 's/,$//')
   
   if [[ "$first" == "true" ]]; then
