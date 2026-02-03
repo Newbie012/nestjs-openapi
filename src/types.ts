@@ -407,6 +407,11 @@ export interface GenerateOverrides {
    * Takes precedence over config.format.
    */
   readonly format?: OutputFormat;
+
+  /**
+   * Enable debug mode for verbose logging and full stack traces.
+   */
+  readonly debug?: boolean;
 }
 
 /**
