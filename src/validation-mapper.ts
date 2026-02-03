@@ -290,6 +290,54 @@ export const isPropertyOptional = (property: PropertyDeclaration): boolean => {
 };
 
 /**
+ * Result of extracting property validation info in a single pass
+ */
+export interface PropertyValidationInfo {
+  readonly isOptional: boolean;
+  readonly constraints: ValidationConstraints;
+}
+
+/**
+ * Extract both optionality and constraints from a property in a single pass.
+ * This is more efficient than calling isPropertyOptional and extractPropertyConstraints separately.
+ */
+export const extractPropertyValidationInfo = (
+  property: PropertyDeclaration,
+): PropertyValidationInfo => {
+  const constraints: ValidationConstraints = {};
+  let isOptional = false;
+
+  for (const decorator of property.getDecorators()) {
+    const nameOpt = getDecoratorName(decorator);
+    if (Option.isNone(nameOpt)) continue;
+
+    const name = nameOpt.value;
+
+    // Check for @IsOptional
+    if (name === 'IsOptional') {
+      isOptional = true;
+      continue;
+    }
+
+    // Special handling for @IsEnum - extract actual enum values
+    if (name === 'IsEnum') {
+      const enumValues = resolveEnumFromDecorator(decorator);
+      if (enumValues && enumValues.length > 0) {
+        Object.assign(constraints, { enum: enumValues });
+      }
+      continue;
+    }
+
+    const mapper = DECORATOR_MAPPINGS[name];
+    if (!mapper) continue;
+
+    Object.assign(constraints, mapper(getDecoratorArgs(decorator)));
+  }
+
+  return { isOptional, constraints };
+};
+
+/**
  * Extract all property constraints from a class
  */
 export const extractClassConstraints = (

@@ -29,10 +29,7 @@ import {
   hasMethodSecurityDecorators,
   combineSecurityRequirements,
 } from './security-decorators.js';
-import {
-  isPropertyOptional,
-  extractPropertyConstraints,
-} from './validation-mapper.js';
+import { extractPropertyValidationInfo } from './validation-mapper.js';
 
 const HTTP_METHOD_MAP: Record<string, HttpMethod> = {
   Get: 'GET',
@@ -355,17 +352,19 @@ const expandQueryDtoProperties = (
 
       if (propDecl) {
         propTypeText = tsTypeToString(propDecl.getType().getText(propDecl));
+
+        // Extract optionality and constraints in a single pass for performance
+        const validationInfo = extractPropertyValidationInfo(propDecl);
+
         // Check for optionality: ? token, initializer, OR @IsOptional() decorator
         isOptional =
           propDecl.hasQuestionToken() ||
           propDecl.hasInitializer?.() ||
-          isPropertyOptional(propDecl) ||
-          false;
+          validationInfo.isOptional;
 
-        // Extract validation constraints from decorators like @Min, @Max, @IsEnum, etc.
-        const extractedConstraints = extractPropertyConstraints(propDecl);
-        if (Object.keys(extractedConstraints).length > 0) {
-          constraints = extractedConstraints;
+        // Use extracted validation constraints
+        if (Object.keys(validationInfo.constraints).length > 0) {
+          constraints = validationInfo.constraints;
         }
       } else if (propSig) {
         propTypeText = tsTypeToString(propSig.getType().getText(propSig));
