@@ -2,7 +2,7 @@
 
 ## Non-Negotiable Rules
 
-1. **Effect for errors** — Never `throw`, use `Effect.fail` with `Data.TaggedError`
+1. **Effect for errors** — Never `throw`, use `Effect.fail` with `Schema.TaggedError` (serializable)
 2. **Readonly types** — All interface properties must be `readonly`
 3. **ESM imports** — Always use `.js` extensions in imports
 4. **Functional style** — Prefer pure functions, avoid mutation
@@ -102,4 +102,4 @@ Run before every commit:
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm publint
 ```
 
-All 361 tests must pass.
+All 412 tests must pass.
