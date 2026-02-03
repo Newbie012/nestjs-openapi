@@ -107,5 +107,8 @@
     "@nestjs/swagger": {
       "optional": true
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }
