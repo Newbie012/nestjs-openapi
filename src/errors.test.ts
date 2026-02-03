@@ -102,7 +102,7 @@ describe('Error Classes', () => {
   });
 
   describe('ConfigValidationError', () => {
-    it('should create fromIssues error', () => {
+    it('should create fromIssues error with issues in message', () => {
       const issues = ['Missing required field: output', 'Invalid format'];
       const error = ConfigValidationError.fromIssues(
         '/path/to/openapi.config.ts',
@@ -113,6 +113,20 @@ describe('Error Classes', () => {
       expect(error.path).toBe('/path/to/openapi.config.ts');
       expect(error.issues).toEqual(issues);
       expect(error.message).toContain('Configuration validation failed');
+      expect(error.message).toContain('Missing required field: output');
+      expect(error.message).toContain('Invalid format');
+    });
+
+    it('should handle empty issues array', () => {
+      const error = ConfigValidationError.fromIssues(
+        '/path/to/openapi.config.ts',
+        [],
+      );
+
+      expect(error._tag).toBe('ConfigValidationError');
+      expect(error.message).toBe(
+        'Configuration validation failed: /path/to/openapi.config.ts',
+      );
     });
   });
 
