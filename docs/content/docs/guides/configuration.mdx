@@ -111,6 +111,19 @@ dtoGlob: 'src/**/*.dto.ts';
 dtoGlob: ['src/**/*.dto.ts', 'src/**/*.entity.ts'];
 ```
 
+Common patterns include `**/*.dto.ts`, `**/*.entity.ts`, `**/*.model.ts`, and
+`**/*.schema.ts`.
+
+When a schema ref appears in paths but isn't generated from your globs, the
+generator tries to resolve the missing type by scanning for exported types and
+merges any additional schemas it finds. Keep `dtoGlob` focused for performance,
+and expand it if you still see broken ref warnings.
+
+<Callout type="note">
+  The CLI prints a broken refs warning if any `$ref`s are missing. Use that list
+  to adjust `dtoGlob` coverage.
+</Callout>
+
 ## `openapi`
 
 OpenAPI specification metadata. Maps directly to the OpenAPI 3.0 spec structure.

@@ -32,6 +32,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
       "parameters": [],
       "responses": {
         "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+              },
+            },
+          },
           "description": "Notification statistics from notification service",
         },
       },
@@ -58,6 +65,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
       ],
       "responses": {
         "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+              },
+            },
+          },
           "description": "User profile data from user service",
         },
       },

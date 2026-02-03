@@ -45,8 +45,7 @@
           }
         },
         "required": [
-          "status",
-          "notes"
+          "status"
         ],
         "type": "object"
       },
@@ -98,8 +97,7 @@
           "id",
           "name",
           "email",
-          "role",
-          "bio"
+          "role"
         ],
         "type": "object"
       },
@@ -202,8 +200,7 @@
         },
         "required": [
           "bio",
-          "age",
-          "name"
+          "age"
         ],
         "type": "object"
       },

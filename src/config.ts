@@ -80,6 +80,17 @@ const CONFIG_FILE_NAMES = [
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
 
+/**
+ * Default glob patterns for auto-discovering schema files.
+ * These patterns are relative to the entry file directory.
+ */
+const DEFAULT_DTO_GLOB = [
+  '**/*.dto.ts',
+  '**/*.entity.ts',
+  '**/*.model.ts',
+  '**/*.schema.ts',
+] as const;
+
 const DEFAULT_CONFIG = {
   files: {
     include: [] as string[],
@@ -290,13 +301,13 @@ export const resolveConfig = (
   const rawEntry = files.entry ?? DEFAULT_ENTRY;
   const entry = Array.isArray(rawEntry) ? rawEntry : [rawEntry];
 
-  // Normalize dtoGlob to array
+  // Normalize dtoGlob to array, using defaults if not specified
   const rawDtoGlob = files.dtoGlob;
   const dtoGlob = rawDtoGlob
     ? Array.isArray(rawDtoGlob)
       ? rawDtoGlob
       : [rawDtoGlob]
-    : [];
+    : [...DEFAULT_DTO_GLOB];
 
   // tsconfig is required - use files.tsconfig or throw
   const tsconfig = files.tsconfig;
