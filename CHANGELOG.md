@@ -1,5 +1,15 @@
 # nestjs-openapi-static
 
+## 2.3.0
+
+### Minor Changes
+
+- [#9](https://github.com/Newbie012/nestjs-openapi-static/pull/9) [`bf06048`](https://github.com/Newbie012/nestjs-openapi-static/commit/bf06048fe3ae3bb3b5bac0b3b34c7d2cf34b293b) Thanks [@Newbie012](https://github.com/Newbie012)! - - Add `--debug` CLI flag for verbose logging and stack traces
+  - Add `debug` option to programmatic API
+  - Add proper Schema validation for `pathFilter` (RegExp and function types)
+  - Fix empty glob pattern handling in schema generation
+  - Improve error messages with context (pattern/file that failed)
+
 ## 2.2.1
 
 ### Patch Changes
