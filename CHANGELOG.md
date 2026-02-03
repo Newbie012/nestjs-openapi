@@ -1,5 +1,12 @@
 # nestjs-openapi-static
 
+## 2.2.0
+
+### Minor Changes
+
+- [#5](https://github.com/Newbie012/nestjs-openapi-static/pull/5) [`1d00a9d`](https://github.com/Newbie012/nestjs-openapi-static/commit/1d00a9dad338731d47c86b56fec5d46046a73468) Thanks [@Newbie012](https://github.com/Newbie012)! - - Inline query DTO properties as individual parameters by default. Use `options.query.style: "ref"` for legacy behavior.
+  - Add `additionalProperties: false` to object schemas for stricter validation.
+
 ## 2.1.0
 
 ### Minor Changes
