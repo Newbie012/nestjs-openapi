@@ -1,0 +1,91 @@
+name: OpenAPI Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Compare OpenAPI generation speed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (head)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check benchmark script exists in base
+        id: check-script
+        run: |
+          if git show ${{ github.event.pull_request.base.sha }}:scripts/benchmark-openapi.sh >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if benchmark script doesn't exist in base
+        if: steps.check-script.outputs.exists == 'false'
+        run: |
+          echo "Benchmark script doesn't exist in base branch yet - skipping benchmark"
+          exit 0
+
+      - name: Install pnpm
+        if: steps.check-script.outputs.exists == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        if: steps.check-script.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (head)
+        if: steps.check-script.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare base worktree
+        if: steps.check-script.outputs.exists == 'true'
+        run: git worktree add /tmp/base ${{ github.event.pull_request.base.sha }}
+
+      - name: Install dependencies (base)
+        if: steps.check-script.outputs.exists == 'true'
+        run: pnpm -C /tmp/base install --frozen-lockfile
+
+      - name: Benchmark (head)
+        if: steps.check-script.outputs.exists == 'true'
+        run: bash /tmp/base/scripts/benchmark-openapi.sh --label head --output benchmark-head.json --repo "$GITHUB_WORKSPACE"
+
+      - name: Benchmark (base)
+        if: steps.check-script.outputs.exists == 'true'
+        run: bash /tmp/base/scripts/benchmark-openapi.sh --label base --output benchmark-base.json --repo /tmp/base
+
+      - name: Format comment
+        if: steps.check-script.outputs.exists == 'true'
+        run: node /tmp/base/scripts/format-benchmark-comment.mjs benchmark-base.json benchmark-head.json benchmark-comment.md
+
+      - name: Cleanup base worktree
+        if: always() && steps.check-script.outputs.exists == 'true'
+        run: git worktree remove /tmp/base --force || true
+
+      - name: Find existing comment
+        if: steps.check-script.outputs.exists == 'true'
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: '<!-- benchmark-openapi -->'
+
+      - name: Create or update comment
+        if: steps.check-script.outputs.exists == 'true'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }
+          body-file: benchmark-comment.md
+          edit-mode: replace
