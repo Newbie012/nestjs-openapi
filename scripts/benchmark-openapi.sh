@@ -41,34 +41,63 @@ if [[ -z "$label" || -z "$output" ]]; then
   exit 1
 fi
 
-command=(pnpm --dir "$repo" exec tsx src/cli.ts generate -c e2e-applications/comparison-benchmark/openapi.config.ts)
-
-for ((i=1; i<=warmup; i++)); do
-  "${command[@]}" >/dev/null
+# Find all e2e apps with openapi.config.ts
+configs=()
+for config in "$repo"/e2e-applications/*/openapi.config.ts; do
+  if [[ -f "$config" ]]; then
+    configs+=("$config")
+  fi
 done
 
-durations=()
-for ((i=1; i<=runs; i++)); do
-  start_ns=$(date +%s%N)
-  "${command[@]}" >/dev/null
-  end_ns=$(date +%s%N)
-  duration_ms=$(( (end_ns - start_ns) / 1000000 ))
-  durations+=("$duration_ms")
+if [[ ${#configs[@]} -eq 0 ]]; then
+  echo "No openapi.config.ts files found in $repo/e2e-applications" >&2
+  exit 1
+fi
+
+results_json='{"label":"'"$label"'","targets":['
+
+first=true
+for config in "${configs[@]}"; do
+  # Extract app name from path
+  app_name=$(basename "$(dirname "$config")")
+  
+  echo "Benchmarking $app_name..." >&2
+  
+  # Warmup
+  for ((i=1; i<=warmup; i++)); do
+    pnpm --dir "$repo" exec tsx src/cli.ts generate -c "$config" >/dev/null 2>&1 || true
+  done
+  
+  # Benchmark runs
+  durations=()
+  for ((i=1; i<=runs; i++)); do
+    start_ns=$(date +%s%N)
+    pnpm --dir "$repo" exec tsx src/cli.ts generate -c "$config" >/dev/null 2>&1
+    end_ns=$(date +%s%N)
+    duration_ms=$(( (end_ns - start_ns) / 1000000 ))
+    durations+=("$duration_ms")
+  done
+  
+  # Calculate average
+  sum=0
+  for d in "${durations[@]}"; do
+    sum=$((sum + d))
+  done
+  avg=$((sum / ${#durations[@]}))
+  
+  # Build JSON for this target
+  durations_json=$(printf '%s,' "${durations[@]}" | sed 's/,$//')
+  
+  if [[ "$first" == "true" ]]; then
+    first=false
+  else
+    results_json+=','
+  fi
+  
+  results_json+='{"name":"'"$app_name"'","runs":'"${#durations[@]}"',"durations_ms":['"$durations_json"'],"avg_ms":'"$avg"'}'
 done
 
-durations_csv=$(IFS=,; echo "${durations[*]}")
+results_json+=']}'
 
-LABEL="$label" OUTPUT="$output" DURATIONS="$durations_csv" node -e '
-  const fs = require("fs");
-  const label = process.env.LABEL;
-  const output = process.env.OUTPUT;
-  const durations = process.env.DURATIONS.split(",").map((v) => Number(v));
-  const avg = durations.reduce((sum, v) => sum + v, 0) / durations.length;
-  const payload = {
-    label,
-    runs: durations.length,
-    durations_ms: durations,
-    avg_ms: avg,
-  };
-  fs.writeFileSync(output, JSON.stringify(payload, null, 2));
-'
+echo "$results_json" > "$output"
+echo "Results written to $output" >&2

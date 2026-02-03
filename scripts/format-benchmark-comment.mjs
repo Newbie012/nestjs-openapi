@@ -13,26 +13,49 @@ const base = JSON.parse(fs.readFileSync(basePath, 'utf-8'));
 const head = JSON.parse(fs.readFileSync(headPath, 'utf-8'));
 
 const formatMs = (ms) => `${(ms / 1000).toFixed(2)}s`;
-const pct = ((head.avg_ms - base.avg_ms) / base.avg_ms) * 100;
 
-let emoji = '✅';
-if (pct <= -10) emoji = '🚀';
-if (pct >= 10) emoji = '⚠️';
+// Build lookup map for base results
+const baseByName = new Map(base.targets.map((t) => [t.name, t]));
 
-const diffLabel = pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
+// Generate table rows
+const rows = head.targets.map((headTarget) => {
+  const baseTarget = baseByName.get(headTarget.name);
+  if (!baseTarget) {
+    return `| ${headTarget.name} | - | ${formatMs(headTarget.avg_ms)} | new |`;
+  }
+
+  const pct =
+    ((headTarget.avg_ms - baseTarget.avg_ms) / baseTarget.avg_ms) * 100;
+  let emoji = '';
+  if (pct <= -10) emoji = ' :rocket:';
+  if (pct >= 10) emoji = ' :warning:';
+
+  const diffLabel = pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
+
+  return `| ${headTarget.name} | ${formatMs(baseTarget.avg_ms)} | ${formatMs(headTarget.avg_ms)} | ${diffLabel}${emoji} |`;
+});
+
+// Generate raw timings details
+const rawTimings = head.targets.map((headTarget) => {
+  const baseTarget = baseByName.get(headTarget.name);
+  const baseInfo = baseTarget
+    ? `Base: ${baseTarget.durations_ms.join(', ')} (avg: ${baseTarget.avg_ms.toFixed(1)})`
+    : 'Base: n/a';
+  const headInfo = `PR: ${headTarget.durations_ms.join(', ')} (avg: ${headTarget.avg_ms.toFixed(1)})`;
+  return `**${headTarget.name}**\n- ${baseInfo}\n- ${headInfo}`;
+});
 
 const body = `<!-- benchmark-openapi -->
-## ⚡ OpenAPI Generation Benchmark
+## :zap: OpenAPI Generation Benchmark
 
 | Target | Base | PR | Diff |
 |--------|------|----|------|
-| comparison-benchmark | ${formatMs(base.avg_ms)} | ${formatMs(head.avg_ms)} | ${diffLabel} ${emoji} |
+${rows.join('\n')}
 
 <details>
 <summary>Raw timings (ms)</summary>
 
-- Base: ${base.durations_ms.join(', ')} (avg: ${base.avg_ms.toFixed(1)})
-- PR: ${head.durations_ms.join(', ')} (avg: ${head.avg_ms.toFixed(1)})
+${rawTimings.join('\n\n')}
 
 </details>
 `;
