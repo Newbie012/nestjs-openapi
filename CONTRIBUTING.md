@@ -10,7 +10,7 @@ Thank you for your interest in contributing!
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/nestjs-openapi-static.git
+git clone https://github.com/Newbie012/nestjs-openapi-static.git
 cd nestjs-openapi-static
 pnpm install
 pnpm test

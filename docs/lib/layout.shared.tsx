@@ -12,7 +12,7 @@ export function baseOptions(): BaseLayoutProps {
       ),
       transparentMode: 'top',
     },
-    githubUrl: 'https://github.com/your-repo/nestjs-openapi-static',
+    githubUrl: 'https://github.com/Newbie012/nestjs-openapi-static',
     links: [],
   };
 }
