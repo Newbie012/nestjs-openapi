@@ -11,27 +11,26 @@ export const ParameterLocation = Schema.Literal(
 );
 export type ParameterLocation = typeof ParameterLocation.Type;
 
-/** Validation constraints that can be applied to parameters */
-export const ParameterConstraints = Schema.Struct({
+/** Validation constraints that can be applied to parameters (plain interface for perf) */
+export interface ParameterConstraints {
   // String constraints
-  minLength: Schema.optional(Schema.Number),
-  maxLength: Schema.optional(Schema.Number),
-  pattern: Schema.optional(Schema.String),
-  format: Schema.optional(Schema.String),
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly pattern?: string;
+  readonly format?: string;
   // Number constraints
-  minimum: Schema.optional(Schema.Number),
-  maximum: Schema.optional(Schema.Number),
-  exclusiveMinimum: Schema.optional(Schema.Number),
-  exclusiveMaximum: Schema.optional(Schema.Number),
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly exclusiveMaximum?: number;
   // Array constraints
-  minItems: Schema.optional(Schema.Number),
-  maxItems: Schema.optional(Schema.Number),
+  readonly minItems?: number;
+  readonly maxItems?: number;
   // Enum constraint
-  enum: Schema.optional(Schema.Array(Schema.Unknown)),
+  readonly enum?: readonly unknown[];
   // Type override
-  type: Schema.optional(Schema.String),
-});
-export type ParameterConstraints = typeof ParameterConstraints.Type;
+  readonly type?: string;
+}
 
 export const ResolvedParameter = Schema.Struct({
   name: Schema.String,
@@ -39,10 +38,14 @@ export const ResolvedParameter = Schema.Struct({
   tsType: Schema.String,
   required: Schema.Boolean,
   description: Schema.OptionFromNullOr(Schema.String),
-  /** Validation constraints from decorators like @Min, @Max, @IsEnum, etc. */
-  constraints: Schema.optional(ParameterConstraints),
+  // Note: constraints uses plain interface to avoid Schema initialization overhead
 });
-export type ResolvedParameter = typeof ResolvedParameter.Type;
+export interface ResolvedParameter extends Schema.Schema.Type<
+  typeof ResolvedParameter
+> {
+  /** Validation constraints from decorators like @Min, @Max, @IsEnum, etc. */
+  readonly constraints?: ParameterConstraints;
+}
 
 // Return Type
 
