@@ -1,5 +1,18 @@
 # nestjs-openapi-static
 
+## 2.1.0
+
+### Minor Changes
+
+- [#4](https://github.com/Newbie012/nestjs-openapi-static/pull/4) [`40529fb`](https://github.com/Newbie012/nestjs-openapi-static/commit/40529fb5ecb1ccda53a62aa08e09a7f6232277fc) Thanks [@Newbie012](https://github.com/Newbie012)! - Zero-config schema resolution with significant performance improvements.
+
+  **Highlights:**
+  - Zero-config schema discovery and hybrid resolution enabled by default
+  - Major performance improvements for large monorepos
+  - Schema validation warnings and exports
+  - Type handling and import alias fixes
+  - Improved configuration error messaging
+
 ## 2.0.0
 
 ### Major Changes
