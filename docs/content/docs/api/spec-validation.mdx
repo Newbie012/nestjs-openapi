@@ -1,0 +1,48 @@
+---
+title: Spec Validation
+description: Detect broken $ref references in OpenAPI specs
+---
+
+Validate generated OpenAPI specs for missing `$ref` targets. The CLI runs this
+check automatically and prints warnings without failing generation.
+
+## validateSpec()
+
+```typescript
+function validateSpec(spec: OpenApiSpec): ValidationResult;
+```
+
+Returns a summary of total refs, broken refs, and missing schema names.
+
+```typescript
+import { generate, formatValidationResult } from 'nestjs-openapi-static';
+
+const result = await generate('./openapi.config.ts');
+
+if (!result.validation.valid) {
+  console.warn(formatValidationResult(result.validation));
+}
+```
+
+## formatValidationResult()
+
+```typescript
+function formatValidationResult(result: ValidationResult): string;
+```
+
+Formats a readable summary suitable for CLI output. Includes categories for
+primitive types, union types, query/path params, and other missing schemas.
+
+## categorizeBrokenRefs()
+
+```typescript
+function categorizeBrokenRefs(
+  missingSchemas: ReadonlyMap<string, number>,
+): BrokenRefCategories;
+```
+
+Groups missing schema names to help diagnose where refs are coming from.
+
+## Related Types
+
+See the full type definitions in [Types](/docs/api/types#validationresult).

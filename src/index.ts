@@ -183,3 +183,13 @@ export {
   getModuleMetadata,
   type ModuleMetadata,
 } from './nest-ast.js';
+
+// Spec Validation
+export {
+  validateSpec,
+  categorizeBrokenRefs,
+  formatValidationResult,
+  type ValidationResult,
+  type BrokenRef,
+  type BrokenRefCategories,
+} from './spec-validator.js';

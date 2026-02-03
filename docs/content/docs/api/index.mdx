@@ -71,6 +71,16 @@ Configuration and OpenAPI spec types:
 | [`SecurityConfig`](/docs/api/types#securityconfig) | Security scheme configuration   |
 | [`OpenApiSpec`](/docs/api/types#openapispec)       | Generated OpenAPI specification |
 
+## Validation Utilities
+
+Helpers for broken `$ref` detection and reporting:
+
+| Export                                                                         | Description                            |
+| ------------------------------------------------------------------------------ | -------------------------------------- |
+| [`validateSpec()`](/docs/api/spec-validation#validatespec)                     | Detect broken `$ref`s in a spec        |
+| [`formatValidationResult()`](/docs/api/spec-validation#formatvalidationresult) | Format a validation summary for output |
+| [`categorizeBrokenRefs()`](/docs/api/spec-validation#categorizebrokenrefs)     | Group missing refs by likely cause     |
+
 ## Errors
 
 Typed error classes for error handling:

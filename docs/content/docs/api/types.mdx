@@ -76,6 +76,7 @@ interface FilesConfig {
 
   /**
    * Glob pattern(s) for DTO files to generate schemas from.
+   * Common patterns: "**/*.dto.ts", "**/*.entity.ts", "**/*.model.ts", "**/*.schema.ts"
    */
   readonly dtoGlob?: string | readonly string[];
 
@@ -445,6 +446,40 @@ interface GenerateResult {
   readonly pathCount: number;
   readonly operationCount: number;
   readonly schemaCount: number;
+  readonly validation: ValidationResult;
+}
+```
+
+### ValidationResult
+
+```typescript
+interface ValidationResult {
+  readonly valid: boolean;
+  readonly totalRefs: number;
+  readonly brokenRefCount: number;
+  readonly brokenRefs: readonly BrokenRef[];
+  readonly missingSchemas: ReadonlyMap<string, number>;
+}
+```
+
+### BrokenRef
+
+```typescript
+interface BrokenRef {
+  readonly ref: string;
+  readonly path: string;
+  readonly missingSchema: string;
+}
+```
+
+### BrokenRefCategories
+
+```typescript
+interface BrokenRefCategories {
+  readonly primitives: readonly string[];
+  readonly unionTypes: readonly string[];
+  readonly queryParams: readonly string[];
+  readonly other: readonly string[];
 }
 ```
 
@@ -453,3 +488,4 @@ interface GenerateResult {
 - [Configuration Guide](/docs/guides/configuration) - How to use these types
 - [defineConfig()](/docs/api/define-config) - Configuration helper
 - [Errors](/docs/api/errors) - Error type definitions
+- [Spec Validation](/docs/api/spec-validation) - Validation utilities

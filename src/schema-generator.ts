@@ -10,7 +10,9 @@ import {
   type Config as TsJsonSchemaConfig,
   type Schema,
 } from 'ts-json-schema-generator';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 
 // Error types
 
@@ -198,3 +200,172 @@ const convertToGeneratedSchemas = (schema: Schema): GeneratedSchemas => {
 
   return { definitions };
 };
+
+/**
+ * Generate schemas from a specific list of file paths.
+ * This is used for the hybrid approach to generate schemas for
+ * types that weren't covered by the initial dtoGlob patterns.
+ *
+ * Uses a temporary tsconfig with only the specified files for better performance.
+ * Falls back to individual file processing if the batched approach fails.
+ */
+export const generateSchemasFromFiles = (
+  filePaths: readonly string[],
+  tsconfig: string,
+): Effect.Effect<GeneratedSchemas, SchemaError> =>
+  Effect.gen(function* () {
+    if (filePaths.length === 0) {
+      return { definitions: {} };
+    }
+
+    yield* Effect.logDebug('Generating schemas from resolved files').pipe(
+      Effect.annotateLogs({
+        fileCount: filePaths.length,
+      }),
+    );
+
+    // Try batched approach with temporary tsconfig (much faster)
+    const batchedResult = yield* generateSchemasWithTempTsconfig(
+      filePaths,
+      tsconfig,
+    ).pipe(
+      Effect.catchAll(() => {
+        // Batch failed, fall back to individual files with error resilience
+        return generateSchemasFromFilesIndividual(filePaths, tsconfig);
+      }),
+    );
+
+    yield* Effect.logDebug('Additional schema generation complete').pipe(
+      Effect.annotateLogs({
+        definitionCount: Object.keys(batchedResult.definitions).length,
+      }),
+    );
+
+    return batchedResult;
+  });
+
+/**
+ * Generate schemas using a temporary tsconfig that only includes the specified files.
+ * This avoids loading the entire project and is much faster.
+ */
+const generateSchemasWithTempTsconfig = (
+  filePaths: readonly string[],
+  tsconfig: string,
+): Effect.Effect<GeneratedSchemas, SchemaError> =>
+  Effect.try({
+    try: () => {
+      // Read the original tsconfig
+      const originalConfig = JSON.parse(readFileSync(tsconfig, 'utf-8'));
+
+      // Create a minimal tsconfig that only includes the specified files
+      const tempConfig = {
+        ...originalConfig,
+        compilerOptions: {
+          ...originalConfig.compilerOptions,
+          skipLibCheck: true,
+          skipDefaultLibCheck: true,
+          noEmit: true,
+        },
+        // Only include the files we need
+        files: [...filePaths],
+        // Remove include/exclude to prevent loading other files
+        include: undefined,
+        exclude: undefined,
+      };
+
+      // Write to a temporary file
+      const tempTsconfigPath = join(
+        dirname(tsconfig),
+        `.tsconfig.schema-gen.${randomUUID()}.json`,
+      );
+
+      try {
+        writeFileSync(tempTsconfigPath, JSON.stringify(tempConfig, null, 2));
+
+        // Create brace pattern for all files
+        const pattern =
+          filePaths.length === 1 ? filePaths[0]! : `{${filePaths.join(',')}}`;
+
+        const config: TsJsonSchemaConfig = {
+          path: pattern,
+          tsconfig: tempTsconfigPath,
+          type: '*',
+          skipTypeCheck: true,
+          expose: 'export',
+          jsDoc: 'extended',
+          sortProps: true,
+          strictTuples: false,
+          encodeRefs: false,
+          additionalProperties: false,
+        };
+
+        const generator = createGenerator(config);
+        const schema = generator.createSchema(config.type);
+
+        return convertToGeneratedSchemas(schema);
+      } finally {
+        // Clean up temporary file
+        if (existsSync(tempTsconfigPath)) {
+          unlinkSync(tempTsconfigPath);
+        }
+      }
+    },
+    catch: SchemaGenerationError.fromError,
+  });
+
+/**
+ * Generate schemas from files individually with error resilience.
+ * Fallback when batched approach fails.
+ */
+const generateSchemasFromFilesIndividual = (
+  filePaths: readonly string[],
+  tsconfig: string,
+): Effect.Effect<GeneratedSchemas, never> =>
+  Effect.gen(function* () {
+    const schemaResults = yield* Effect.all(
+      filePaths.map((filePath) =>
+        generateSchemasFromFile(filePath, tsconfig).pipe(
+          // On error, return empty definitions instead of failing
+          Effect.catchAll(() => Effect.succeed({ definitions: {} })),
+        ),
+      ),
+      { concurrency: 'unbounded' },
+    );
+
+    const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
+      (acc, schemas) => ({ ...acc, ...schemas.definitions }),
+      {},
+    );
+
+    return { definitions: allDefinitions };
+  });
+
+/**
+ * Generate schemas from a single file
+ */
+const generateSchemasFromFile = (
+  filePath: string,
+  tsconfig: string,
+): Effect.Effect<GeneratedSchemas, SchemaError> =>
+  Effect.try({
+    try: () => {
+      const config: TsJsonSchemaConfig = {
+        path: filePath,
+        tsconfig,
+        type: '*',
+        skipTypeCheck: true,
+        expose: 'export',
+        jsDoc: 'extended',
+        sortProps: true,
+        strictTuples: false,
+        encodeRefs: false,
+        additionalProperties: false,
+      };
+
+      const generator = createGenerator(config);
+      const schema = generator.createSchema(config.type);
+
+      return convertToGeneratedSchemas(schema);
+    },
+    catch: (error) => SchemaGenerationError.fromError(error),
+  });

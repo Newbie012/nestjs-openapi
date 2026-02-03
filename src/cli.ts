@@ -11,6 +11,7 @@
 import 'tsx';
 
 import { generate } from './generate.js';
+import { formatValidationResult } from './spec-validator.js';
 import minimist from 'minimist';
 import { relative } from 'node:path';
 import { createRequire } from 'node:module';
@@ -63,6 +64,10 @@ const formatDuration = (ms: number): string => {
 
 const success = (message: string): void => {
   console.log(`\x1b[32m✓\x1b[0m ${message}`);
+};
+
+const warning = (message: string): void => {
+  console.log(`\x1b[33m⚠\x1b[0m ${message}`);
 };
 
 const error = (message: string): void => {
@@ -145,8 +150,16 @@ const main = async (): Promise<void> => {
       console.log(
         `  ${result.pathCount} paths, ${result.operationCount} operations`,
       );
+
+      // Show validation warnings if there are broken refs
+      if (!result.validation.valid) {
+        console.log('');
+        warning(`Spec has broken references`);
+        console.log(`  ${formatValidationResult(result.validation)}`);
+      }
     }
 
+    // Exit with code 0 even with validation warnings (spec was generated)
     process.exit(0);
   } catch (err) {
     const duration = performance.now() - startTime;

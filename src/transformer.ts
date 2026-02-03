@@ -164,9 +164,26 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
       return { type: 'boolean' };
     case 'date':
       return { type: 'string', format: 'date-time' };
+    case 'void':
+    case 'undefined':
+    case 'never':
+    case 'null':
+      // These types indicate no content - return empty object as placeholder
+      // The caller should handle this appropriately (e.g., no response body)
+      return { type: 'object' };
     case 'unknown':
     case 'any':
       return { type: 'object' };
+  }
+
+  // Handle binary/stream response types - return binary format
+  if (
+    trimmed === 'StreamableFile' ||
+    trimmed === 'Buffer' ||
+    trimmed === 'Readable' ||
+    trimmed === 'ReadableStream'
+  ) {
+    return { type: 'string', format: 'binary' };
   }
 
   if (trimmed.endsWith('[]')) {
@@ -177,8 +194,17 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
     };
   }
 
-  // PascalCase names become $ref to components/schemas
-  if (trimmed.match(/^[A-Z][a-zA-Z0-9]*$/)) {
+  // Handle Record<string, T> as object with additionalProperties
+  const recordMatch = trimmed.match(/^Record<string,\s*(.+)>$/);
+  if (recordMatch) {
+    return {
+      type: 'object',
+    };
+  }
+
+  // PascalCase names (including generics like PaginatedResponse<T>) become $ref to components/schemas
+  // Match: UserDto, PaginatedResponse<ArticleEntity>, ApiResponse<User,Error>
+  if (trimmed.match(/^[A-Z][a-zA-Z0-9]*(<[^>]+>)?$/)) {
     return { $ref: `#/components/schemas/${trimmed}` };
   }
 
@@ -225,16 +251,18 @@ const buildResponseSchema = (
         items: tsTypeToOpenApiSchema(returnType.inline.value),
       };
     }
+    // Use tsTypeToOpenApiSchema to properly handle primitives, unions, etc.
     return {
       type: 'array',
       items: Option.isSome(returnType.type)
-        ? { $ref: `#/components/schemas/${returnType.type.value}` }
+        ? tsTypeToOpenApiSchema(returnType.type.value)
         : { type: 'object' },
     };
   }
 
+  // Use tsTypeToOpenApiSchema to properly handle primitives, unions, and refs
   if (Option.isSome(returnType.type)) {
-    return { $ref: `#/components/schemas/${returnType.type.value}` };
+    return tsTypeToOpenApiSchema(returnType.type.value);
   }
 
   // Handle inline object type - parse and extract properties
@@ -256,11 +284,12 @@ const buildResponseSchemaFromMetadata = (
   if (response.isArray) {
     return {
       type: 'array',
-      items: { $ref: `#/components/schemas/${typeName}` },
+      items: tsTypeToOpenApiSchema(typeName),
     };
   }
 
-  return { $ref: `#/components/schemas/${typeName}` };
+  // Use tsTypeToOpenApiSchema to properly handle primitives, unions, and refs
+  return tsTypeToOpenApiSchema(typeName);
 };
 
 /** Determines the default success status code based on HTTP method and @HttpCode */
