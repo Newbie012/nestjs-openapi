@@ -6,41 +6,6 @@
  */
 
 import { Project } from 'ts-morph';
-import { Option } from 'effect';
-import type { MethodInfo } from './domain.js';
-
-/**
- * Information about a resolved type
- */
-export interface ResolvedType {
-  /** The type name (e.g., "UserDto", "GetUsersQueryParams") */
-  readonly typeName: string;
-  /** The absolute file path where the type is defined */
-  readonly filePath: string;
-}
-
-/**
- * Extracts all unique file paths from method infos where types are defined.
- * This includes return types that have resolved file paths.
- */
-export function extractTypeFilePaths(
-  methodInfos: readonly MethodInfo[],
-): Set<string> {
-  const filePaths = new Set<string>();
-
-  for (const method of methodInfos) {
-    // Add return type file path if present
-    if (Option.isSome(method.returnType.filePath)) {
-      const path = method.returnType.filePath.value;
-      // Exclude node_modules paths
-      if (!path.includes('node_modules')) {
-        filePaths.add(path);
-      }
-    }
-  }
-
-  return filePaths;
-}
 
 /**
  * Resolves missing type names to their source file paths using ts-morph.
@@ -122,26 +87,6 @@ function buildTypeIndex(project: Project): Map<string, string> {
   }
 
   return index;
-}
-
-/**
- * Gets unique directories containing the resolved types.
- * Useful for expanding dtoGlob patterns.
- */
-export function getTypeDirectories(
-  resolvedTypes: Map<string, string>,
-): Set<string> {
-  const dirs = new Set<string>();
-
-  for (const filePath of resolvedTypes.values()) {
-    // Extract directory from file path
-    const lastSlash = filePath.lastIndexOf('/');
-    if (lastSlash !== -1) {
-      dirs.add(filePath.substring(0, lastSlash));
-    }
-  }
-
-  return dirs;
 }
 
 /**
