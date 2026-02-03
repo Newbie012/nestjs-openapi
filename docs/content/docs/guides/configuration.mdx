@@ -258,6 +258,56 @@ options: {
 }
 ```
 
+### `query`
+
+Query parameter handling options.
+
+#### `query.style`
+
+Controls how query DTOs are represented in the spec (default: `"inline"`).
+
+| Value      | Description                                                    |
+| ---------- | -------------------------------------------------------------- |
+| `"inline"` | Expand DTO properties as individual query parameters (default) |
+| `"ref"`    | Keep as a single parameter with a schema reference             |
+
+By default, when `@Query()` is used without an explicit parameter name (e.g., `@Query() pagination: PaginationDto`), the DTO properties are **inlined as individual query parameters**. This is the standard OpenAPI practice and works better with code generators and API clients.
+
+```typescript
+// Controller:
+@Get()
+findAll(@Query() pagination: PaginationDto) { ... }
+
+// Default output (style: "inline"):
+// parameters:
+//   - name: page
+//     in: query
+//     required: false
+//   - name: limit
+//     in: query
+//     required: false
+```
+
+Set `query.style: "ref"` to keep query DTOs as schema references:
+
+```typescript
+options: {
+  query: { style: 'ref' },
+}
+
+// Output with style: "ref":
+// parameters:
+//   - name: pagination
+//     in: query
+//     schema:
+//       $ref: '#/components/schemas/PaginationDto'
+```
+
+<Callout type="note">
+  Explicit named params like `@Query('filter') filter: FilterDto` are never
+  inlined—they always use a schema reference regardless of this setting.
+</Callout>
+
 ## `extends`
 
 The type definition includes an `extends` field for future shared configs, but it is **not implemented** in the current Promise-based generator. Keep configs standalone for now.

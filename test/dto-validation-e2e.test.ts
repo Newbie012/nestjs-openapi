@@ -214,4 +214,36 @@ describe('DTO Validation E2E', () => {
       expect(statusProperty.enum).toEqual([0, 1, 2]);
     }
   });
+
+  it('should inline query DTO properties as individual parameters', async () => {
+    await generate(configPath);
+
+    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+
+    // The /users GET endpoint uses @Query() pagination: PaginationDto
+    // which should be expanded to individual 'page' and 'limit' params
+    const getUsersOp = spec.paths['/users'].get;
+    expect(getUsersOp.parameters).toBeDefined();
+
+    const params = getUsersOp.parameters ?? [];
+    const paramNames = params.map((p) => p.name);
+
+    // Should have 'page' and 'limit' as individual parameters
+    expect(paramNames).toContain('page');
+    expect(paramNames).toContain('limit');
+
+    // Verify they are query parameters
+    const pageParam = params.find((p) => p.name === 'page');
+    const limitParam = params.find((p) => p.name === 'limit');
+
+    expect(pageParam?.in).toBe('query');
+    expect(limitParam?.in).toBe('query');
+
+    // Both should be optional per the DTO definition
+    expect(pageParam?.required).toBe(false);
+    expect(limitParam?.required).toBe(false);
+
+    // Should NOT have a parameter named 'pagination' with $ref
+    expect(paramNames).not.toContain('pagination');
+  });
 });

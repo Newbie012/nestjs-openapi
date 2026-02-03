@@ -166,6 +166,33 @@ findAll(
 ) {}
 ```
 
+### Query DTOs
+
+When using `@Query()` without an explicit parameter name, DTO properties are **inlined as individual query parameters** by default:
+
+```typescript
+// DTO definition
+class PaginationDto {
+  page?: number;
+  limit?: number;
+}
+
+// Controller
+@Get()
+findAll(@Query() pagination: PaginationDto) {}
+
+// Generated OpenAPI parameters:
+// - page (query, optional)
+// - limit (query, optional)
+```
+
+This is the standard OpenAPI practice and works better with code generators. If you prefer to keep the DTO as a single schema reference, set `query.style: "ref"` in your config. See the [Configuration Guide](/docs/guides/configuration#query) for details.
+
+<Callout type="note">
+  Explicitly named query params like `@Query('filter') filter: FilterDto` always
+  use a schema reference, regardless of the `query.style` setting.
+</Callout>
+
 ### `@ApiBody`
 
 Documents the request body:

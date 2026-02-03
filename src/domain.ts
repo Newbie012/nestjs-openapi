@@ -306,10 +306,15 @@ export const OpenApiConfig = Schema.Struct({
 });
 export type OpenApiConfig = typeof OpenApiConfig.Type;
 
+export const QueryOptionsConfig = Schema.Struct({
+  style: Schema.optional(Schema.Literal('inline', 'ref')),
+});
+
 export const OptionsConfig = Schema.Struct({
   basePath: Schema.optional(Schema.String),
   extractValidation: Schema.optional(Schema.Boolean),
   excludeDecorators: Schema.optional(Schema.Array(Schema.String)),
+  query: Schema.optional(QueryOptionsConfig),
   // Note: pathFilter (RegExp | function) cannot be validated by Schema,
   // it's handled separately in config loading
 });

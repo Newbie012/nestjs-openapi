@@ -294,6 +294,37 @@ export interface OptionsConfig {
    * ```
    */
   readonly pathFilter?: RegExp | ((path: string) => boolean);
+
+  /**
+   * Query parameter handling options.
+   */
+  readonly query?: QueryOptions;
+}
+
+/**
+ * Query parameter handling options.
+ */
+export interface QueryOptions {
+  /**
+   * How to represent query object DTOs (e.g., `@Query() dto: PaginationDto`).
+   * - `"inline"` (default): Expand DTO properties as individual query parameters
+   * - `"ref"`: Keep as a single parameter with a schema reference
+   *
+   * @default "inline"
+   *
+   * @example
+   * ```typescript
+   * // With style: "inline" (default)
+   * // @Query() dto: PaginationDto becomes:
+   * // - page: integer (query)
+   * // - limit: integer (query)
+   *
+   * // With style: "ref"
+   * // @Query() dto: PaginationDto becomes:
+   * // - dto: $ref to PaginationDto schema (query)
+   * ```
+   */
+  readonly style?: 'inline' | 'ref';
 }
 
 /**

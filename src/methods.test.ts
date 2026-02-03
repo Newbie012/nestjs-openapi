@@ -732,4 +732,294 @@ describe('getMethodInfo', () => {
       expect(info.parameters[0].tsType).toBe('UserDto');
     });
   });
+
+  describe('Query DTO inlining', () => {
+    it('should expand @Query() DTO properties into individual parameters by default', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      // Create a pagination DTO
+      project.createSourceFile(
+        'dto/pagination.dto.ts',
+        `
+        export class PaginationDto {
+          page?: number;
+          limit?: number;
+        }
+      `,
+      );
+
+      // Create controller using @Query() with DTO
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { PaginationDto } from '../dto/pagination.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(@Query() pagination: PaginationDto) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      // Should have expanded to 2 individual query parameters
+      expect(info.parameters).toHaveLength(2);
+
+      const pageParam = info.parameters.find((p) => p.name === 'page');
+      const limitParam = info.parameters.find((p) => p.name === 'limit');
+
+      expect(pageParam).toBeDefined();
+      expect(pageParam?.location).toBe('query');
+      expect(pageParam?.tsType).toBe('number');
+      expect(pageParam?.required).toBe(false); // Optional
+
+      expect(limitParam).toBeDefined();
+      expect(limitParam?.location).toBe('query');
+      expect(limitParam?.tsType).toBe('number');
+      expect(limitParam?.required).toBe(false); // Optional
+    });
+
+    it('should NOT expand @Query("name") with explicit parameter name', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/pagination.dto.ts',
+        `
+        export class PaginationDto {
+          page?: number;
+          limit?: number;
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { PaginationDto } from '../dto/pagination.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(@Query('filter') filter: PaginationDto) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      // Should keep as single parameter (explicit name)
+      expect(info.parameters).toHaveLength(1);
+      expect(info.parameters[0].name).toBe('filter');
+      expect(info.parameters[0].tsType).toBe('PaginationDto');
+    });
+
+    it('should keep @Query() as schema ref when query.style is "ref"', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/pagination.dto.ts',
+        `
+        export class PaginationDto {
+          page?: number;
+          limit?: number;
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { PaginationDto } from '../dto/pagination.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(@Query() pagination: PaginationDto) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method, {
+        query: { style: 'ref' },
+      });
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      // Should keep as single parameter with DTO type (schema ref behavior)
+      expect(info.parameters).toHaveLength(1);
+      expect(info.parameters[0].name).toBe('pagination');
+      expect(info.parameters[0].tsType).toBe('PaginationDto');
+      expect(info.parameters[0].location).toBe('query');
+    });
+
+    it('should NOT expand primitive types', () => {
+      const code = `
+        @Controller('/search')
+        class SearchController {
+          @Get()
+          search(@Query() query: string) {
+            return { query };
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.parameters).toHaveLength(1);
+      expect(info?.parameters[0].name).toBe('query');
+      expect(info?.parameters[0].tsType).toBe('string');
+    });
+
+    it('should handle DTO with required and optional properties', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/filter.dto.ts',
+        `
+        export class FilterDto {
+          search: string;
+          sortBy?: string;
+          order?: 'asc' | 'desc';
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { FilterDto } from '../dto/filter.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(@Query() filter: FilterDto) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      expect(info.parameters).toHaveLength(3);
+
+      const searchParam = info.parameters.find((p) => p.name === 'search');
+      expect(searchParam?.required).toBe(true);
+      expect(searchParam?.tsType).toBe('string');
+
+      const sortByParam = info.parameters.find((p) => p.name === 'sortBy');
+      expect(sortByParam?.required).toBe(false);
+      expect(sortByParam?.tsType).toBe('string');
+
+      const orderParam = info.parameters.find((p) => p.name === 'order');
+      expect(orderParam?.required).toBe(false);
+    });
+
+    it('should handle mixed @Query() DTO and @Query("name") params', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/pagination.dto.ts',
+        `
+        export class PaginationDto {
+          page?: number;
+          limit?: number;
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { PaginationDto } from '../dto/pagination.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(
+            @Query() pagination: PaginationDto,
+            @Query('search') search?: string
+          ) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      // Should have 3 params: page, limit (from DTO), and search (explicit)
+      expect(info.parameters).toHaveLength(3);
+
+      expect(info.parameters.some((p) => p.name === 'page')).toBe(true);
+      expect(info.parameters.some((p) => p.name === 'limit')).toBe(true);
+      expect(info.parameters.some((p) => p.name === 'search')).toBe(true);
+    });
+  });
 });

@@ -22,7 +22,10 @@ import type {
 import { buildSecuritySchemes } from './security.js';
 import { EntryNotFoundError } from './errors.js';
 import { getModules } from './modules.js';
-import { getControllerMethodInfos } from './methods.js';
+import {
+  getControllerMethodInfos,
+  type ExtractParametersOptions,
+} from './methods.js';
 import { transformMethods } from './transformer.js';
 import {
   generateSchemas,
@@ -278,7 +281,11 @@ const loadConfigFile = async (configPath: string): Promise<Config> => {
 /**
  * Internal Effect-based logic to extract method infos from a single entry
  */
-const extractMethodInfosFromEntry = (tsconfig: string, entry: string) =>
+const extractMethodInfosFromEntry = (
+  tsconfig: string,
+  entry: string,
+  extractOptions: ExtractParametersOptions = {},
+) =>
   Effect.gen(function* () {
     const project = new Project({
       tsConfigFilePath: tsconfig,
@@ -323,7 +330,7 @@ const extractMethodInfosFromEntry = (tsconfig: string, entry: string) =>
 
     const methodInfos = modules.flatMap((mod) =>
       mod.controllers.flatMap((controller) =>
-        getControllerMethodInfos(controller),
+        getControllerMethodInfos(controller, extractOptions),
       ),
     );
 
@@ -336,12 +343,13 @@ const extractMethodInfosFromEntry = (tsconfig: string, entry: string) =>
 const extractMethodInfosEffect = (
   tsconfig: string,
   entries: readonly string[],
+  extractOptions: ExtractParametersOptions = {},
 ) =>
   Effect.gen(function* () {
     // Process all entries and collect method infos
     const allMethodInfos = yield* Effect.forEach(
       entries,
-      (entry) => extractMethodInfosFromEntry(tsconfig, entry),
+      (entry) => extractMethodInfosFromEntry(tsconfig, entry, extractOptions),
       { concurrency: 'unbounded' },
     );
 
@@ -431,9 +439,14 @@ export const generate = async (
   }
 
   // Prepare Effect programs for method extraction and schema generation
-  const methodInfosProgram = extractMethodInfosEffect(tsconfig, entries).pipe(
-    Effect.mapError((error) => new Error(error.message)),
-  );
+  const extractOptions: ExtractParametersOptions = {
+    query: options.query,
+  };
+  const methodInfosProgram = extractMethodInfosEffect(
+    tsconfig,
+    entries,
+    extractOptions,
+  ).pipe(Effect.mapError((error) => new Error(error.message)));
 
   const dtoGlobArray = files.dtoGlob
     ? Array.isArray(files.dtoGlob)
