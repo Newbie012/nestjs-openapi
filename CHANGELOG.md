@@ -1,6 +1,6 @@
 # nestjs-openapi
 
-## 1.0.0
+## 0.1.0
 
 Initial release of nestjs-openapi - static OpenAPI generation for NestJS applications using TypeScript AST analysis. No build step, no app bootstrap required.
 
