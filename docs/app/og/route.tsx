@@ -1,11 +1,16 @@
-import { getPageImage, source } from '@/lib/source';
 import { OGImage } from '@/lib/og-image';
-import { notFound } from 'next/navigation';
 import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const revalidate = false;
+
+// Default values for homepage
+const DEFAULTS = {
+  title: 'NestJS to OpenAPI. Types in, types out.',
+  description:
+    'Generate OpenAPI specs from NestJS using static analysis. No runtime required - your TypeScript types become accurate schemas.',
+};
 
 // Load Inter font (WOFF format - Satori doesn't support WOFF2)
 async function loadInterFont() {
@@ -43,13 +48,13 @@ async function loadInterFont() {
   ];
 }
 
-export async function GET(
-  _req: Request,
-  { params }: RouteContext<'/og/docs/[...slug]'>,
-) {
-  const { slug } = await params;
-  const page = source.getPage(slug.slice(0, -1));
-  if (!page) notFound();
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+
+  // Get title and description from query params, with defaults
+  const title = searchParams.get('title') || DEFAULTS.title;
+  const description = searchParams.get('description') || DEFAULTS.description;
+  const section = searchParams.get('section') || undefined;
 
   // Load assets in parallel
   const [fonts, logoData] = await Promise.all([
@@ -61,10 +66,10 @@ export async function GET(
 
   return new ImageResponse(
     <OGImage
-      title={page.data.title}
-      description={page.data.description}
+      title={title}
+      description={description}
       logoSrc={logoBase64}
-      section="Documentation"
+      section={section}
     />,
     {
       width: 1200,
@@ -72,11 +77,4 @@ export async function GET(
       fonts,
     },
   );
-}
-
-export function generateStaticParams() {
-  return source.getPages().map((page) => ({
-    lang: page.locale,
-    slug: getPageImage(page).segments,
-  }));
 }

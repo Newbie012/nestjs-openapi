@@ -38,7 +38,7 @@ interface OpenApiModuleOptions {
    * Can be absolute or relative to process.cwd().
    * @required
    */
-  readonly filePath: string;
+  readonly specFile: string;
 
   /**
    * Whether the module is enabled.
@@ -54,22 +54,27 @@ interface OpenApiModuleOptions {
   readonly jsonPath?: string;
 
   /**
-   * Whether to serve Swagger UI.
+   * Swagger UI configuration.
+   * - `true` - Enable with defaults (path: '/api-docs', title from spec)
+   * - `false` or omitted - Disable Swagger UI
+   * - `object` - Enable with custom configuration
    * @default false
    */
-  readonly serveSwaggerUi?: boolean;
+  readonly swagger?: boolean | SwaggerOptions;
+}
 
+interface SwaggerOptions {
   /**
    * Path where Swagger UI will be served.
    * @default "/api-docs"
    */
-  readonly swaggerUiPath?: string;
+  readonly path?: string;
 
   /**
    * Custom title for the Swagger UI page.
    * Uses spec's info.title if not provided.
    */
-  readonly swaggerUiTitle?: string;
+  readonly title?: string;
 }
 ```
 
@@ -88,7 +93,7 @@ import { OpenApiModule } from 'nestjs-openapi-static';
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
+      specFile: 'openapi.json',
     }),
   ],
 })
@@ -97,15 +102,14 @@ export class AppModule {}
 
 Serves the spec at `GET /openapi.json`.
 
-### With Swagger UI
+### With Swagger UI (Simple)
 
 ```typescript
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/docs',
+      specFile: 'openapi.json',
+      swagger: true,
     }),
   ],
 })
@@ -115,7 +119,24 @@ export class AppModule {}
 Creates two endpoints:
 
 - `GET /openapi.json` - Raw OpenAPI specification
-- `GET /docs` - Swagger UI interface
+- `GET /api-docs` - Swagger UI interface
+
+### With Swagger UI (Custom)
+
+```typescript
+@Module({
+  imports: [
+    OpenApiModule.forRoot({
+      specFile: 'openapi.json',
+      swagger: {
+        path: '/docs',
+        title: 'My API Documentation',
+      },
+    }),
+  ],
+})
+export class AppModule {}
+```
 
 ### Environment-Based
 
@@ -123,9 +144,9 @@ Creates two endpoints:
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
+      specFile: 'openapi.json',
       enabled: process.env.NODE_ENV !== 'production',
-      serveSwaggerUi: process.env.SWAGGER_UI === 'true',
+      swagger: process.env.SWAGGER_UI === 'true',
     }),
   ],
 })
@@ -138,11 +159,12 @@ export class AppModule {}
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
+      specFile: 'openapi.json',
       jsonPath: '/api/v1/openapi.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/api/v1/docs',
-      swaggerUiTitle: 'My API v1 Documentation',
+      swagger: {
+        path: '/api/v1/docs',
+        title: 'My API v1 Documentation',
+      },
     }),
   ],
 })
@@ -199,8 +221,8 @@ export class DocsService {
   ) {}
 
   getDocsUrl(): string {
-    return this.options.serveSwaggerUi
-      ? this.options.swaggerUiPath
+    return this.options.swagger.enabled
+      ? this.options.swagger.path
       : this.options.jsonPath;
   }
 }
@@ -240,12 +262,12 @@ Resolve options with defaults:
 import { resolveOptions } from 'nestjs-openapi-static';
 
 const options = resolveOptions({
-  filePath: 'openapi.json',
+  specFile: 'openapi.json',
 });
 
 console.log(options.jsonPath); // '/openapi.json'
 console.log(options.enabled); // true
-console.log(options.serveSwaggerUi); // false
+console.log(options.swagger.enabled); // false
 ```
 
 ## ResolvedOpenApiModuleOptions
@@ -254,12 +276,14 @@ The resolved options interface with all defaults applied:
 
 ```typescript
 interface ResolvedOpenApiModuleOptions {
-  readonly filePath: string;
+  readonly specFile: string;
   readonly enabled: boolean;
   readonly jsonPath: string;
-  readonly serveSwaggerUi: boolean;
-  readonly swaggerUiPath: string;
-  readonly swaggerUiTitle: string;
+  readonly swagger: {
+    readonly enabled: boolean;
+    readonly path: string;
+    readonly title: string;
+  };
 }
 ```
 
@@ -280,7 +304,7 @@ When `enabled: false`, the module returns an empty configuration:
 
 ```typescript
 OpenApiModule.forRoot({
-  filePath: 'openapi.json',
+  specFile: 'openapi.json',
   enabled: false, // No routes registered
 });
 ```

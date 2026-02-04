@@ -82,6 +82,7 @@ export {
 export type {
   OpenApiModuleOptions,
   ResolvedOpenApiModuleOptions,
+  SwaggerOptions,
 } from './module.js';
 
 // =============================================================================
