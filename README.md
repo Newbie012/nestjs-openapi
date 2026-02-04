@@ -6,7 +6,7 @@
   [![npm version](https://img.shields.io/npm/v/nestjs-openapi)](https://www.npmjs.com/package/nestjs-openapi)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-  <a href="https://nestjs-openapi.dev">Documentation</a> · <a href="https://nestjs-openapi.dev/docs/quick-start">Quick Start</a> · <a href="https://github.com/Newbie012/nestjs-openapi/issues">Report Bug</a>
+  <a href="https://nestjs-openapi.vercel.app">Documentation</a> · <a href="https://nestjs-openapi.vercel.app/docs/quick-start">Quick Start</a> · <a href="https://github.com/Newbie012/nestjs-openapi/issues">Report Bug</a>
 </div>
 
 <br/>
@@ -58,14 +58,14 @@ npx nestjs-openapi generate
 
 ## Documentation
 
-Full documentation at **[nestjs-openapi.dev](https://nestjs-openapi.dev)**
+Full documentation at **[nestjs-openapi.vercel.app](https://nestjs-openapi.vercel.app)**
 
-- [Configuration](https://nestjs-openapi.dev/docs/guides/configuration)
-- [Security schemes](https://nestjs-openapi.dev/docs/guides/security)
-- [Serving specs at runtime](https://nestjs-openapi.dev/docs/guides/serving)
-- [Migration from @nestjs/swagger](https://nestjs-openapi.dev/docs/recipes/migration)
-- [CI/CD recipe](https://nestjs-openapi.dev/docs/recipes/ci-cd)
-- [FAQ](https://nestjs-openapi.dev/docs/faq)
+- [Configuration](https://nestjs-openapi.vercel.app/docs/guides/configuration)
+- [Security schemes](https://nestjs-openapi.vercel.app/docs/guides/security)
+- [Serving specs at runtime](https://nestjs-openapi.vercel.app/docs/guides/serving)
+- [Migration from @nestjs/swagger](https://nestjs-openapi.vercel.app/docs/recipes/migration)
+- [CI/CD recipe](https://nestjs-openapi.vercel.app/docs/recipes/ci-cd)
+- [FAQ](https://nestjs-openapi.vercel.app/docs/faq)
 
 ## Contributing
 
