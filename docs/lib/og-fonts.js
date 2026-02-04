@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 /**
  * @typedef {Object} OgFont
@@ -9,8 +10,7 @@ import { join } from 'node:path';
  * @property {'normal'} style
  */
 
-const fontPath = (fileName) =>
-  join(process.cwd(), 'public', 'fonts', fileName);
+const fontPath = (fileName) => join(process.cwd(), 'public', 'fonts', fileName);
 
 // Load Inter font from local assets (WOFF format - Satori doesn't support WOFF2)
 /**
