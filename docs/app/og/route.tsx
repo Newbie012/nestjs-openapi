@@ -1,4 +1,5 @@
 import { OGImage } from '@/lib/og-image';
+import { loadInterFont } from '@/lib/og-fonts.js';
 import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -11,42 +12,6 @@ const DEFAULTS = {
   description:
     'Generate OpenAPI specs from NestJS using static analysis. No runtime required - your TypeScript types become accurate schemas.',
 };
-
-// Load Inter font (WOFF format - Satori doesn't support WOFF2)
-async function loadInterFont() {
-  const [interRegular, interSemiBold, interBold] = await Promise.all([
-    fetch(
-      'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff',
-    ).then((res) => res.arrayBuffer()),
-    fetch(
-      'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hjp-Ek-_EeA.woff',
-    ).then((res) => res.arrayBuffer()),
-    fetch(
-      'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hjp-Ek-_EeA.woff',
-    ).then((res) => res.arrayBuffer()),
-  ]);
-
-  return [
-    {
-      name: 'Inter',
-      data: interRegular,
-      weight: 400 as const,
-      style: 'normal' as const,
-    },
-    {
-      name: 'Inter',
-      data: interSemiBold,
-      weight: 600 as const,
-      style: 'normal' as const,
-    },
-    {
-      name: 'Inter',
-      data: interBold,
-      weight: 700 as const,
-      style: 'normal' as const,
-    },
-  ];
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
