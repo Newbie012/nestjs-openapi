@@ -1,0 +1,79 @@
+---
+title: FAQ
+description: Common issues and quick fixes
+---
+
+## Why is my spec empty?
+
+This usually means no controllers were discovered from the entry module.
+
+- `files.entry` must point to a file that exports a class decorated with `@Module`
+- That module must list controllers in `@Module({ controllers: [...] })`
+- Controllers provided only by dynamic module factories (for example `SomeModule.forRoot(...)`) are not statically resolved
+
+Run with `--debug` to see resolved entry paths and debug logs.
+
+## Path aliases are not resolved
+
+`files.tsconfig` is required and must point to the tsconfig that defines your `baseUrl` and `paths`. If you use a separate build or test tsconfig, make sure you point at the one that matches your source layout.
+
+```ts
+// openapi.config.ts
+files: {
+  entry: 'src/app.module.ts',
+  tsconfig: 'tsconfig.json',
+}
+```
+
+## DTOs are not discovered
+
+By default, schemas are generated from types referenced in controller signatures. If you have DTOs used only indirectly or not referenced at all, add `dtoGlob` and make sure the DTO types are exported.
+
+```ts
+files: {
+  entry: 'src/app.module.ts',
+  dtoGlob: 'src/**/*.dto.ts',
+}
+```
+
+## Security decorators do not show up
+
+Decorators only add security requirements. Schemes must be defined in `openapi.security.schemes`, or the requirements will reference missing scheme names.
+
+```ts
+openapi: {
+  security: {
+    schemes: [
+      { name: 'bearer', type: 'http', scheme: 'bearer' },
+    ],
+  },
+}
+```
+
+## Why are my response types missing details?
+
+Response shortcut decorators like `@ApiOkResponse()` are not supported. Use `@ApiResponse({ status: ... })` with an explicit `type`, and prefer explicit return types on controller methods.
+
+## How do I debug generation?
+
+Use debug or profiling flags:
+
+```bash
+npx nestjs-openapi-static generate -c openapi.config.ts --debug
+```
+
+`--debug` prints verbose logs and stack traces. `--profile` prints per-stage timings.
+
+## Does it run in CI without the app running?
+
+Yes. Generation is static and does not bootstrap NestJS. You can run it as part of your build pipeline.
+
+## What about monorepos?
+
+Paths in `openapi.config.ts` are resolved relative to the config file. In a monorepo, keep a config per package and point `files.entry`/`files.tsconfig` at that package’s paths. See the [Monorepo recipe](/docs/recipes/monorepo).
+
+## Next Steps
+
+- [Quick Start](/docs/quick-start)
+- [Support Matrix](/docs/guides/support-matrix)
+- [Troubleshooting via Debug Mode](/docs/quick-start)

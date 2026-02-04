@@ -29,9 +29,11 @@ export default defineConfig({
 });
 ```
 
+Paths are resolved relative to this config file. `files.tsconfig` is required and should point to the tsconfig that includes your app sources and path aliases. `dtoGlob` is optional; use it to include DTOs that are not referenced directly by controller signatures.
+
 <Callout type="note">
-  Output can be JSON or YAML (`format: 'yaml'`). Configure security in the
-  config file - security decorators are not read.
+  Output can be JSON or YAML (`format: 'yaml'`). Define security schemes in the
+  config file; decorators add per-operation requirements.
 </Callout>
 
 ## Step 2: Generate the Spec
@@ -113,6 +115,14 @@ The generated spec includes:
   }
 }
 ```
+
+Operation IDs default to `<Controller>_<method>`. Override with `@ApiOperation({ operationId })` when you need stable names.
+
+## Need help?
+
+- [Decorator support](/docs/guides/decorators)
+- [Support matrix](/docs/guides/support-matrix)
+- [FAQ](/docs/faq)
 
 ## Next Steps
 
