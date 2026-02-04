@@ -16,33 +16,39 @@ import { OpenApiModule } from 'nestjs-openapi-static';
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/docs',
+      specFile: 'openapi.json',
+      swagger: true,
     }),
   ],
 })
 export class AppModule {}
 ```
 
-Access at `http://localhost:3000/docs`.
+Access at `http://localhost:3000/api-docs`.
 
 ## Configuration Options
 
 ```typescript
+// Enable with defaults
 OpenApiModule.forRoot({
-  filePath: 'openapi.json',
+  specFile: 'openapi.json',
+  swagger: true,
+});
 
-  // Enable Swagger UI
-  serveSwaggerUi: true,
-
-  // Customize the path (default: '/api-docs')
-  swaggerUiPath: '/docs',
-
-  // Custom page title (uses spec title by default)
-  swaggerUiTitle: 'My API Documentation',
+// Enable with custom options
+OpenApiModule.forRoot({
+  specFile: 'openapi.json',
+  swagger: {
+    path: '/docs',
+    title: 'My API Documentation',
+  },
 });
 ```
+
+| Option  | Type     | Default       | Description             |
+| ------- | -------- | ------------- | ----------------------- |
+| `path`  | `string` | `'/api-docs'` | URL path for Swagger UI |
+| `title` | `string` | spec title    | Custom page title       |
 
 ## Environment-Based Display
 
@@ -50,9 +56,9 @@ Show Swagger UI only in development:
 
 ```typescript
 OpenApiModule.forRoot({
-  filePath: 'openapi.json',
+  specFile: 'openapi.json',
   enabled: process.env.NODE_ENV !== 'production',
-  serveSwaggerUi: true,
+  swagger: true,
 });
 ```
 
@@ -60,8 +66,8 @@ Or use a dedicated environment variable:
 
 ```typescript
 OpenApiModule.forRoot({
-  filePath: 'openapi.json',
-  serveSwaggerUi: process.env.SWAGGER_UI_ENABLED === 'true',
+  specFile: 'openapi.json',
+  swagger: process.env.SWAGGER_UI_ENABLED === 'true',
 });
 ```
 
