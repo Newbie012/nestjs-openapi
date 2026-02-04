@@ -1,6 +1,6 @@
 {
   "name": "nestjs-openapi-static",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "description": "Static code analysis tool to generate OpenAPI specifications from NestJS applications",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
