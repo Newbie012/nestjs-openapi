@@ -3,14 +3,17 @@ title: Decorators
 description: Supported NestJS and Swagger decorators
 ---
 
-The generator understands a comprehensive set of NestJS + Swagger decorators. Schemas come from TypeScript types (not `@ApiProperty`), and security can be configured via decorators or config.
+The generator covers the most common NestJS + Swagger decorators. Schemas come from TypeScript types (not `@ApiProperty`); security schemes are defined in config and decorators add per-operation requirements.
 
 <Callout>
-  Quick truth table: we read routing + method Swagger decorators (tags,
-  operation metadata, consumes/produces, ApiResponse), parameter descriptions,
-  and exclusion decorators. We ignore property-level Swagger decorators and
+  Quick truth table: we read routing + HTTP method decorators, Swagger
+  operation metadata (tags, operation, consumes/produces, ApiResponse),
+  parameter descriptions from `@ApiParam`/`@ApiQuery`, and method-level
+  exclusion decorators. We ignore property-level Swagger decorators and
   response shortcuts.
 </Callout>
+
+For a concise overview, see the [Support Matrix](/docs/guides/support-matrix).
 
 ## Routing Decorators
 
@@ -30,7 +33,7 @@ export class UsersController {
 
 ### HTTP Method Decorators
 
-All standard HTTP method decorators are supported:
+Standard HTTP method decorators are supported:
 
 ```typescript
 @Controller('users')
@@ -54,6 +57,8 @@ export class UsersController {
   remove(@Param('id') id: string) {}
 }
 ```
+
+`@Options()` and `@Head()` are also supported. `@All()` is mapped to an `all` operation, which is not a standard OpenAPI method - prefer explicit verbs if you need strict validation.
 
 ### Parameter Decorators
 
@@ -168,7 +173,7 @@ findAll(
 
 ### Query DTOs
 
-When using `@Query()` without an explicit parameter name, DTO properties are **inlined as individual query parameters** by default:
+When using `@Query()` without an explicit parameter name, DTO class properties are **expanded into individual query parameters** by default:
 
 ```typescript
 // DTO definition
@@ -186,7 +191,7 @@ findAll(@Query() pagination: PaginationDto) {}
 // - limit (query, optional)
 ```
 
-This is the standard OpenAPI practice and works better with code generators. If you prefer to keep the DTO as a single schema reference, set `query.style: "ref"` in your config. See the [Configuration Guide](/docs/guides/configuration#query) for details.
+This is a common OpenAPI style and works better with code generators. If you prefer to keep the DTO as a single schema reference, set `query.style: "ref"` in your config. See the [Configuration Guide](/docs/guides/configuration#query) for details.
 
 <Callout type="note">
   Explicitly named query params like `@Query('filter') filter: FilterDto` always
@@ -281,9 +286,11 @@ This is controlled by the `excludeDecorators` option:
 ```typescript
 // openapi.config.ts
 options: {
-  excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
+  excludeDecorators: ['ApiExcludeEndpoint'],
 }
 ```
+
+`excludeDecorators` matches method decorators only. To exclude an entire controller, apply a decorator to each method or use a path filter.
 
 ## DTO Schema Generation
 
@@ -416,7 +423,7 @@ export class UsersController {
 - **Controller-level**: Applies to all methods in the controller
 - **Method-level**: Overrides controller-level security
 - **Multiple decorators**: AND logic (all schemes required)
-- **Merge with config**: Decorator security merges with `openapi.security.global`
+- **Merge with config**: Global security from config is merged into per-operation requirements; if both are present, all schemes are required
 
 <Callout>
   Security schemes must still be defined in config. Decorators reference scheme

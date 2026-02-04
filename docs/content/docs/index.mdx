@@ -4,13 +4,26 @@ description: Generate OpenAPI specs from NestJS apps using static analysis
 icon: BookOpen
 ---
 
-Generate OpenAPI specifications from NestJS applications using **static analysis** - no runtime, no build step required. Point at your `.ts` files, get a ready-to-ship spec.
+Generate OpenAPI specifications from NestJS applications using **static analysis**. Point at your `.ts` files and a `tsconfig`, get a ready-to-ship spec - no app bootstrap or runtime execution.
+
+## Who this is for
+
+- You want OpenAPI accuracy based on TypeScript types, not runtime metadata
+- You want to generate specs in CI without booting the app
+- You treat OpenAPI as a build artifact or commit it for review
+
+## Not a fit if
+
+- Your routes are registered dynamically at runtime
+- You rely on response shortcut decorators like `@ApiOkResponse()`
+- You need controller versioning via `@Controller({ path, version })`
+- Your controllers are only available through dynamic module factories like `SomeModule.forRoot(...)`
 
 ## Motivation
 
 Your OpenAPI spec is a **contract** - between your server and your clients, between your backend and your frontend, between your API and every SDK generated from it. When that contract is loose or inaccurate, the consequences show up at runtime: type mismatches, missing fields, invalid enum values, broken client code. These aren't just documentation issues - they're production bugs waiting to happen.
 
-`@nestjs/swagger` relies on `reflect-metadata` at runtime, which fundamentally limits spec accuracy. TypeScript's emitted metadata stores only a single `design:type` per property - unions become `Object`, generics lose their type arguments, and literal types collapse. Interfaces and type aliases are invisible entirely.
+`@nestjs/swagger` relies on `reflect-metadata` at runtime, which exposes only `design:type`, `design:paramtypes`, and `design:returntype`. Those signatures erase unions, generics, and literal types, and they don't represent interfaces or type aliases.
 
 To work around these limitations, you're forced to duplicate your type information in decorators:
 
@@ -29,14 +42,18 @@ Now you're maintaining the same information in two places - the TypeScript type 
 
 **nestjs-openapi-static** does exactly that. It reads your TypeScript source directly using the TypeScript AST - no decorators needed, no duplication, no drift. Your types are your spec. When you change a type, the spec changes with it. No build step, no app bootstrap, no infrastructure.
 
+## How it works
+
+It loads your project with your `tsconfig`, walks the `@Module` graph starting at `files.entry`, and reads routes, parameters, and Swagger operation metadata from decorators. It never executes your application.
+
 ### Key features
 
 - **Purely static** - No compilation step, no app bootstrap, no runtime execution.
 - **CI/CD friendly** - Runs without databases, brokers, or env vars.
 - **TypeScript native** - Uses your `tsconfig` for accurate resolution.
 - **OpenAPI 3.0.3** - Paths, parameters, request bodies, responses, security.
-- **class-validator aware** - Maps common validators into schema constraints.
-- **Filterable** - Exclude endpoints by decorator or path pattern.
+- **class-validator aware** - Maps common validators into schema constraints when `extractValidation` is enabled (default).
+- **Filterable** - Exclude endpoints by method decorators or path patterns.
 
 ## Quick example
 
@@ -68,4 +85,5 @@ npx nestjs-openapi-static generate -c openapi.config.ts
   <Card title="Quick Start" href="/docs/quick-start" />
   <Card title="Configuration" href="/docs/guides/configuration" />
   <Card title="Comparison" href="/docs/comparison" />
+  <Card title="FAQ" href="/docs/faq" />
 </Cards>

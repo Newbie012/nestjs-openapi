@@ -1,0 +1,83 @@
+---
+title: Support Matrix
+description: What is supported and what is not
+---
+
+A concise view of what the generator reads today. For details, see the full [Decorators Guide](/docs/guides/decorators).
+
+## Routing
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| `@Controller('path')` | Supported | String path only |
+| `@Controller({ path, version })` | Not supported | Object syntax is ignored |
+| HTTP method decorators | Supported | `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Options`, `@Head`, `@All` (`all` is non-standard) |
+
+## Parameters
+
+| Decorator | Status | Notes |
+| --- | --- | --- |
+| `@Param()` | Supported | Path parameters |
+| `@Query()` | Supported | Query params, DTOs inline by default |
+| `@Body()` | Supported | Request body |
+| `@Headers()` | Supported | Header parameters |
+
+## Swagger Operation Decorators
+
+| Decorator | Status | Notes |
+| --- | --- | --- |
+| `@ApiTags` | Supported | Controller and method level |
+| `@ApiOperation` | Supported | Summary, description, operationId |
+| `@ApiParam` | Supported | Path parameter docs |
+| `@ApiQuery` | Supported | Query parameter docs |
+| `@ApiBody` | Supported | Body metadata |
+| `@ApiResponse` | Supported | `status` is required |
+| `@ApiExcludeEndpoint` | Supported | Method-level, controlled by `excludeDecorators` |
+| `@ApiConsumes`, `@ApiProduces` | Supported | Content types |
+| `@ApiExcludeController` | Not supported | Controller-level exclusion is not applied |
+
+## Response Shortcuts
+
+| Decorator | Status | Notes |
+| --- | --- | --- |
+| `@ApiOkResponse`, `@ApiCreatedResponse`, etc. | Not supported | Use `@ApiResponse({ status: ... })` |
+
+## Property Decorators
+
+| Decorator | Status | Notes |
+| --- | --- | --- |
+| `@ApiProperty` | Not supported | Use TypeScript types + JSDoc |
+| `@ApiPropertyOptional` | Not supported | Use optional properties (`?`) |
+| `@ApiHideProperty` | Not supported | No equivalent |
+
+## Security
+
+| Decorator | Status | Notes |
+| --- | --- | --- |
+| `@ApiBearerAuth` | Supported | Scheme must exist in config |
+| `@ApiBasicAuth` | Supported | Scheme must exist in config |
+| `@ApiOAuth2` | Supported | Scheme must exist in config |
+| `@ApiSecurity` | Supported | Scheme must exist in config |
+| `@ApiCookieAuth` | Supported | Scheme must exist in config |
+
+## DTO Schema Generation
+
+| Source | Status | Notes |
+| --- | --- | --- |
+| TypeScript types | Supported | Primary source of truth |
+| JSDoc tags | Supported | Descriptions and constraints |
+| class-validator decorators | Supported | Requires `extractValidation: true` |
+
+## Limitations
+
+- Dynamic route registration at runtime is not supported
+- Controller versioning via `@Controller({ path, version })` is not supported
+- Response shortcut decorators are ignored
+- Controller-level exclusion decorators are not applied
+- `@All()` maps to a non-standard `all` operation
+
+## Next Steps
+
+- [Decorators Guide](/docs/guides/decorators)
+- [Configuration Guide](/docs/guides/configuration)
+- [FAQ](/docs/faq)

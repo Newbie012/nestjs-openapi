@@ -80,7 +80,16 @@ const error = (message: string): void => {
 const main = async (): Promise<void> => {
   const args = minimist<CliArgs>(process.argv.slice(2), {
     string: ['c', 'config', 'f', 'format'],
-    boolean: ['quiet', 'q', 'debug', 'd', 'help', 'h', 'version', 'v'],
+    boolean: [
+      'quiet',
+      'q',
+      'debug',
+      'd',
+      'help',
+      'h',
+      'version',
+      'v',
+    ],
     alias: {
       c: 'config',
       f: 'format',
