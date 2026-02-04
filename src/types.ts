@@ -412,12 +412,6 @@ export interface GenerateOverrides {
    * Enable debug mode for verbose logging and full stack traces.
    */
   readonly debug?: boolean;
-
-  /**
-   * Enable profiling to collect per-stage timings (ms).
-   * Timings are returned on GenerateResult and can be printed by the CLI.
-   */
-  readonly profile?: boolean;
 }
 
 /**

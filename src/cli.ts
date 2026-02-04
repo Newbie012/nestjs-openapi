@@ -30,8 +30,6 @@ interface CliArgs {
   q?: boolean;
   debug?: boolean;
   d?: boolean;
-  profile?: boolean;
-  p?: boolean;
   help?: boolean;
   h?: boolean;
   version?: boolean;
@@ -53,7 +51,6 @@ Options:
   -f, --format <format>   Output format: json or yaml (overrides config)
   -q, --quiet             Suppress output (only show errors)
   -d, --debug             Enable debug output (verbose logging, full stack traces)
-  -p, --profile           Print per-stage timings
   -h, --help              Show this help message
   -v, --version           Show version
 
@@ -88,8 +85,6 @@ const main = async (): Promise<void> => {
       'q',
       'debug',
       'd',
-      'profile',
-      'p',
       'help',
       'h',
       'version',
@@ -100,7 +95,6 @@ const main = async (): Promise<void> => {
       f: 'format',
       q: 'quiet',
       d: 'debug',
-      p: 'profile',
       h: 'help',
       v: 'version',
     },
@@ -138,7 +132,6 @@ const main = async (): Promise<void> => {
   const format = args.format || args.f;
   const quiet = args.quiet || args.q;
   const debug = args.debug || args.d;
-  const profile = args.profile || args.p;
 
   if (!configPath) {
     error('Config path is required. Use -c or --config to specify the path.');
@@ -160,7 +153,6 @@ const main = async (): Promise<void> => {
     const result = await generate(configPath, {
       format: format as 'json' | 'yaml' | undefined,
       debug,
-      profile,
     });
     const duration = performance.now() - startTime;
 
@@ -172,15 +164,6 @@ const main = async (): Promise<void> => {
       console.log(
         `  ${result.pathCount} paths, ${result.operationCount} operations`,
       );
-      if (profile && result.timings) {
-        console.log('  Timings:');
-        const sorted = Object.entries(result.timings).sort(
-          ([a], [b]) => a.localeCompare(b),
-        );
-        for (const [label, ms] of sorted) {
-          console.log(`    ${label}: ${formatDuration(Math.round(ms))}`);
-        }
-      }
 
       // Show validation warnings if there are broken refs
       if (!result.validation.valid) {

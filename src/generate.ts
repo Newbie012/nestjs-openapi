@@ -399,8 +399,6 @@ export interface GenerateResult {
   readonly schemaCount: number;
   /** Validation result checking for broken refs */
   readonly validation: ValidationResult;
-  /** Optional profiling timings in milliseconds */
-  readonly timings?: Record<string, number>;
 }
 
 /**
@@ -425,18 +423,6 @@ export const generate = async (
   overrides?: GenerateOverrides,
 ): Promise<GenerateResult> => {
   const debug = overrides?.debug ?? false;
-  const profile = overrides?.profile ?? false;
-
-  const timings: Record<string, number> = {};
-  const startTiming = (label: string): number => {
-    const start = performance.now();
-    return start;
-  };
-  const endTiming = (label: string, start: number): void => {
-    if (profile) {
-      timings[label] = performance.now() - start;
-    }
-  };
 
   const loggerLayer = debug
     ? Logger.replace(Logger.defaultLogger, Logger.prettyLoggerDefault).pipe(
@@ -450,7 +436,6 @@ export const generate = async (
   const absoluteConfigPath = resolve(configPath);
   const configDir = dirname(absoluteConfigPath);
 
-  const configStart = startTiming('config.load');
   const config = await runEffect(
     loadConfigFromFile(absoluteConfigPath).pipe(
       Effect.tap(() =>
@@ -461,7 +446,6 @@ export const generate = async (
       Effect.mapError((e) => new Error(e.message)),
     ),
   );
-  endTiming('config.load', configStart);
 
   const files = config.files ?? {};
   const options = config.options ?? {};
@@ -498,8 +482,6 @@ export const generate = async (
       : [files.dtoGlob]
     : null;
 
-  const methodStart = startTiming('methods.extract');
-  const schemaStart = startTiming('schemas.generate');
   const [extractedMethodInfos, initialSchemas] = await Promise.all([
     runEffect(
       extractMethodInfosEffect(tsconfig, entries, extractOptions).pipe(
@@ -510,9 +492,7 @@ export const generate = async (
         ),
         Effect.mapError((error) => new Error(error.message)),
       ),
-    ).finally(() => {
-      endTiming('methods.extract', methodStart);
-    }),
+    ),
     dtoGlobArray
       ? runEffect(
           generateSchemas({
@@ -530,12 +510,8 @@ export const generate = async (
             ),
             Effect.mapError((error) => new Error(error.message)),
           ),
-        ).finally(() => {
-          endTiming('schemas.generate', schemaStart);
-        })
-      : Promise.resolve(null).finally(() => {
-          endTiming('schemas.generate', schemaStart);
-        }),
+        )
+      : Promise.resolve(null),
   ]);
 
   // Process method infos into paths
@@ -577,27 +553,23 @@ export const generate = async (
     const shouldExtractValidation = options.extractValidation !== false;
 
     if (shouldExtractValidation) {
-      const validationStart = startTiming('schemas.validation');
       generatedSchemas = await extractValidationConstraints(
         dtoGlobArray,
         configDir,
         tsconfig,
         generatedSchemas,
       );
-      endTiming('schemas.validation', validationStart);
     }
 
     // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
     generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
     // First merge to get initial schemas
-    const mergeStart = startTiming('schemas.merge');
     let mergeResult = mergeSchemas(
       paths as unknown as OpenApiSpec['paths'],
       generatedSchemas,
     );
     schemas = mergeResult.schemas;
-    endTiming('schemas.merge', mergeStart);
 
     // Hybrid approach: Find and resolve any missing schemas automatically
     const missingRefs = findMissingSchemaRefs(
@@ -608,12 +580,10 @@ export const generate = async (
     if (missingRefs.size > 0) {
       // Fast grep-based resolution (much faster for large codebases)
       const tsconfigDir = dirname(tsconfig);
-      const fastResolveStart = startTiming('schemas.resolve.fast');
       const resolvedLocations = resolveTypeLocationsFast(
         tsconfigDir,
         missingRefs,
       );
-      endTiming('schemas.resolve.fast', fastResolveStart);
 
       // Fall back to ts-morph for types not found by fast resolution
       const unresolvedTypes = new Set(
@@ -623,10 +593,8 @@ export const generate = async (
       );
 
       if (unresolvedTypes.size > 0) {
-        const morphStart = startTiming('schemas.resolve.morph');
         const project = createTypeResolverProject(tsconfig);
         const morphResolved = resolveTypeLocations(project, unresolvedTypes);
-        endTiming('schemas.resolve.morph', morphStart);
 
         for (const [type, path] of morphResolved) {
           resolvedLocations.set(type, path);
@@ -636,11 +604,9 @@ export const generate = async (
       if (resolvedLocations.size > 0) {
         const additionalFiles = [...new Set(resolvedLocations.values())];
 
-        const additionalStart = startTiming('schemas.generate.additional');
         const additionalSchemas = await runEffect(
           generateSchemasFromFiles(additionalFiles, tsconfig),
         );
-        endTiming('schemas.generate.additional', additionalStart);
 
         if (Object.keys(additionalSchemas.definitions).length > 0) {
           const normalizedAdditional =
@@ -653,13 +619,11 @@ export const generate = async (
             },
           };
 
-          const remergeStart = startTiming('schemas.merge.additional');
           mergeResult = mergeSchemas(
             paths as unknown as OpenApiSpec['paths'],
             combinedSchemas,
           );
           schemas = mergeResult.schemas;
-          endTiming('schemas.merge.additional', remergeStart);
         }
       }
     }
@@ -712,9 +676,7 @@ export const generate = async (
   }
 
   // Sort keys to match NestJS Swagger output order
-  const sortStart = startTiming('spec.sort');
   const sortedSpec = sortObjectKeysDeep(spec, true);
-  endTiming('spec.sort', sortStart);
 
   const outputDir = dirname(output);
   if (!existsSync(outputDir)) {
@@ -722,7 +684,6 @@ export const generate = async (
   }
 
   const format = overrides?.format ?? config.format ?? 'json';
-  const writeStart = startTiming('spec.write');
   if (format === 'json') {
     writeFileSync(output, JSON.stringify(sortedSpec, null, 2), 'utf-8');
   } else {
@@ -738,7 +699,6 @@ export const generate = async (
       'utf-8',
     );
   }
-  endTiming('spec.write', writeStart);
 
   const pathCount = Object.keys(paths).length;
   const operationCount = Object.values(paths).reduce(
@@ -756,6 +716,5 @@ export const generate = async (
     operationCount,
     schemaCount,
     validation,
-    timings: profile ? timings : undefined,
   };
 };
