@@ -39,54 +39,72 @@ const sampleSpec: OpenApiSpec = {
 describe('resolveOptions', () => {
   it('should apply default values', () => {
     const options: OpenApiModuleOptions = {
-      filePath: 'openapi.json',
+      specFile: 'openapi.json',
     };
 
     const resolved = resolveOptions(options);
 
     expect(resolved).toEqual({
-      filePath: 'openapi.json',
+      specFile: 'openapi.json',
       enabled: true,
       jsonPath: '/openapi.json',
-      serveSwaggerUi: false,
-      swaggerUiPath: '/api-docs',
-      swaggerUiTitle: '',
+      swagger: {
+        enabled: false,
+        path: '/api-docs',
+        title: '',
+      },
     });
   });
 
-  it('should preserve provided values', () => {
+  it('should preserve provided values with swagger object', () => {
     const options: OpenApiModuleOptions = {
-      filePath: 'custom/spec.json',
+      specFile: 'custom/spec.json',
       enabled: false,
       jsonPath: '/spec.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/docs',
-      swaggerUiTitle: 'My API Docs',
+      swagger: {
+        path: '/docs',
+        title: 'My API Docs',
+      },
     };
 
     const resolved = resolveOptions(options);
 
     expect(resolved).toEqual({
-      filePath: 'custom/spec.json',
+      specFile: 'custom/spec.json',
       enabled: false,
       jsonPath: '/spec.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/docs',
-      swaggerUiTitle: 'My API Docs',
+      swagger: {
+        enabled: true,
+        path: '/docs',
+        title: 'My API Docs',
+      },
     });
   });
 
-  it('should handle partial overrides', () => {
+  it('should handle swagger: true', () => {
     const options: OpenApiModuleOptions = {
-      filePath: 'openapi.json',
-      serveSwaggerUi: true,
+      specFile: 'openapi.json',
+      swagger: true,
     };
 
     const resolved = resolveOptions(options);
 
     expect(resolved.enabled).toBe(true);
-    expect(resolved.serveSwaggerUi).toBe(true);
-    expect(resolved.swaggerUiPath).toBe('/api-docs');
+    expect(resolved.swagger.enabled).toBe(true);
+    expect(resolved.swagger.path).toBe('/api-docs');
+  });
+
+  it('should handle swagger object with partial options', () => {
+    const options: OpenApiModuleOptions = {
+      specFile: 'openapi.json',
+      swagger: { path: '/custom-docs' },
+    };
+
+    const resolved = resolveOptions(options);
+
+    expect(resolved.swagger.enabled).toBe(true);
+    expect(resolved.swagger.path).toBe('/custom-docs');
+    expect(resolved.swagger.title).toBe('');
   });
 });
 
@@ -178,7 +196,7 @@ describe('OpenApiModule.forRoot', () => {
 
   it('should return empty module when disabled', () => {
     const module = OpenApiModule.forRoot({
-      filePath: '.test-temp/openapi.json',
+      specFile: '.test-temp/openapi.json',
       enabled: false,
     });
 
@@ -189,7 +207,7 @@ describe('OpenApiModule.forRoot', () => {
 
   it('should configure module when enabled', () => {
     const module = OpenApiModule.forRoot({
-      filePath: '.test-temp/openapi.json',
+      specFile: '.test-temp/openapi.json',
       enabled: true,
     });
 
@@ -199,10 +217,19 @@ describe('OpenApiModule.forRoot', () => {
     expect(module.exports).toContain(OPENAPI_SPEC);
   });
 
-  it('should add Swagger UI controller when enabled', () => {
+  it('should add Swagger UI controller when swagger: true', () => {
     const module = OpenApiModule.forRoot({
-      filePath: '.test-temp/openapi.json',
-      serveSwaggerUi: true,
+      specFile: '.test-temp/openapi.json',
+      swagger: true,
+    });
+
+    expect(module.controllers).toHaveLength(2); // JSON + Swagger UI
+  });
+
+  it('should add Swagger UI controller when swagger object provided', () => {
+    const module = OpenApiModule.forRoot({
+      specFile: '.test-temp/openapi.json',
+      swagger: { path: '/docs' },
     });
 
     expect(module.controllers).toHaveLength(2); // JSON + Swagger UI
@@ -210,7 +237,7 @@ describe('OpenApiModule.forRoot', () => {
 
   it('should provide spec from file', () => {
     const module = OpenApiModule.forRoot({
-      filePath: '.test-temp/openapi.json',
+      specFile: '.test-temp/openapi.json',
     });
 
     const specProvider = module.providers?.find(
@@ -231,7 +258,7 @@ describe('OpenApiModule.forRoot', () => {
 
   it('should provide resolved options', () => {
     const module = OpenApiModule.forRoot({
-      filePath: '.test-temp/openapi.json',
+      specFile: '.test-temp/openapi.json',
       jsonPath: '/custom-spec.json',
     });
 
@@ -250,18 +277,18 @@ describe('OpenApiModule.forRoot', () => {
     ) {
       const options = optionsProvider.useValue as {
         jsonPath: string;
-        swaggerUiTitle: string;
+        swagger: { title: string };
       };
       expect(options.jsonPath).toBe('/custom-spec.json');
       // Title should be set from spec if not provided
-      expect(options.swaggerUiTitle).toBe('Test API');
+      expect(options.swagger.title).toBe('Test API');
     }
   });
 
-  it('should use custom swaggerUiTitle when provided', () => {
+  it('should use custom swagger title when provided', () => {
     const module = OpenApiModule.forRoot({
-      filePath: '.test-temp/openapi.json',
-      swaggerUiTitle: 'Custom Title',
+      specFile: '.test-temp/openapi.json',
+      swagger: { title: 'Custom Title' },
     });
 
     const optionsProvider = module.providers?.find(
@@ -276,15 +303,17 @@ describe('OpenApiModule.forRoot', () => {
       typeof optionsProvider === 'object' &&
       'useValue' in optionsProvider
     ) {
-      const options = optionsProvider.useValue as { swaggerUiTitle: string };
-      expect(options.swaggerUiTitle).toBe('Custom Title');
+      const options = optionsProvider.useValue as {
+        swagger: { title: string };
+      };
+      expect(options.swagger.title).toBe('Custom Title');
     }
   });
 
   it('should throw error when file not found', () => {
     expect(() =>
       OpenApiModule.forRoot({
-        filePath: 'non-existent.json',
+        specFile: 'non-existent.json',
       }),
     ).toThrow('OpenAPI spec file not found');
   });

@@ -11,11 +11,26 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000',
+  ),
   title: {
     default: 'nestjs-openapi-static',
     template: '%s | nestjs-openapi-static',
   },
-  description: 'Generate OpenAPI specs from NestJS apps using static analysis',
+  description:
+    'Static analysis tool that generates OpenAPI specifications from NestJS applications. No runtime required - just your TypeScript types.',
+  openGraph: {
+    type: 'website',
+    siteName: 'nestjs-openapi-static',
+    images: '/og',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: '/og',
+  },
 };
 
 export default function Layout({ children }: LayoutProps<'/'>) {

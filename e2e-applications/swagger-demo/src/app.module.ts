@@ -1,34 +1,34 @@
 import { Module } from '@nestjs/common';
-import { ProductController } from './product.controller';
+import { UserController } from './user.controller';
 // Note: In a real app, you would import from 'nestjs-openapi-static'
 // import { OpenApiModule } from 'nestjs-openapi-static';
 import { OpenApiModule } from '../../../src/module';
 
 /**
- * Demo application module showing OpenApiModule usage.
+ * Demo application module showcasing Swagger UI integration.
  *
  * This demonstrates:
  * - Serving the pre-generated OpenAPI spec at /openapi.json
- * - Serving Swagger UI at /api-docs
- * - Conditional enabling based on environment
+ * - Serving Swagger UI at /docs using the new `swagger` option
+ * - Different configuration patterns (boolean vs object)
  */
 @Module({
   imports: [
     OpenApiModule.forRoot({
       // Path to the pre-generated OpenAPI spec (relative to cwd)
-      specFile: 'e2e-applications/openapi-module-demo/openapi.generated.json',
-
-      // Enable based on environment (always enabled for demo)
-      enabled: process.env.OPENAPI_ENABLED !== 'false',
+      specFile: 'e2e-applications/swagger-demo/openapi.generated.json',
 
       // Customize the JSON endpoint path
       jsonPath: '/openapi.json',
 
-      // Enable Swagger UI with custom path
-      swagger: { path: '/api-docs' },
+      // Enable Swagger UI with custom configuration
+      swagger: {
+        path: '/docs',
+        title: 'Users API Documentation',
+      },
     }),
   ],
-  controllers: [ProductController],
+  controllers: [UserController],
   providers: [],
 })
 export class AppModule {}

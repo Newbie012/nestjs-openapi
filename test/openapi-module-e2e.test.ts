@@ -1,6 +1,8 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { type INestApplication } from '@nestjs/common';
+import request from 'supertest';
 import { generate } from '../src/generate.js';
 import {
   OpenApiModule,
@@ -23,7 +25,7 @@ describe('OpenApiModule E2E', () => {
       const moduleRef: TestingModule = await Test.createTestingModule({
         imports: [
           OpenApiModule.forRoot({
-            filePath: specPath,
+            specFile: specPath,
             enabled: true,
           }),
         ],
@@ -35,35 +37,50 @@ describe('OpenApiModule E2E', () => {
       expect(options).toBeDefined();
       expect(options.enabled).toBe(true);
       expect(options.jsonPath).toBe('/openapi.json');
-      expect(options.serveSwaggerUi).toBe(false);
+      expect(options.swagger.enabled).toBe(false);
 
       expect(spec).toBeDefined();
       expect(spec.openapi).toBe('3.0.3');
       expect(spec.info.title).toBe('Products API');
     });
 
-    it('should create module with Swagger UI when enabled', async () => {
+    it('should create module with Swagger UI when swagger: true', async () => {
       const moduleRef: TestingModule = await Test.createTestingModule({
         imports: [
           OpenApiModule.forRoot({
-            filePath: specPath,
-            serveSwaggerUi: true,
-            swaggerUiPath: '/docs',
+            specFile: specPath,
+            swagger: true,
           }),
         ],
       }).compile();
 
       const options = moduleRef.get(OPENAPI_MODULE_OPTIONS);
 
-      expect(options.serveSwaggerUi).toBe(true);
-      expect(options.swaggerUiPath).toBe('/docs');
+      expect(options.swagger.enabled).toBe(true);
+      expect(options.swagger.path).toBe('/api-docs');
+    });
+
+    it('should create module with Swagger UI when swagger object provided', async () => {
+      const moduleRef: TestingModule = await Test.createTestingModule({
+        imports: [
+          OpenApiModule.forRoot({
+            specFile: specPath,
+            swagger: { path: '/docs' },
+          }),
+        ],
+      }).compile();
+
+      const options = moduleRef.get(OPENAPI_MODULE_OPTIONS);
+
+      expect(options.swagger.enabled).toBe(true);
+      expect(options.swagger.path).toBe('/docs');
     });
 
     it('should return empty module when disabled', async () => {
       const moduleRef: TestingModule = await Test.createTestingModule({
         imports: [
           OpenApiModule.forRoot({
-            filePath: specPath,
+            specFile: specPath,
             enabled: false,
           }),
         ],
@@ -81,7 +98,7 @@ describe('OpenApiModule E2E', () => {
       const moduleRef: TestingModule = await Test.createTestingModule({
         imports: [
           OpenApiModule.forRoot({
-            filePath: specPath,
+            specFile: specPath,
           }),
         ],
       }).compile();
@@ -173,6 +190,100 @@ describe('OpenApiModule E2E', () => {
       >;
 
       expect(schema.$ref).toBe('#/components/schemas/CreateProductDto');
+    });
+  });
+
+  describe('HTTP Routing', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      const moduleRef: TestingModule = await Test.createTestingModule({
+        imports: [
+          OpenApiModule.forRoot({
+            specFile: specPath,
+            swagger: true,
+          }),
+        ],
+      }).compile();
+
+      app = moduleRef.createNestApplication();
+      await app.init();
+    });
+
+    afterAll(async () => {
+      await app?.close();
+    });
+
+    it('should serve OpenAPI JSON at /openapi.json', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/openapi.json')
+        .expect(200)
+        .expect('Content-Type', /application\/json/);
+
+      expect(response.body).toHaveProperty('openapi');
+      expect(response.body).toHaveProperty('info');
+      expect(response.body.info.title).toBe('Products API');
+    });
+
+    it('should serve Swagger UI at /api-docs', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api-docs')
+        .expect(200)
+        .expect('Content-Type', /text\/html/);
+
+      expect(response.text).toContain('<!DOCTYPE html>');
+      expect(response.text).toContain('swagger-ui');
+    });
+  });
+
+  describe('HTTP Routing with custom paths', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      const moduleRef: TestingModule = await Test.createTestingModule({
+        imports: [
+          OpenApiModule.forRoot({
+            specFile: specPath,
+            jsonPath: '/api/spec.json',
+            swagger: {
+              path: '/docs',
+              title: 'Custom API Docs',
+            },
+          }),
+        ],
+      }).compile();
+
+      app = moduleRef.createNestApplication();
+      await app.init();
+    });
+
+    afterAll(async () => {
+      await app?.close();
+    });
+
+    it('should serve OpenAPI JSON at custom path', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/spec.json')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('openapi');
+    });
+
+    it('should serve Swagger UI at custom path', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/docs')
+        .expect(200);
+
+      expect(response.text).toContain('swagger-ui');
+      expect(response.text).toContain('Custom API Docs');
+    });
+
+    it('should reference correct JSON path in Swagger UI', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/docs')
+        .expect(200);
+
+      expect(response.text).toContain('/api/spec.json');
     });
   });
 });

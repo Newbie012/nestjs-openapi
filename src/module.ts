@@ -8,8 +8,8 @@
  * @Module({
  *   imports: [
  *     OpenApiModule.forRoot({
- *       filePath: 'src/openapi/openapi.generated.json',
- *       enabled: process.env.NODE_ENV !== 'production',
+ *       specFile: 'openapi.json',
+ *       swagger: true,
  *     }),
  *   ],
  * })
@@ -31,10 +31,28 @@ import type { OpenApiSpec } from './types.js';
 const PATH_METADATA = 'path';
 const METHOD_METADATA = 'method';
 const HEADERS_METADATA = '__headers__';
+const CONTROLLER_WATERMARK = '__controller__';
 
 // =============================================================================
 // Configuration Types
 // =============================================================================
+
+/**
+ * Swagger UI configuration options
+ */
+export interface SwaggerOptions {
+  /**
+   * The path where Swagger UI will be served.
+   * @default "/api-docs"
+   */
+  readonly path?: string;
+
+  /**
+   * Custom title for the Swagger UI page.
+   * Uses the spec's info.title if not provided.
+   */
+  readonly title?: string;
+}
 
 /**
  * Configuration options for the OpenAPI module
@@ -44,7 +62,7 @@ export interface OpenApiModuleOptions {
    * Path to the generated OpenAPI JSON file.
    * Can be absolute or relative to the current working directory.
    */
-  readonly filePath: string;
+  readonly specFile: string;
 
   /**
    * Whether the module is enabled.
@@ -60,34 +78,27 @@ export interface OpenApiModuleOptions {
   readonly jsonPath?: string;
 
   /**
-   * Whether to serve Swagger UI.
+   * Swagger UI configuration.
+   * - `true` - Enable with defaults (path: '/api-docs', title from spec)
+   * - `false` or omitted - Disable Swagger UI
+   * - `object` - Enable with custom configuration
    * @default false
    */
-  readonly serveSwaggerUi?: boolean;
-
-  /**
-   * The path where Swagger UI will be served (if enabled).
-   * @default "/api-docs"
-   */
-  readonly swaggerUiPath?: string;
-
-  /**
-   * Custom title for the Swagger UI page.
-   * Uses the spec's info.title if not provided.
-   */
-  readonly swaggerUiTitle?: string;
+  readonly swagger?: boolean | SwaggerOptions;
 }
 
 /**
  * Resolved options with all defaults applied
  */
 export interface ResolvedOpenApiModuleOptions {
-  readonly filePath: string;
+  readonly specFile: string;
   readonly enabled: boolean;
   readonly jsonPath: string;
-  readonly serveSwaggerUi: boolean;
-  readonly swaggerUiPath: string;
-  readonly swaggerUiTitle: string;
+  readonly swagger: {
+    readonly enabled: boolean;
+    readonly path: string;
+    readonly title: string;
+  };
 }
 
 /**
@@ -186,13 +197,28 @@ export function loadSpecFile(filePath: string): OpenApiSpec {
 export function resolveOptions(
   options: OpenApiModuleOptions,
 ): ResolvedOpenApiModuleOptions {
+  // Resolve swagger options
+  let swaggerEnabled = false;
+  let swaggerPath = '/api-docs';
+  let swaggerTitle = '';
+
+  if (options.swagger === true) {
+    swaggerEnabled = true;
+  } else if (options.swagger && typeof options.swagger === 'object') {
+    swaggerEnabled = true;
+    swaggerPath = options.swagger.path ?? '/api-docs';
+    swaggerTitle = options.swagger.title ?? '';
+  }
+
   return {
-    filePath: options.filePath,
+    specFile: options.specFile,
     enabled: options.enabled ?? true,
     jsonPath: options.jsonPath ?? '/openapi.json',
-    serveSwaggerUi: options.serveSwaggerUi ?? false,
-    swaggerUiPath: options.swaggerUiPath ?? '/api-docs',
-    swaggerUiTitle: options.swaggerUiTitle ?? '',
+    swagger: {
+      enabled: swaggerEnabled,
+      path: swaggerPath,
+      title: swaggerTitle,
+    },
   };
 }
 
@@ -212,19 +238,24 @@ export function resolveOptions(
  * ```typescript
  * // Basic usage - serve JSON only
  * OpenApiModule.forRoot({
- *   filePath: 'src/openapi/openapi.generated.json',
+ *   specFile: 'openapi.json',
  * })
  *
- * // With Swagger UI
+ * // With Swagger UI (defaults)
  * OpenApiModule.forRoot({
- *   filePath: 'src/openapi/openapi.generated.json',
- *   serveSwaggerUi: true,
- *   swaggerUiPath: '/docs',
+ *   specFile: 'openapi.json',
+ *   swagger: true,
+ * })
+ *
+ * // With Swagger UI (custom options)
+ * OpenApiModule.forRoot({
+ *   specFile: 'openapi.json',
+ *   swagger: { path: '/docs', title: 'My API' },
  * })
  *
  * // Conditionally enabled
  * OpenApiModule.forRoot({
- *   filePath: 'src/openapi/openapi.generated.json',
+ *   specFile: 'openapi.json',
  *   enabled: process.env.OPENAPI_ENABLED === 'true',
  * })
  * ```
@@ -251,12 +282,15 @@ export class OpenApiModule {
     }
 
     // Load the spec file
-    const spec = loadSpecFile(resolvedOptions.filePath);
+    const spec = loadSpecFile(resolvedOptions.specFile);
 
-    // Set title from spec if not provided
+    // Set swagger title from spec if not provided
     const finalOptions: ResolvedOpenApiModuleOptions = {
       ...resolvedOptions,
-      swaggerUiTitle: resolvedOptions.swaggerUiTitle || spec.info.title,
+      swagger: {
+        ...resolvedOptions.swagger,
+        title: resolvedOptions.swagger.title || spec.info.title,
+      },
     };
 
     const providers: Provider[] = [
@@ -283,49 +317,74 @@ export class OpenApiModule {
 }
 
 /**
- * Create a controller class with proper NestJS metadata
+ * Create a controller class for serving JSON spec
  */
-function createController(
+function createJsonController(
   controllerPath: string,
-  methodName: string,
-  contentType: string,
-  handler: () => unknown,
+  spec: OpenApiSpec,
 ): Type<unknown> {
-  // Create a controller class
-  class DynamicController {
-    [methodName](): unknown {
-      return handler();
+  // Define the class with a method
+  class JsonSpecController {
+    getSpec(): OpenApiSpec {
+      return spec;
     }
   }
 
-  // Set controller path metadata
-  Reflect.defineMetadata(PATH_METADATA, controllerPath, DynamicController);
+  // Mark as a NestJS controller
+  Reflect.defineMetadata(CONTROLLER_WATERMARK, true, JsonSpecController);
 
-  // Set method metadata (GET = 0 in RequestMethod enum)
-  Reflect.defineMetadata(
-    METHOD_METADATA,
-    0,
-    DynamicController.prototype,
-    methodName,
-  );
+  // Apply controller decorator metadata
+  Reflect.defineMetadata(PATH_METADATA, controllerPath, JsonSpecController);
 
-  // Set route path metadata (empty string for root of controller)
-  Reflect.defineMetadata(
-    PATH_METADATA,
-    '/',
-    DynamicController.prototype,
-    methodName,
-  );
+  // Get the method function
+  const method = JsonSpecController.prototype.getSpec;
 
-  // Set headers metadata
+  // Apply method decorator metadata directly to the function (how NestJS does it)
+  Reflect.defineMetadata(METHOD_METADATA, 0, method); // GET = 0
+  Reflect.defineMetadata(PATH_METADATA, '/', method);
   Reflect.defineMetadata(
     HEADERS_METADATA,
-    [{ name: 'Content-Type', value: contentType }],
-    DynamicController.prototype,
-    methodName,
+    [{ name: 'Content-Type', value: 'application/json' }],
+    method,
   );
 
-  return DynamicController;
+  return JsonSpecController;
+}
+
+/**
+ * Create a controller class for serving Swagger UI
+ */
+function createSwaggerUiController(
+  controllerPath: string,
+  title: string,
+  jsonPath: string,
+): Type<unknown> {
+  // Define the class with a method
+  class SwaggerUiController {
+    getSwaggerUi(): string {
+      return generateSwaggerUiHtml(title, jsonPath);
+    }
+  }
+
+  // Mark as a NestJS controller
+  Reflect.defineMetadata(CONTROLLER_WATERMARK, true, SwaggerUiController);
+
+  // Apply controller decorator metadata
+  Reflect.defineMetadata(PATH_METADATA, controllerPath, SwaggerUiController);
+
+  // Get the method function
+  const method = SwaggerUiController.prototype.getSwaggerUi;
+
+  // Apply method decorator metadata directly to the function (how NestJS does it)
+  Reflect.defineMetadata(METHOD_METADATA, 0, method); // GET = 0
+  Reflect.defineMetadata(PATH_METADATA, '/', method);
+  Reflect.defineMetadata(
+    HEADERS_METADATA,
+    [{ name: 'Content-Type', value: 'text/html' }],
+    method,
+  );
+
+  return SwaggerUiController;
 }
 
 /**
@@ -338,21 +397,15 @@ function createOpenApiControllers(
   const controllers: Type<unknown>[] = [];
 
   // Create JSON controller
-  const jsonController = createController(
-    options.jsonPath,
-    'getSpec',
-    'application/json',
-    () => spec,
-  );
+  const jsonController = createJsonController(options.jsonPath, spec);
   controllers.push(jsonController);
 
   // Create Swagger UI controller if enabled
-  if (options.serveSwaggerUi) {
-    const swaggerUiController = createController(
-      options.swaggerUiPath,
-      'getSwaggerUi',
-      'text/html',
-      () => generateSwaggerUiHtml(options.swaggerUiTitle, options.jsonPath),
+  if (options.swagger.enabled) {
+    const swaggerUiController = createSwaggerUiController(
+      options.swagger.path,
+      options.swagger.title,
+      options.jsonPath,
     );
     controllers.push(swaggerUiController);
   }
