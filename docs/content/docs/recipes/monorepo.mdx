@@ -38,7 +38,7 @@ Create a config file for each application:
 
 ```ts twoslash
 // apps/backend-api/openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -65,7 +65,7 @@ export default defineConfig({
 
 ```typescript
 // apps/admin-api/openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -104,9 +104,9 @@ Add scripts to generate specs for all apps:
 {
   "scripts": {
     "openapi": "npm run openapi:backend && npm run openapi:admin && npm run openapi:public",
-    "openapi:backend": "nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts",
-    "openapi:admin": "nestjs-openapi-static generate -c apps/admin-api/openapi.config.ts",
-    "openapi:public": "nestjs-openapi-static generate -c apps/public-api/openapi.config.ts"
+    "openapi:backend": "nestjs-openapi generate -c apps/backend-api/openapi.config.ts",
+    "openapi:admin": "nestjs-openapi generate -c apps/admin-api/openapi.config.ts",
+    "openapi:public": "nestjs-openapi generate -c apps/public-api/openapi.config.ts"
   }
 }
 ```
@@ -129,7 +129,7 @@ Use config inheritance to avoid duplication:
 
 ```typescript
 // configs/base-openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   format: 'json', // or 'yaml'
@@ -151,7 +151,7 @@ export default defineConfig({
 
 ```typescript
 // apps/backend-api/openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 import base from '../../configs/base-openapi.config';
 
 export default defineConfig({
@@ -185,7 +185,7 @@ For Nx monorepos, you can use project-level scripts:
     "openapi": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npx nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts"
+        "command": "npx nestjs-openapi generate -c apps/backend-api/openapi.config.ts"
       }
     }
   }
@@ -291,9 +291,9 @@ npm install -D npm-run-all
 {
   "scripts": {
     "openapi": "run-p openapi:*",
-    "openapi:backend": "nestjs-openapi-static generate -c apps/backend-api/openapi.config.ts",
-    "openapi:admin": "nestjs-openapi-static generate -c apps/admin-api/openapi.config.ts",
-    "openapi:public": "nestjs-openapi-static generate -c apps/public-api/openapi.config.ts"
+    "openapi:backend": "nestjs-openapi generate -c apps/backend-api/openapi.config.ts",
+    "openapi:admin": "nestjs-openapi generate -c apps/admin-api/openapi.config.ts",
+    "openapi:public": "nestjs-openapi generate -c apps/public-api/openapi.config.ts"
   }
 }
 ```
@@ -302,7 +302,7 @@ npm install -D npm-run-all
 
 ```typescript
 // apps/backend-api/openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 import base from '../../configs/base-openapi.config';
 
 export default defineConfig({

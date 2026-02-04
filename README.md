@@ -1,13 +1,13 @@
-# nestjs-openapi-static
+# nestjs-openapi
 
 Static OpenAPI generation for NestJS. Analyzes TypeScript source directly—no build step, no app bootstrap.
 
-[![npm version](https://img.shields.io/npm/v/nestjs-openapi-static)](https://www.npmjs.com/package/nestjs-openapi-static)
+[![npm version](https://img.shields.io/npm/v/nestjs-openapi)](https://www.npmjs.com/package/nestjs-openapi)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Why static analysis?
 
-|  | Runtime (`@nestjs/swagger`) | Static (`nestjs-openapi-static`) |
+|  | Runtime (`@nestjs/swagger`) | Static (`nestjs-openapi`) |
 |---|---|---|
 | Requires runtime execution | Yes | No |
 | Requires app bootstrap | Yes | No |
@@ -34,13 +34,13 @@ Static OpenAPI generation for NestJS. Analyzes TypeScript source directly—no b
 ## Quick start
 
 ```bash
-pnpm add -D nestjs-openapi-static
+pnpm add -D nestjs-openapi
 ```
 
 Create `openapi.config.ts`:
 
 ```typescript
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -56,7 +56,7 @@ export default defineConfig({
 Generate:
 
 ```bash
-npx nestjs-openapi-static generate
+npx nestjs-openapi generate
 ```
 
 ## Migration from @nestjs/swagger
@@ -70,16 +70,16 @@ See the full guide in the docs.
 
 ## Documentation
 
-Full documentation: **[nestjs-openapi-static.dev](https://nestjs-openapi-static.dev)**
+Full documentation: **[nestjs-openapi.dev](https://nestjs-openapi.dev)**
 
-- [Configuration](https://nestjs-openapi-static.dev/docs/guides/configuration)
-- [Security schemes](https://nestjs-openapi-static.dev/docs/guides/security)
-- [Validation extraction](https://nestjs-openapi-static.dev/docs/guides/validation)
-- [Serving specs at runtime](https://nestjs-openapi-static.dev/docs/guides/serving)
-- [Migration guide](https://nestjs-openapi-static.dev/docs/recipes/migration)
-- [CI/CD recipe](https://nestjs-openapi-static.dev/docs/recipes/ci-cd)
-- [FAQ](https://nestjs-openapi-static.dev/docs/faq)
-- [Decorator support](https://nestjs-openapi-static.dev/docs/guides/decorators)
+- [Configuration](https://nestjs-openapi.dev/docs/guides/configuration)
+- [Security schemes](https://nestjs-openapi.dev/docs/guides/security)
+- [Validation extraction](https://nestjs-openapi.dev/docs/guides/validation)
+- [Serving specs at runtime](https://nestjs-openapi.dev/docs/guides/serving)
+- [Migration guide](https://nestjs-openapi.dev/docs/recipes/migration)
+- [CI/CD recipe](https://nestjs-openapi.dev/docs/recipes/ci-cd)
+- [FAQ](https://nestjs-openapi.dev/docs/faq)
+- [Decorator support](https://nestjs-openapi.dev/docs/guides/decorators)
 
 ## Contributing
 

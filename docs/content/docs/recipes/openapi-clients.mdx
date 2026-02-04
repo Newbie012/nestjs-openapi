@@ -46,7 +46,7 @@ if (data) {
 ```json
 {
   "scripts": {
-    "openapi:generate": "nestjs-openapi-static generate -c openapi.config.ts",
+    "openapi:generate": "nestjs-openapi generate -c openapi.config.ts",
     "openapi:types": "openapi-typescript openapi.json -o src/api/schema.d.ts",
     "openapi": "npm run openapi:generate && npm run openapi:types"
   }
@@ -337,7 +337,7 @@ if (data) {
 ```json
 {
   "scripts": {
-    "api:spec": "nestjs-openapi-static generate -c openapi.config.ts",
+    "api:spec": "nestjs-openapi generate -c openapi.config.ts",
     "api:types": "openapi-typescript openapi.json -o src/api/schema.d.ts",
     "api:client": "npm run api:spec && npm run api:types"
   }

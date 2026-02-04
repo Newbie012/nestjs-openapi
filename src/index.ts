@@ -1,12 +1,12 @@
 /**
- * nestjs-openapi-static
+ * nestjs-openapi
  *
  * Static code analysis tool to generate OpenAPI specifications from NestJS applications.
  *
  * @example
  * ```typescript
  * // openapi.config.ts
- * import { defineConfig } from 'nestjs-openapi-static';
+ * import { defineConfig } from 'nestjs-openapi';
  *
  * export default defineConfig({
  *   output: 'src/openapi/openapi.generated.json',
@@ -26,7 +26,7 @@
  * @example
  * ```typescript
  * // Programmatic usage
- * import { generate } from 'nestjs-openapi-static';
+ * import { generate } from 'nestjs-openapi';
  *
  * await generate('apps/my-app/openapi.config.ts');
  * ```

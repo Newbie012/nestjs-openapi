@@ -3,7 +3,7 @@ title: Swagger UI
 description: Serve interactive API documentation with Swagger UI
 ---
 
-Swagger UI provides interactive documentation where developers can explore and test your API. nestjs-openapi-static includes built-in Swagger UI support via `OpenApiModule`.
+Swagger UI provides interactive documentation where developers can explore and test your API. nestjs-openapi includes built-in Swagger UI support via `OpenApiModule`.
 
 ## Built-in Swagger UI
 
@@ -11,7 +11,7 @@ The simplest way to serve Swagger UI:
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
@@ -309,7 +309,7 @@ jobs:
       - run: npm ci
 
       - name: Generate spec
-        run: npx nestjs-openapi-static generate -c openapi.config.ts
+        run: npx nestjs-openapi generate -c openapi.config.ts
 
       - name: Build Redoc
         run: npx @redocly/cli build-docs openapi.json -o docs/index.html

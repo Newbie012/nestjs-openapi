@@ -7,12 +7,12 @@ export function baseOptions(): BaseLayoutProps {
       title: (
         <div className="flex items-center gap-2.5 font-semibold">
           <Image src="/logo.png" alt="Logo" width={28} height={28} />
-          <span className="text-fd-foreground">nestjs-openapi-static</span>
+          <span className="text-fd-foreground">nestjs-openapi</span>
         </div>
       ),
       transparentMode: 'top',
     },
-    githubUrl: 'https://github.com/Newbie012/nestjs-openapi-static',
+    githubUrl: 'https://github.com/Newbie012/nestjs-openapi',
     links: [],
   };
 }

@@ -3,13 +3,13 @@ title: Serving
 description: Serve the OpenAPI spec at runtime with OpenApiModule
 ---
 
-While nestjs-openapi-static generates specs statically, you can serve the generated specification at runtime using the included `OpenApiModule`.
+While nestjs-openapi generates specs statically, you can serve the generated specification at runtime using the included `OpenApiModule`.
 
 ## Basic Usage
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
@@ -157,7 +157,7 @@ specFile: '/var/app/openapi.json';
 
 <Callout type="warn">
   The spec file must exist when the NestJS application starts. Run
-  `nestjs-openapi-static generate` before starting your app.
+  `nestjs-openapi generate` before starting your app.
 </Callout>
 
 ## Error Handling
@@ -166,7 +166,7 @@ If the spec file is not found, a helpful error is thrown:
 
 ```
 OpenAPI spec file not found: openapi.json.
-Make sure to run 'nestjs-openapi-static generate' first.
+Make sure to run 'nestjs-openapi generate' first.
 ```
 
 ## Injecting the Spec
@@ -175,8 +175,8 @@ You can inject the loaded spec in your services:
 
 ```typescript
 import { Injectable, Inject } from '@nestjs/common';
-import { OPENAPI_SPEC } from 'nestjs-openapi-static';
-import type { OpenApiSpec } from 'nestjs-openapi-static';
+import { OPENAPI_SPEC } from 'nestjs-openapi';
+import type { OpenApiSpec } from 'nestjs-openapi';
 
 @Injectable()
 export class ApiInfoService {
@@ -204,7 +204,7 @@ Available injection tokens:
 ```typescript
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
@@ -231,7 +231,7 @@ The recommended workflow is:
 
    ```bash
    npm run build
-   npx nestjs-openapi-static generate -c openapi.config.ts
+   npx nestjs-openapi generate -c openapi.config.ts
    ```
 
 2. **Commit** the generated spec (optional but recommended)

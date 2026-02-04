@@ -1,5 +1,5 @@
-// Note: In a real app, you would import from 'nestjs-openapi-static'
-// import { defineConfig } from 'nestjs-openapi-static';
+// Note: In a real app, you would import from 'nestjs-openapi'
+// import { defineConfig } from 'nestjs-openapi';
 import { defineConfig } from '../../src/config';
 
 export default defineConfig({

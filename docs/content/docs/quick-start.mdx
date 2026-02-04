@@ -11,7 +11,7 @@ Generate an OpenAPI specification from your NestJS application in three steps.
 Create `openapi.config.ts` in your project root:
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -41,7 +41,7 @@ Paths are resolved relative to this config file. `files.tsconfig` is required an
 Run the CLI:
 
 ```bash
-npx nestjs-openapi-static generate -c openapi.config.ts
+npx nestjs-openapi generate -c openapi.config.ts
 ```
 
 You'll see output like:
@@ -65,14 +65,14 @@ Your `openapi.json` file is ready. You can:
 ```json
 {
   "scripts": {
-    "openapi": "nestjs-openapi-static generate -c openapi.config.ts",
+    "openapi": "nestjs-openapi generate -c openapi.config.ts",
     "prebuild": "npm run openapi"
   }
 }
 ```
 
 <Callout type="tip">
-  Use `--debug` flag for troubleshooting: `npx nestjs-openapi-static generate -c
+  Use `--debug` flag for troubleshooting: `npx nestjs-openapi generate -c
   openapi.config.ts --debug`
 </Callout>
 

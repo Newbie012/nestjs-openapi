@@ -21,14 +21,14 @@ export const metadata: Metadata = {
     })(),
   ),
   title: {
-    default: 'nestjs-openapi-static',
-    template: '%s | nestjs-openapi-static',
+    default: 'nestjs-openapi',
+    template: '%s | nestjs-openapi',
   },
   description:
     'Static analysis tool that generates OpenAPI specifications from NestJS applications. No runtime required - just your TypeScript types.',
   openGraph: {
     type: 'website',
-    siteName: 'nestjs-openapi-static',
+    siteName: 'nestjs-openapi',
     images: '/og',
   },
   twitter: {

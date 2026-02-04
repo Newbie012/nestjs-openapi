@@ -1,7 +1,7 @@
 /**
  * Comparison Benchmark E2E Test
  *
- * This test compares the output of @nestjs/swagger CLI plugin with nestjs-openapi-static
+ * This test compares the output of @nestjs/swagger CLI plugin with nestjs-openapi
  * to verify the claims made in the comparison documentation.
  *
  * The benchmark app at e2e-applications/comparison-benchmark contains test cases for:
@@ -19,7 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { generate } from '../src/index.js';
 
-describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () => {
+describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
   let swaggerOutput: any;
   let staticOutput: any;
 
@@ -61,7 +61,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
       });
     });
 
-    it('nestjs-openapi-static produces COMPLETE schemas with all properties', () => {
+    it('nestjs-openapi produces COMPLETE schemas with all properties', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
       // CreateOrderDto should have status (union type) and notes (optional)
@@ -78,7 +78,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
   });
 
   describe('Union Types (String Literals)', () => {
-    it('nestjs-openapi-static extracts union types as enums', () => {
+    it('nestjs-openapi extracts union types as enums', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
       // OrderStatus should be extracted as enum
@@ -90,7 +90,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
   });
 
   describe('Enums', () => {
-    it('nestjs-openapi-static correctly extracts enum values', () => {
+    it('nestjs-openapi correctly extracts enum values', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
       expect(staticSchemas.Role).toEqual({
@@ -101,7 +101,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
   });
 
   describe('Interfaces', () => {
-    it('nestjs-openapi-static generates schemas for interfaces', () => {
+    it('nestjs-openapi generates schemas for interfaces', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
       // Address interface should be fully resolved
@@ -113,7 +113,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
   });
 
   describe('Nullable Types', () => {
-    it('nestjs-openapi-static handles nullable types correctly', () => {
+    it('nestjs-openapi handles nullable types correctly', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
       // bio: string | null should have nullable representation
@@ -136,7 +136,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
       expect(getUsersResponse?.content).toBeUndefined();
     });
 
-    it('nestjs-openapi-static preserves generic type references', () => {
+    it('nestjs-openapi preserves generic type references', () => {
       const getUsersResponse =
         staticOutput?.paths?.['/api/users']?.get?.responses?.['200'];
 
@@ -160,7 +160,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
       });
     });
 
-    it('nestjs-openapi-static references the discriminated union type', () => {
+    it('nestjs-openapi references the discriminated union type', () => {
       const response =
         staticOutput?.paths?.['/api/users/{id}/response']?.get?.responses?.[
           '200'
@@ -190,7 +190,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
       expect(activeParam?.schema?.type).toBe('boolean');
     });
 
-    it('nestjs-openapi-static also correctly infers parameter types', () => {
+    it('nestjs-openapi also correctly infers parameter types', () => {
       const searchParams =
         staticOutput?.paths?.['/api/search']?.get?.parameters;
 
@@ -221,7 +221,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
       expect(swaggerSchemas.DogDto).toBeUndefined();
     });
 
-    it('nestjs-openapi-static correctly handles union of objects with anyOf', () => {
+    it('nestjs-openapi correctly handles union of objects with anyOf', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
       // PetOwnerDto should have pet property with anyOf
@@ -250,7 +250,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi-static', () =>
       });
     });
 
-    it('nestjs-openapi-static correctly resolves interface return type', () => {
+    it('nestjs-openapi correctly resolves interface return type', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
       const response =
         staticOutput?.paths?.['/api/profile/{id}']?.get?.responses?.['200'];

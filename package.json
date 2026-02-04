@@ -1,6 +1,6 @@
 {
-  "name": "nestjs-openapi-static",
-  "version": "3.0.0",
+  "name": "nestjs-openapi",
+  "version": "1.0.0",
   "description": "Static code analysis tool to generate OpenAPI specifications from NestJS applications",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
@@ -19,7 +19,7 @@
     }
   },
   "bin": {
-    "nestjs-openapi-static": "./dist/cli.mjs"
+    "nestjs-openapi": "./dist/cli.mjs"
   },
   "files": [
     "dist"
@@ -52,12 +52,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Newbie012/nestjs-openapi-static.git"
+    "url": "git+https://github.com/Newbie012/nestjs-openapi.git"
   },
   "bugs": {
-    "url": "https://github.com/Newbie012/nestjs-openapi-static/issues"
+    "url": "https://github.com/Newbie012/nestjs-openapi/issues"
   },
-  "homepage": "https://github.com/Newbie012/nestjs-openapi-static#readme",
+  "homepage": "https://github.com/Newbie012/nestjs-openapi#readme",
   "packageManager": "pnpm@10.17.0",
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.2",

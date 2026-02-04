@@ -1,95 +1,20 @@
-# nestjs-openapi-static
+# nestjs-openapi
 
-## 3.0.0
+## 1.0.0
 
-### Major Changes
+Initial release of nestjs-openapi - static OpenAPI generation for NestJS applications using TypeScript AST analysis. No build step, no app bootstrap required.
 
-- [#12](https://github.com/Newbie012/nestjs-openapi-static/pull/12) [`b70c246`](https://github.com/Newbie012/nestjs-openapi-static/commit/b70c24654f3aca951ee17c94b53240ef4b48ff54) Thanks [@Newbie012](https://github.com/Newbie012)! - Redesign OpenApiModule API for better ergonomics
+### Features
 
-  **BREAKING CHANGES:**
-  - Rename `filePath` to `specFile` for clarity
-  - Replace `serveSwaggerUi`, `swaggerUiPath`, `swaggerUiTitle` with unified `swagger` option:
-    - `swagger: true` - Enable with defaults (path: '/api-docs', title from spec)
-    - `swagger: { path?, title? }` - Enable with custom options
-    - `swagger: false` or omit - Disable (default)
-
-  **Migration:**
-
-  ```typescript
-  // Before
-  OpenApiModule.forRoot({
-    filePath: 'openapi.json',
-    serveSwaggerUi: true,
-    swaggerUiPath: '/docs',
-    swaggerUiTitle: 'My API',
-  });
-
-  // After
-  OpenApiModule.forRoot({
-    specFile: 'openapi.json',
-    swagger: { path: '/docs', title: 'My API' },
-  });
-  ```
-
-  **Other changes:**
-  - Fix HTTP routing bug where dynamic controllers weren't mapped by NestJS
-  - Add `CONTROLLER_WATERMARK` metadata for proper controller recognition
-  - Set method metadata directly on function objects (matching NestJS internals)
-  - Add HTTP routing e2e tests with supertest
-  - Add new `swagger-demo` e2e application
-  - Export `SwaggerOptions` type
-
-## 2.3.0
-
-### Minor Changes
-
-- [#9](https://github.com/Newbie012/nestjs-openapi-static/pull/9) [`bf06048`](https://github.com/Newbie012/nestjs-openapi-static/commit/bf06048fe3ae3bb3b5bac0b3b34c7d2cf34b293b) Thanks [@Newbie012](https://github.com/Newbie012)! - - Add `--debug` CLI flag for verbose logging and stack traces
-  - Add `debug` option to programmatic API
-  - Add proper Schema validation for `pathFilter` (RegExp and function types)
-  - Fix empty glob pattern handling in schema generation
-  - Improve error messages with context (pattern/file that failed)
-
-## 2.2.1
-
-### Patch Changes
-
-- [#7](https://github.com/Newbie012/nestjs-openapi-static/pull/7) [`84cf7fe`](https://github.com/Newbie012/nestjs-openapi-static/commit/84cf7fe3c76b65e2c064951debdb42a9c2932a71) Thanks [@Newbie012](https://github.com/Newbie012)! - - Fix TypeScript config file loading when using tsx loader
-  - Fix discriminated union schemas to preserve `const` values for discriminator properties
-
-## 2.2.0
-
-### Minor Changes
-
-- [#5](https://github.com/Newbie012/nestjs-openapi-static/pull/5) [`1d00a9d`](https://github.com/Newbie012/nestjs-openapi-static/commit/1d00a9dad338731d47c86b56fec5d46046a73468) Thanks [@Newbie012](https://github.com/Newbie012)! - - Inline query DTO properties as individual parameters by default. Use `options.query.style: "ref"` for legacy behavior.
-  - Add `additionalProperties: false` to object schemas for stricter validation.
-
-## 2.1.0
-
-### Minor Changes
-
-- [#4](https://github.com/Newbie012/nestjs-openapi-static/pull/4) [`40529fb`](https://github.com/Newbie012/nestjs-openapi-static/commit/40529fb5ecb1ccda53a62aa08e09a7f6232277fc) Thanks [@Newbie012](https://github.com/Newbie012)! - Zero-config schema resolution with significant performance improvements.
-
-  **Highlights:**
-  - Zero-config schema discovery and hybrid resolution enabled by default
-  - Major performance improvements for large monorepos
-  - Schema validation warnings and exports
-  - Type handling and import alias fixes
-  - Improved configuration error messaging
-
-## 2.0.0
-
-### Major Changes
-
-- [`ee70b13`](https://github.com/Newbie012/nestjs-openapi-static/commit/ee70b134e835cd32f9818a3cc8914a8d204c077d) Thanks [@Newbie012](https://github.com/Newbie012)! - Initial release of nestjs-openapi-static - static OpenAPI generation for NestJS applications using TypeScript AST analysis. No build step, no app bootstrap required.
-
-  Features:
-  - Static analysis of NestJS controllers and modules via ts-morph
-  - Full support for routing decorators (@Controller, @Get, @Post, etc.)
-  - Swagger decorator support (@ApiTags, @ApiOperation, @ApiResponse, etc.)
-  - Security decorator support (@ApiBearerAuth, @ApiOAuth2, etc.)
-  - class-validator constraint extraction
-  - Multiple entry module support
-  - Config inheritance via `extends`
-  - OpenAPI 3.0.3, 3.1.0, and 3.2.0 output
-  - JSON and YAML output formats
-  - Optional NestJS module to serve the generated spec at runtime
+- Static analysis of NestJS controllers and modules via ts-morph
+- Full support for routing decorators (@Controller, @Get, @Post, etc.)
+- Swagger decorator support (@ApiTags, @ApiOperation, @ApiResponse, etc.)
+- Security decorator support (@ApiBearerAuth, @ApiOAuth2, etc.)
+- class-validator constraint extraction
+- Multiple entry module support
+- Config inheritance via `extends`
+- OpenAPI 3.0.3, 3.1.0, and 3.2.0 output
+- JSON and YAML output formats
+- Optional NestJS module to serve the generated spec at runtime
+- Query DTO inlining as individual parameters
+- Zero-config schema discovery

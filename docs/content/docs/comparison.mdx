@@ -16,7 +16,7 @@ export class CreateOrderDto {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -53,7 +53,7 @@ class PaginatedResponse<T> {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -98,7 +98,7 @@ export class UserDto {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -136,7 +136,7 @@ export class UpdateUserDto {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -186,7 +186,7 @@ export class UserDto {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -228,7 +228,7 @@ export class UsersController {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -287,7 +287,7 @@ export class PetOwnerDto {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -347,7 +347,7 @@ export class ProfileController {
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
   <div>
-    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi-static</div>
+    <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">nestjs-openapi</div>
 
     ```json
     {
@@ -401,13 +401,13 @@ export class CreateOrderDto {
 }
 ```
 
-With `nestjs-openapi-static`, TypeScript is the source of truth-no duplication, no drift.
+With `nestjs-openapi`, TypeScript is the source of truth-no duplication, no drift.
 
 ---
 
 ## When to Use Each
 
-|                   | @nestjs/swagger                     | nestjs-openapi-static             |
+|                   | @nestjs/swagger                     | nestjs-openapi                    |
 | ----------------- | ----------------------------------- | --------------------------------- |
 | **Best for**      | Full decorator control, OpenAPI 3.1 | TypeScript-first, CI/CD pipelines |
 | **Requires**      | App bootstrap, infrastructure       | Just source files                 |
@@ -460,13 +460,13 @@ See the [Migration Guide](/docs/recipes/migration) for running both in parallel.
 
 ### Architecture Comparison
 
-| Aspect                    |   @nestjs/swagger   | nestjs-openapi-static |
-| ------------------------- | :-----------------: | :-------------------: |
-| **Approach**              | Runtime reflection  |  Static AST analysis  |
-| **Requires running app**  |         Yes         |          No           |
-| **Build-time generation** |         No          |          Yes          |
-| **Effect on bundle size** |  Adds runtime code  |     Zero runtime      |
-| **CI/CD friendly**        | Needs app bootstrap |      Just `npx`       |
+| Aspect                    |   @nestjs/swagger   |   nestjs-openapi    |
+| ------------------------- | :-----------------: | :-----------------: |
+| **Approach**              | Runtime reflection  | Static AST analysis |
+| **Requires running app**  |         Yes         |         No          |
+| **Build-time generation** |         No          |         Yes         |
+| **Effect on bundle size** |  Adds runtime code  |    Zero runtime     |
+| **CI/CD friendly**        | Needs app bootstrap |     Just `npx`      |
 
 ### Summary
 

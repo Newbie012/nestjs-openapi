@@ -1,13 +1,13 @@
 ---
 title: Migration Guide
-description: Migrate from @nestjs/swagger to nestjs-openapi-static
+description: Migrate from @nestjs/swagger to nestjs-openapi
 ---
 
-Migrate from `@nestjs/swagger` runtime generation to `nestjs-openapi-static` static analysis.
+Migrate from `@nestjs/swagger` runtime generation to `nestjs-openapi` static analysis.
 
 ## Key Differences
 
-| Aspect            | @nestjs/swagger             | nestjs-openapi-static        |
+| Aspect            | @nestjs/swagger             | nestjs-openapi               |
 | ----------------- | --------------------------- | ---------------------------- |
 | When              | Runtime (app startup)       | Build time (static analysis) |
 | Requirements      | Running app, infrastructure | Only source code             |
@@ -18,7 +18,7 @@ Migrate from `@nestjs/swagger` runtime generation to `nestjs-openapi-static` sta
 ## Step 1: Install
 
 ```bash
-npm install -D nestjs-openapi-static
+npm install -D nestjs-openapi
 ```
 
 ## Step 2: Create Configuration
@@ -55,7 +55,7 @@ async function bootstrap() {
 
 ```ts twoslash
 // openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -95,7 +95,7 @@ export default defineConfig({
 ## Step 3: Generate Spec
 
 ```bash
-npx nestjs-openapi-static generate -c openapi.config.ts
+npx nestjs-openapi generate -c openapi.config.ts
 ```
 
 ## Step 4: Serve at Runtime (Optional)
@@ -114,7 +114,7 @@ SwaggerModule.setup('api-docs', app, document);
 
 ```typescript
 // app.module.ts
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
@@ -135,7 +135,7 @@ Add generation to your build process:
 ```json
 {
   "scripts": {
-    "prebuild": "npx nestjs-openapi-static generate -c openapi.config.ts",
+    "prebuild": "npx nestjs-openapi generate -c openapi.config.ts",
     "build": "nest build"
   }
 }
@@ -146,7 +146,7 @@ Or run separately:
 ```json
 {
   "scripts": {
-    "openapi": "nestjs-openapi-static generate -c openapi.config.ts",
+    "openapi": "nestjs-openapi generate -c openapi.config.ts",
     "build": "nest build"
   }
 }
@@ -204,10 +204,10 @@ export class UsersController {
 
 ### CLI Plugin Features
 
-If you use the NestJS Swagger CLI plugin for automatic type inference, note that nestjs-openapi-static performs its own static analysis. You can remove the CLI plugin:
+If you use the NestJS Swagger CLI plugin for automatic type inference, note that nestjs-openapi performs its own static analysis. You can remove the CLI plugin:
 
 ```json
-// nest-cli.json - remove if using nestjs-openapi-static
+// nest-cli.json - remove if using nestjs-openapi
 {
   "compilerOptions": {
     "plugins": ["@nestjs/swagger"] // Can be removed
@@ -304,11 +304,11 @@ Compare the outputs at `/swagger` vs `/docs` to verify parity.
 
 ## Checklist
 
-- [ ] Install `nestjs-openapi-static`
+- [ ] Install `nestjs-openapi`
 - [ ] Create `openapi.config.ts` with equivalent settings
 - [ ] Move security configuration from decorators to config
 - [ ] Add `@ApiResponse({ status: ... })` where needed
-- [ ] Run `npx nestjs-openapi-static generate` and validate output
+- [ ] Run `npx nestjs-openapi generate` and validate output
 - [ ] Update build scripts
 - [ ] (Optional) Replace `SwaggerModule.setup` with `OpenApiModule`
 - [ ] (Optional) Remove `@nestjs/swagger` CLI plugin from nest-cli.json

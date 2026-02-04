@@ -40,7 +40,7 @@ Now you're maintaining the same information in two places - the TypeScript type 
 
 **Why overcomplicate things?** You already have the types. They're right there in your code. Why not use them as the single source of truth?
 
-**nestjs-openapi-static** does exactly that. It reads your TypeScript source directly using the TypeScript AST - no decorators needed, no duplication, no drift. Your types are your spec. When you change a type, the spec changes with it. No build step, no app bootstrap, no infrastructure.
+**nestjs-openapi** does exactly that. It reads your TypeScript source directly using the TypeScript AST - no decorators needed, no duplication, no drift. Your types are your spec. When you change a type, the spec changes with it. No build step, no app bootstrap, no infrastructure.
 
 ## How it works
 
@@ -58,7 +58,7 @@ It loads your project with your `tsconfig`, walks the `@Module` graph starting a
 ## Quick example
 
 ```ts twoslash title="openapi.config.ts"
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -75,7 +75,7 @@ export default defineConfig({
 ```
 
 ```bash title="Terminal"
-npx nestjs-openapi-static generate -c openapi.config.ts
+npx nestjs-openapi generate -c openapi.config.ts
 ```
 
 ## Next steps

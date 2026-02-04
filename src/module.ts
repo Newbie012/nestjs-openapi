@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { OpenApiModule } from 'nestjs-openapi-static';
+ * import { OpenApiModule } from 'nestjs-openapi';
  *
  * @Module({
  *   imports: [
@@ -182,7 +182,7 @@ export function loadSpecFile(filePath: string): OpenApiSpec {
       if ('code' in error && error.code === 'ENOENT') {
         throw new Error(
           `OpenAPI spec file not found: ${filePath}. ` +
-            `Make sure to run 'nestjs-openapi-static generate' first.`,
+            `Make sure to run 'nestjs-openapi generate' first.`,
         );
       }
       throw new Error(`Failed to load OpenAPI spec: ${error.message}`);

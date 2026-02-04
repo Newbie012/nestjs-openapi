@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { UserController } from './user.controller';
-// Note: In a real app, you would import from 'nestjs-openapi-static'
-// import { OpenApiModule } from 'nestjs-openapi-static';
+// Note: In a real app, you would import from 'nestjs-openapi'
+// import { OpenApiModule } from 'nestjs-openapi';
 import { OpenApiModule } from '../../../src/module';
 
 /**

@@ -3,7 +3,7 @@ title: CI/CD Integration
 description: Generate OpenAPI specs in continuous integration pipelines
 ---
 
-Since nestjs-openapi-static requires no runtime or infrastructure, it's perfect for CI/CD pipelines. Generate specs without starting your application or connecting to databases.
+Since nestjs-openapi requires no runtime or infrastructure, it's perfect for CI/CD pipelines. Generate specs without starting your application or connecting to databases.
 
 ## GitHub Actions
 
@@ -33,7 +33,7 @@ jobs:
       - run: npm ci
 
       - name: Generate OpenAPI spec
-        run: npx nestjs-openapi-static generate -c openapi.config.ts
+        run: npx nestjs-openapi generate -c openapi.config.ts
 
       - name: Upload spec artifact
         uses: actions/upload-artifact@v4
@@ -69,7 +69,7 @@ jobs:
       - run: npm ci
 
       - name: Generate OpenAPI spec
-        run: npx nestjs-openapi-static generate -c openapi.config.ts
+        run: npx nestjs-openapi generate -c openapi.config.ts
 
       - name: Validate OpenAPI spec
         run: npx @redocly/cli lint openapi.json
@@ -112,7 +112,7 @@ jobs:
       - run: npm ci
 
       - name: Generate OpenAPI spec
-        run: npx nestjs-openapi-static generate -c openapi.config.ts
+        run: npx nestjs-openapi generate -c openapi.config.ts
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -146,14 +146,14 @@ jobs:
       - run: npm ci
 
       - name: Generate OpenAPI spec
-        run: npx nestjs-openapi-static generate -c openapi.config.ts
+        run: npx nestjs-openapi generate -c openapi.config.ts
 
       - name: Check for uncommitted changes
         run: |
           if git diff --exit-code openapi.json; then
             echo "OpenAPI spec is up to date"
           else
-            echo "::error::OpenAPI spec is out of date. Run 'npx nestjs-openapi-static generate' and commit the changes."
+            echo "::error::OpenAPI spec is out of date. Run 'npx nestjs-openapi generate' and commit the changes."
             exit 1
           fi
 ```
@@ -177,7 +177,7 @@ generate-openapi:
       - node_modules/
   script:
     - npm ci
-    - npx nestjs-openapi-static generate -c openapi.config.ts
+    - npx nestjs-openapi generate -c openapi.config.ts
   artifacts:
     paths:
       - openapi.json
@@ -202,7 +202,7 @@ generate-and-commit:
     - main
   script:
     - npm ci
-    - npx nestjs-openapi-static generate -c openapi.config.ts
+    - npx nestjs-openapi generate -c openapi.config.ts
     - |
       if git diff --exit-code openapi.json; then
         echo "No changes"
@@ -237,7 +237,7 @@ jobs:
             - node_modules
       - run:
           name: Generate OpenAPI spec
-          command: npx nestjs-openapi-static generate -c openapi.config.ts
+          command: npx nestjs-openapi generate -c openapi.config.ts
       - run:
           name: Validate spec
           command: npx @redocly/cli lint openapi.json
@@ -269,7 +269,7 @@ steps:
   - script: npm ci
     displayName: 'Install dependencies'
 
-  - script: npx nestjs-openapi-static generate -c openapi.config.ts
+  - script: npx nestjs-openapi generate -c openapi.config.ts
     displayName: 'Generate OpenAPI spec'
 
   - script: npx @redocly/cli lint openapi.json
@@ -313,7 +313,7 @@ jobs:
       - run: npm ci
 
       - name: Generate OpenAPI spec for ${{ matrix.app }}
-        run: npx nestjs-openapi-static generate -c apps/${{ matrix.app }}/openapi.config.ts
+        run: npx nestjs-openapi generate -c apps/${{ matrix.app }}/openapi.config.ts
 
       - name: Upload spec
         uses: actions/upload-artifact@v4
@@ -348,7 +348,7 @@ jobs:
       - run: npm ci
 
       - name: Generate spec
-        run: npx nestjs-openapi-static generate -c openapi.config.ts
+        run: npx nestjs-openapi generate -c openapi.config.ts
 
       - name: Publish to Bump.sh
         run: npx bump deploy openapi.json --doc my-api --token ${{ secrets.BUMP_TOKEN }}
@@ -376,7 +376,7 @@ RUN npm ci
 
 COPY . .
 RUN npm run build
-RUN npx nestjs-openapi-static generate -c openapi.config.ts
+RUN npx nestjs-openapi generate -c openapi.config.ts
 
 FROM node:20-alpine
 WORKDIR /app
@@ -398,7 +398,7 @@ npx husky init
 
 ```bash
 # .husky/pre-commit
-npx nestjs-openapi-static generate -c openapi.config.ts
+npx nestjs-openapi generate -c openapi.config.ts
 git add openapi.json
 ```
 

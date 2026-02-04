@@ -1,6 +1,6 @@
 ---
 title: Programmatic API
-description: Use nestjs-openapi-static in build scripts and custom tooling
+description: Use nestjs-openapi in build scripts and custom tooling
 ---
 
 Use the programmatic API to integrate spec generation into build scripts, test suites, and custom tooling.
@@ -8,7 +8,7 @@ Use the programmatic API to integrate spec generation into build scripts, test s
 ## Basic Usage
 
 ```ts twoslash
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 const result = await generate('./openapi.config.ts');
 
@@ -23,7 +23,7 @@ console.log(`Schemas: ${result.schemaCount}`);
 The `generate()` function accepts an optional second parameter for overrides:
 
 ```typescript
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 const result = await generate('./openapi.config.ts', {
   format: 'yaml', // Override output format
@@ -42,7 +42,7 @@ const result = await generate('./openapi.config.ts', {
 
 ```typescript
 // scripts/generate-openapi.ts
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 async function main() {
   console.log('Generating OpenAPI specification...');
@@ -73,7 +73,7 @@ npx tsx scripts/generate-openapi.ts
 
 ```typescript
 // scripts/generate-all.ts
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 import { resolve } from 'path';
 
 interface AppConfig {
@@ -138,7 +138,7 @@ generateAll();
 
 ```typescript
 // scripts/watch-openapi.ts
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 import { watch } from 'chokidar';
 
 const CONFIG_PATH = './openapi.config.ts';
@@ -181,7 +181,7 @@ console.log('Watching for changes...');
 ```typescript
 // vite.config.ts
 import { defineConfig, type Plugin } from 'vite';
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 function openapiPlugin(): Plugin {
   return {
@@ -203,7 +203,7 @@ export default defineConfig({
 ```typescript
 // build.ts
 import { build } from 'esbuild';
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 async function main() {
   // Generate OpenAPI spec first
@@ -228,7 +228,7 @@ main();
 
 ```typescript
 // tests/openapi.test.ts
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 import { readFileSync } from 'fs';
 
 describe('OpenAPI Specification', () => {
@@ -265,7 +265,7 @@ describe('OpenAPI Specification', () => {
 
 ```typescript
 // release.config.ts
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 export default {
   plugins: [
@@ -276,7 +276,7 @@ export default {
       {
         prepareCmd: `
         npx tsx -e "
-          import { generate } from 'nestjs-openapi-static';
+          import { generate } from 'nestjs-openapi';
           await generate('./openapi.config.ts');
         "
       `,
@@ -298,7 +298,7 @@ export default {
 ### Basic Error Handling
 
 ```typescript
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 try {
   const result = await generate('./openapi.config.ts');
@@ -314,13 +314,13 @@ try {
 ### Typed Error Handling
 
 ```ts twoslash
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 import {
   ConfigNotFoundError,
   ConfigLoadError,
   ConfigValidationError,
   EntryNotFoundError,
-} from 'nestjs-openapi-static';
+} from 'nestjs-openapi';
 
 try {
   await generate('./openapi.config.ts');
@@ -345,9 +345,9 @@ try {
 Read the generated spec after generation:
 
 ```typescript
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 import { readFileSync } from 'fs';
-import type { OpenApiSpec } from 'nestjs-openapi-static';
+import type { OpenApiSpec } from 'nestjs-openapi';
 
 async function main() {
   const result = await generate('./openapi.config.ts');

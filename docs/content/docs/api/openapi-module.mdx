@@ -8,7 +8,7 @@ A NestJS dynamic module for serving generated OpenAPI specifications at runtime.
 ## Import
 
 ```typescript
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 ```
 
 ## forRoot()
@@ -88,7 +88,7 @@ interface SwaggerOptions {
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
@@ -181,8 +181,8 @@ Inject the loaded OpenAPI specification:
 
 ```typescript
 import { Injectable, Inject } from '@nestjs/common';
-import { OPENAPI_SPEC } from 'nestjs-openapi-static';
-import type { OpenApiSpec } from 'nestjs-openapi-static';
+import { OPENAPI_SPEC } from 'nestjs-openapi';
+import type { OpenApiSpec } from 'nestjs-openapi';
 
 @Injectable()
 export class ApiInfoService {
@@ -210,8 +210,8 @@ Inject the resolved module options:
 
 ```typescript
 import { Injectable, Inject } from '@nestjs/common';
-import { OPENAPI_MODULE_OPTIONS } from 'nestjs-openapi-static';
-import type { ResolvedOpenApiModuleOptions } from 'nestjs-openapi-static';
+import { OPENAPI_MODULE_OPTIONS } from 'nestjs-openapi';
+import type { ResolvedOpenApiModuleOptions } from 'nestjs-openapi';
 
 @Injectable()
 export class DocsService {
@@ -235,7 +235,7 @@ export class DocsService {
 Load an OpenAPI spec file from disk:
 
 ```typescript
-import { loadSpecFile } from 'nestjs-openapi-static';
+import { loadSpecFile } from 'nestjs-openapi';
 
 const spec = loadSpecFile('openapi.json');
 console.log(spec.info.title);
@@ -248,7 +248,7 @@ Throws an error if the file is not found.
 Generate the Swagger UI HTML page:
 
 ```typescript
-import { generateSwaggerUiHtml } from 'nestjs-openapi-static';
+import { generateSwaggerUiHtml } from 'nestjs-openapi';
 
 const html = generateSwaggerUiHtml('My API', '/openapi.json');
 // Returns full HTML page with Swagger UI
@@ -259,7 +259,7 @@ const html = generateSwaggerUiHtml('My API', '/openapi.json');
 Resolve options with defaults:
 
 ```typescript
-import { resolveOptions } from 'nestjs-openapi-static';
+import { resolveOptions } from 'nestjs-openapi';
 
 const options = resolveOptions({
   specFile: 'openapi.json',
@@ -293,10 +293,10 @@ If the spec file is not found when the module initializes:
 
 ```
 Error: OpenAPI spec file not found: openapi.json.
-Make sure to run 'nestjs-openapi-static generate' first.
+Make sure to run 'nestjs-openapi generate' first.
 ```
 
-Ensure you run `nestjs-openapi-static generate` before starting your application.
+Ensure you run `nestjs-openapi generate` before starting your application.
 
 ## Disabled Module
 

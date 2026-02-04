@@ -25,7 +25,7 @@ export interface GenerateOptions {
  * @example
  * ```typescript
  * import { Effect } from 'effect';
- * import { generate } from 'nestjs-openapi-static/internal';
+ * import { generate } from 'nestjs-openapi/internal';
  *
  * const program = generate({
  *   tsconfig: './tsconfig.json',

@@ -1,6 +1,6 @@
 ---
 title: defineConfig()
-description: Type-safe configuration helper for nestjs-openapi-static
+description: Type-safe configuration helper for nestjs-openapi
 ---
 
 A helper function that provides TypeScript type inference for configuration objects. It's a pass-through function that returns the config unchanged but enables IDE autocomplete and type checking.
@@ -26,7 +26,7 @@ function defineConfig(config: Config): Config;
 ### Basic Usage
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -43,7 +43,7 @@ export default defineConfig({
 ### Full Configuration
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'src/openapi/spec.json',
@@ -127,7 +127,7 @@ export default {
 };
 
 // Or use type annotation
-import type { Config } from 'nestjs-openapi-static';
+import type { Config } from 'nestjs-openapi';
 
 const config: Config = {
   output: 'openapi.json',
@@ -221,7 +221,7 @@ any broken refs remain.
 `defineConfig` enables full TypeScript type inference:
 
 ```typescript
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',

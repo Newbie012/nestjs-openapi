@@ -11,7 +11,7 @@ Create a shared base object and spread/override it in each config file. This kee
 
 ```typescript
 // configs/base.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export const baseConfig = defineConfig({
   files: {
@@ -27,7 +27,7 @@ export const baseConfig = defineConfig({
 
 ```typescript
 // apps/api/openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 import { baseConfig } from '../../configs/base.config';
 
 export default defineConfig({
@@ -50,7 +50,7 @@ export default defineConfig({
 
 ```typescript
 // apps/admin/openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 import { baseConfig } from '../../configs/base.config';
 
 export default defineConfig({

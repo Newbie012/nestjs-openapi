@@ -1,9 +1,9 @@
 ---
 title: API Reference
-description: Complete API reference for nestjs-openapi-static
+description: Complete API reference for nestjs-openapi
 ---
 
-Complete reference documentation for the nestjs-openapi-static public API.
+Complete reference documentation for the nestjs-openapi public API.
 
 ## Primary API
 
@@ -19,7 +19,7 @@ The main exports you'll use in most projects:
 
 ```typescript
 // openapi.config.ts
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -37,7 +37,7 @@ export default defineConfig({
 
 ```typescript
 // Generate programmatically
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 const result = await generate('./openapi.config.ts');
 console.log(`Generated ${result.operationCount} operations`);
@@ -45,7 +45,7 @@ console.log(`Generated ${result.operationCount} operations`);
 
 ```typescript
 // Serve at runtime
-import { OpenApiModule } from 'nestjs-openapi-static';
+import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
@@ -102,7 +102,7 @@ import {
   generateEffect,
   generateAsync,
   type GenerateOptions,
-} from 'nestjs-openapi-static';
+} from 'nestjs-openapi';
 ```
 
 See [Advanced: Effect API](/docs/advanced/effect-api) for details.
@@ -113,14 +113,14 @@ All exports are available from the main package:
 
 ```typescript
 // Primary API
-import { generate, defineConfig, OpenApiModule } from 'nestjs-openapi-static';
+import { generate, defineConfig, OpenApiModule } from 'nestjs-openapi';
 
 // Types
-import type { Config, OpenApiSpec } from 'nestjs-openapi-static';
+import type { Config, OpenApiSpec } from 'nestjs-openapi';
 
 // Errors
-import { ConfigNotFoundError, EntryNotFoundError } from 'nestjs-openapi-static';
+import { ConfigNotFoundError, EntryNotFoundError } from 'nestjs-openapi';
 
 // Module injection tokens
-import { OPENAPI_SPEC, OPENAPI_MODULE_OPTIONS } from 'nestjs-openapi-static';
+import { OPENAPI_SPEC, OPENAPI_MODULE_OPTIONS } from 'nestjs-openapi';
 ```

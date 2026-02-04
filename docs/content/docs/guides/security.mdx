@@ -16,7 +16,7 @@ Security schemes are defined in config, and can be applied via config-level glob
 Security is configured in the `openapi.security` section:
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',
@@ -380,7 +380,7 @@ security: {
 ## Complete Example
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',

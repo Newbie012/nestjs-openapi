@@ -35,7 +35,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-3xl">
           <Image
             src="/logo.png"
-            alt="nestjs-openapi-static logo"
+            alt="nestjs-openapi logo"
             width={180}
             height={180}
             className="mb-8"
@@ -141,7 +141,7 @@ export default function HomePage() {
 
             <div>
               <h3 className="text-sm font-medium text-fd-primary uppercase tracking-wide mb-4">
-                nestjs-openapi-static
+                nestjs-openapi
               </h3>
               <ul className="space-y-2.5 text-sm">
                 {staticItems.map((item) => (
@@ -172,10 +172,7 @@ export default function HomePage() {
           <DynamicCodeBlock lang="typescript" code={configExample} />
 
           <div className="mt-4">
-            <DynamicCodeBlock
-              lang="bash"
-              code="npx nestjs-openapi-static generate"
-            />
+            <DynamicCodeBlock lang="bash" code="npx nestjs-openapi generate" />
           </div>
         </div>
       </section>
@@ -202,7 +199,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="px-6 py-6 border-t border-fd-border">
         <div className="mx-auto max-w-5xl flex items-center justify-between text-sm text-fd-muted-foreground">
-          <span>nestjs-openapi-static</span>
+          <span>nestjs-openapi</span>
           <span>MIT License</span>
         </div>
       </footer>
@@ -270,9 +267,9 @@ const staticItems = [
   'Types are the source of truth',
 ];
 
-const installCommand = 'npm install -D nestjs-openapi-static';
+const installCommand = 'npm install -D nestjs-openapi';
 
-const configExample = `import { defineConfig } from 'nestjs-openapi-static';
+const configExample = `import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'openapi.json',

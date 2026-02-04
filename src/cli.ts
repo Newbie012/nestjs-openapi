@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * CLI entry point for nestjs-openapi-static
+ * CLI entry point for nestjs-openapi
  *
  * Usage:
- *   nestjs-openapi-static generate -c openapi.config.ts
- *   nestjs-openapi-static generate -c openapi.config.ts --quiet
+ *   nestjs-openapi generate -c openapi.config.ts
+ *   nestjs-openapi generate -c openapi.config.ts --quiet
  */
 
 // Register tsx TypeScript loader to support .ts config files
@@ -39,12 +39,12 @@ interface CliArgs {
 const VERSION = pkg.version;
 
 const HELP_TEXT = `
-nestjs-openapi-static - Generate OpenAPI specs from NestJS applications
+nestjs-openapi - Generate OpenAPI specs from NestJS applications
 
 Usage:
-  nestjs-openapi-static generate -c <config-path>    Generate OpenAPI specification
-  nestjs-openapi-static --help                       Show this help message
-  nestjs-openapi-static --version                    Show version
+  nestjs-openapi generate -c <config-path>    Generate OpenAPI specification
+  nestjs-openapi --help                       Show this help message
+  nestjs-openapi --version                    Show version
 
 Options:
   -c, --config <path>     Path to configuration file (required)
@@ -55,9 +55,9 @@ Options:
   -v, --version           Show version
 
 Examples:
-  nestjs-openapi-static generate -c openapi.config.ts
-  nestjs-openapi-static generate -c openapi.config.ts --format yaml
-  nestjs-openapi-static generate -c openapi.config.ts --debug
+  nestjs-openapi generate -c openapi.config.ts
+  nestjs-openapi generate -c openapi.config.ts --format yaml
+  nestjs-openapi generate -c openapi.config.ts --debug
 `.trim();
 
 const formatDuration = (ms: number): string => {
@@ -80,16 +80,7 @@ const error = (message: string): void => {
 const main = async (): Promise<void> => {
   const args = minimist<CliArgs>(process.argv.slice(2), {
     string: ['c', 'config', 'f', 'format'],
-    boolean: [
-      'quiet',
-      'q',
-      'debug',
-      'd',
-      'help',
-      'h',
-      'version',
-      'v',
-    ],
+    boolean: ['quiet', 'q', 'debug', 'd', 'help', 'h', 'version', 'v'],
     alias: {
       c: 'config',
       f: 'format',
@@ -123,7 +114,7 @@ const main = async (): Promise<void> => {
   // Handle unknown commands
   if (command !== 'generate') {
     error(`Unknown command: ${command}`);
-    console.log('\nRun "nestjs-openapi-static --help" for usage information.');
+    console.log('\nRun "nestjs-openapi --help" for usage information.');
     process.exit(1);
   }
 
@@ -135,9 +126,7 @@ const main = async (): Promise<void> => {
 
   if (!configPath) {
     error('Config path is required. Use -c or --config to specify the path.');
-    console.log(
-      '\nExample: nestjs-openapi-static generate -c openapi.config.ts',
-    );
+    console.log('\nExample: nestjs-openapi generate -c openapi.config.ts');
     process.exit(1);
   }
 

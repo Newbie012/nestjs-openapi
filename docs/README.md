@@ -1,6 +1,6 @@
 # Documentation Site
 
-This folder contains the public docs site for `nestjs-openapi-static`, built with Next.js + Fumadocs.
+This folder contains the public docs site for `nestjs-openapi`, built with Next.js + Fumadocs.
 
 ## Run locally
 

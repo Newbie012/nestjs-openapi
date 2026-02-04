@@ -1,5 +1,5 @@
 /**
- * Public types for nestjs-openapi-static
+ * Public types for nestjs-openapi
  *
  * These types are exposed to consumers of the library. Internal types
  * should be kept in domain.ts.
@@ -163,7 +163,7 @@ export type OutputFormat = 'json' | 'yaml';
 export type OpenApiVersion = '3.0.3' | '3.1.0' | '3.2.0';
 
 /**
- * Input file configuration for nestjs-openapi-static.
+ * Input file configuration for nestjs-openapi.
  * All paths are relative to the config file location.
  */
 export interface FilesConfig {
@@ -328,12 +328,12 @@ export interface QueryOptions {
 }
 
 /**
- * Configuration for nestjs-openapi-static.
+ * Configuration for nestjs-openapi.
  * Inspired by tsconfig.json and vite.config.ts patterns.
  *
  * @example
  * ```typescript
- * import { defineConfig } from 'nestjs-openapi-static';
+ * import { defineConfig } from 'nestjs-openapi';
  *
  * export default defineConfig({
  *   output: 'src/openapi/openapi.generated.json',

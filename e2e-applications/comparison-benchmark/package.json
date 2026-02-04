@@ -1,7 +1,7 @@
 {
   "name": "comparison-benchmark",
   "version": "1.0.0",
-  "description": "Benchmark app to compare @nestjs/swagger CLI plugin output with nestjs-openapi-static",
+  "description": "Benchmark app to compare @nestjs/swagger CLI plugin output with nestjs-openapi",
   "scripts": {
     "build": "nest build",
     "generate-swagger": "rm -rf dist && nest build && node dist/main.js"

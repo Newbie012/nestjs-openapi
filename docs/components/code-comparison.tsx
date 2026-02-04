@@ -39,7 +39,7 @@ export function CodeComparison() {
         <div className="h-8 px-3 bg-emerald-500/10 border-b border-emerald-500/30 flex items-center gap-2">
           <Check className="w-3.5 h-3.5 text-emerald-500" />
           <span className="text-xs text-emerald-500 font-mono">
-            nestjs-openapi-static
+            nestjs-openapi
           </span>
         </div>
         <div className={codeBlockStyles}>

@@ -1,6 +1,6 @@
 ---
 title: Advanced Usage
-description: Advanced patterns and integration options for nestjs-openapi-static
+description: Advanced patterns and integration options for nestjs-openapi
 ---
 
 This section covers advanced use cases, internal APIs, and integration patterns for power users.
@@ -9,7 +9,7 @@ This section covers advanced use cases, internal APIs, and integration patterns 
 
 <Cards>
   <Card title="Programmatic API" href="/docs/advanced/programmatic">
-    Use nestjs-openapi-static in build scripts and custom tooling
+    Use nestjs-openapi in build scripts and custom tooling
   </Card>
   <Card title="Effect-TS API" href="/docs/advanced/effect-api">
     Integrate with Effect-TS for functional error handling
@@ -28,7 +28,7 @@ The standard `generate()` function and CLI cover most use cases:
 
 ```typescript
 // Standard usage - sufficient for 90% of cases
-import { generate } from 'nestjs-openapi-static';
+import { generate } from 'nestjs-openapi';
 
 await generate('./openapi.config.ts');
 ```
@@ -51,21 +51,17 @@ import {
   generateEffect,
   generateAsync,
   type GenerateOptions,
-} from 'nestjs-openapi-static';
+} from 'nestjs-openapi';
 
 // Domain types for custom processing
-import type {
-  MethodInfo,
-  ResolvedConfig,
-  HttpMethod,
-} from 'nestjs-openapi-static';
+import type { MethodInfo, ResolvedConfig, HttpMethod } from 'nestjs-openapi';
 
 // Typed errors for error handling
 import {
   ConfigNotFoundError,
   EntryNotFoundError,
   type GeneratorError,
-} from 'nestjs-openapi-static';
+} from 'nestjs-openapi';
 
 // Low-level utilities
 import {
@@ -73,7 +69,7 @@ import {
   getAllControllers,
   getMethodInfo,
   transformMethods,
-} from 'nestjs-openapi-static';
+} from 'nestjs-openapi';
 ```
 
 ## Comparison: Standard vs Advanced

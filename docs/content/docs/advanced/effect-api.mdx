@@ -1,9 +1,9 @@
 ---
 title: Effect-TS API
-description: Integrate nestjs-openapi-static with Effect-TS
+description: Integrate nestjs-openapi with Effect-TS
 ---
 
-nestjs-openapi-static uses [Effect-TS](https://effect.website/) internally. If you already use Effect in your project, you can use the library's Effect-based API directly for typed error handling.
+nestjs-openapi uses [Effect-TS](https://effect.website/) internally. If you already use Effect in your project, you can use the library's Effect-based API directly for typed error handling.
 
 ## Why Effect?
 
@@ -21,7 +21,7 @@ Effect provides:
 
 ```typescript
 import { Effect } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
 
 const program = generateEffect({
   tsconfig: './tsconfig.json',
@@ -37,8 +37,8 @@ console.log('Generated paths:', Object.keys(paths));
 
 ```typescript
 import { Effect, pipe } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
-import type { ProjectError } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
+import type { ProjectError } from 'nestjs-openapi';
 
 const program = pipe(
   generateEffect({
@@ -79,7 +79,7 @@ interface GenerateOptions {
 For convenience, there's also an async wrapper:
 
 ```typescript
-import { generateAsync } from 'nestjs-openapi-static';
+import { generateAsync } from 'nestjs-openapi';
 
 // Returns Promise<OpenApiPaths>
 const paths = await generateAsync({
@@ -93,8 +93,8 @@ const paths = await generateAsync({
 The Effect API uses typed errors:
 
 ```typescript
-import type { ProjectError } from 'nestjs-openapi-static';
-import { EntryNotFoundError, ProjectInitError } from 'nestjs-openapi-static';
+import type { ProjectError } from 'nestjs-openapi';
+import { EntryNotFoundError, ProjectInitError } from 'nestjs-openapi';
 
 // ProjectError is a union type:
 type ProjectError = EntryNotFoundError | ProjectInitError;
@@ -128,7 +128,7 @@ class ProjectInitError {
 
 ```typescript
 import { Effect, Runtime, Layer, Logger, LogLevel } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
 
 // Create a custom runtime with logging
 const CustomRuntime = Runtime.make({
@@ -150,7 +150,7 @@ The Effect API logs progress using Effect's logging system:
 
 ```typescript
 import { Effect, Logger, LogLevel } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
 
 const program = generateEffect({
   tsconfig: './tsconfig.json',
@@ -169,7 +169,7 @@ const program = generateEffect({
 
 ```typescript
 import { Effect, pipe } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
 import * as fs from 'fs/promises';
 
 const program = pipe(
@@ -192,7 +192,7 @@ await Effect.runPromise(program);
 
 ```typescript
 import { Effect } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
 
 const configs = [
   {
@@ -219,7 +219,7 @@ const results = await Effect.runPromise(program);
 
 ```typescript
 import { Effect, pipe } from 'effect';
-import { generateEffect } from 'nestjs-openapi-static';
+import { generateEffect } from 'nestjs-openapi';
 
 const program = pipe(
   generateEffect({
@@ -246,7 +246,7 @@ import {
   getModules,
   getControllerMethodInfos,
   transformMethods,
-} from 'nestjs-openapi-static';
+} from 'nestjs-openapi';
 import { Project } from 'ts-morph';
 
 const program = Effect.gen(function* () {

@@ -5,7 +5,7 @@
 Always use the **nested config structure**. The flat structure is not supported.
 
 ```typescript
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 // CORRECT - nested structure
 export default defineConfig({
@@ -81,7 +81,7 @@ When `files.tsconfig` is omitted, the Promise API (`generate()`) searches upward
 
 **Recommendation**: Always specify `files.tsconfig` explicitly for predictable behavior, especially in monorepos or workspaces with multiple tsconfigs.
 
-> **Note**: The internal Effect API (`nestjs-openapi-static/internal`) requires `tsconfig` to be provided explicitly—no auto-detection is performed. This is by design for explicit dependency tracking in Effect programs.
+> **Note**: The internal Effect API (`nestjs-openapi/internal`) requires `tsconfig` to be provided explicitly—no auto-detection is performed. This is by design for explicit dependency tracking in Effect programs.
 
 ### `openapi`
 

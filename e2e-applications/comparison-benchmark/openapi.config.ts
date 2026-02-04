@@ -11,7 +11,7 @@ export default defineConfig({
     info: {
       title: 'Comparison Benchmark API',
       version: '1.0',
-      description: 'API for testing nestjs-openapi-static output',
+      description: 'API for testing nestjs-openapi output',
     },
   },
 });

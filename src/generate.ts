@@ -410,7 +410,7 @@ export interface GenerateResult {
  *
  * @example
  * ```typescript
- * import { generate } from 'nestjs-openapi-static';
+ * import { generate } from 'nestjs-openapi';
  *
  * await generate('apps/backend-api/openapi.config.ts');
  *

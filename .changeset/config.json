@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
   "changelog": [
     "@changesets/changelog-github",
-    { "repo": "Newbie012/nestjs-openapi-static" }
+    { "repo": "Newbie012/nestjs-openapi" }
   ],
   "commit": false,
   "fixed": [],

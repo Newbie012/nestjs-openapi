@@ -1,4 +1,4 @@
-# Contributing to nestjs-openapi-static
+# Contributing to nestjs-openapi
 
 Thank you for your interest in contributing!
 
@@ -10,8 +10,8 @@ Thank you for your interest in contributing!
 ## Quick Start
 
 ```bash
-git clone https://github.com/Newbie012/nestjs-openapi-static.git
-cd nestjs-openapi-static
+git clone https://github.com/Newbie012/nestjs-openapi.git
+cd nestjs-openapi
 pnpm install
 pnpm test
 ```

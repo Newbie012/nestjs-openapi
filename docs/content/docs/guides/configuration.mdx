@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Complete configuration reference for nestjs-openapi-static
+description: Complete configuration reference for nestjs-openapi
 ---
 
 All configuration is done through a TypeScript config file (typically `openapi.config.ts`). Use the `defineConfig` helper for type safety.
@@ -8,7 +8,7 @@ All configuration is done through a TypeScript config file (typically `openapi.c
 ## Config File Structure
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   // Where to write the spec (required)
@@ -315,7 +315,7 @@ The type definition includes an `extends` field for future shared configs, but i
 ## Complete Example
 
 ```ts twoslash
-import { defineConfig } from 'nestjs-openapi-static';
+import { defineConfig } from 'nestjs-openapi';
 
 export default defineConfig({
   output: 'src/openapi/openapi.generated.json',
