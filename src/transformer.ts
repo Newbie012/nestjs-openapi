@@ -149,7 +149,15 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
   }
 
   if (trimmed.includes(' | ')) {
-    const types = trimmed.split(' | ').map((t) => t.trim());
+    // Strip undefined/null from unions (e.g., "string | undefined" from strictNullChecks)
+    const types = trimmed
+      .split(' | ')
+      .map((t) => t.trim())
+      .filter((t) => t !== 'undefined' && t !== 'null');
+
+    if (types.length === 0) return { type: 'object' };
+    if (types.length === 1) return tsTypeToOpenApiSchema(types[0]);
+
     return {
       oneOf: types.map((type) => tsTypeToOpenApiSchema(type)),
     };

@@ -1131,6 +1131,104 @@ describe('transformMethod', () => {
     });
   });
 
+  describe('Optional type handling (T | undefined, T | null)', () => {
+    it('should strip undefined from union types instead of producing oneOf', () => {
+      const testCases = [
+        {
+          tsType: 'string | undefined',
+          expected: { type: 'string' },
+        },
+        {
+          tsType: 'number | undefined',
+          expected: { type: 'number' },
+        },
+        {
+          tsType: 'boolean | undefined',
+          expected: { type: 'boolean' },
+        },
+      ];
+
+      testCases.forEach(({ tsType, expected }) => {
+        const methodInfo = createMethodInfo({
+          parameters: [
+            {
+              name: 'param',
+              location: 'query',
+              tsType,
+              required: false,
+              description: Option.none(),
+            },
+          ],
+        });
+
+        const result = transformMethod(methodInfo);
+        const param = result['/test'].get.parameters?.[0];
+
+        expect(param?.schema).toEqual(expected);
+      });
+    });
+
+    it('should strip undefined from return type unions', () => {
+      const methodInfo = createMethodInfo({
+        returnType: {
+          type: Option.some('UserDto | undefined'),
+          inline: Option.none(),
+          container: Option.none(),
+          filePath: Option.none(),
+        },
+      });
+
+      const result = transformMethod(methodInfo);
+      const schema =
+        result['/test'].get.responses['200']?.content?.['application/json']
+          ?.schema;
+
+      expect(schema).toEqual({
+        $ref: '#/components/schemas/UserDto',
+      });
+    });
+
+    it('should handle T | null as nullable (not oneOf with object)', () => {
+      const methodInfo = createMethodInfo({
+        parameters: [
+          {
+            name: 'param',
+            location: 'query',
+            tsType: 'string | null',
+            required: false,
+            description: Option.none(),
+          },
+        ],
+      });
+
+      const result = transformMethod(methodInfo);
+      const param = result['/test'].get.parameters?.[0];
+
+      expect(param?.schema).toEqual({ type: 'string' });
+    });
+
+    it('should preserve real unions that are not just T | undefined', () => {
+      const methodInfo = createMethodInfo({
+        parameters: [
+          {
+            name: 'param',
+            location: 'query',
+            tsType: 'string | number',
+            required: false,
+            description: Option.none(),
+          },
+        ],
+      });
+
+      const result = transformMethod(methodInfo);
+      const param = result['/test'].get.parameters?.[0];
+
+      expect(param?.schema).toEqual({
+        oneOf: [{ type: 'string' }, { type: 'number' }],
+      });
+    });
+  });
+
   describe('Non-PascalCase class names', () => {
     it('should generate $ref for camelCase class names used as return types', () => {
       const methodInfo = createMethodInfo({
