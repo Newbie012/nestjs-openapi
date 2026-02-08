@@ -119,6 +119,42 @@ describe('schema-merger', () => {
       expect(result.schemas['CreateUserDto']).toBeDefined();
     });
 
+    it('should extract references from allOf (e.g., $ref | null pattern)', () => {
+      const paths: OpenApiPaths = {
+        '/users/{id}': {
+          get: {
+            operationId: 'getUser',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: {
+                      allOf: [{ $ref: '#/components/schemas/UserDto' }],
+                      nullable: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          UserDto: { type: 'object', properties: { name: { type: 'string' } } },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['UserDto']).toBeDefined();
+      expect(result.schemas['UserDto'].properties?.name).toEqual({
+        type: 'string',
+      });
+    });
+
     it('should extract references from parameters', () => {
       const paths: OpenApiPaths = {
         '/users': {

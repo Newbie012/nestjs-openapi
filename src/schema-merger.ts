@@ -42,6 +42,14 @@ const extractReferencedSchemas = (paths: OpenApiPaths): Set<string> => {
       schema.oneOf.forEach(extractFromSchema);
     }
 
+    if (schema.allOf) {
+      schema.allOf.forEach(extractFromSchema);
+    }
+
+    if (schema.anyOf) {
+      schema.anyOf.forEach(extractFromSchema);
+    }
+
     if (schema.properties) {
       Object.values(schema.properties).forEach(extractFromSchema);
     }
