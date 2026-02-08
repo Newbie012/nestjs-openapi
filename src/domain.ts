@@ -166,9 +166,12 @@ export interface OpenApiSchema {
   readonly format?: string;
   readonly $ref?: string;
   readonly oneOf?: readonly OpenApiSchema[];
+  readonly allOf?: readonly OpenApiSchema[];
   readonly items?: OpenApiSchema;
   readonly properties?: Record<string, OpenApiSchema>;
   readonly required?: readonly string[];
+  /** OpenAPI 3.0 nullable flag */
+  readonly nullable?: boolean;
 }
 
 export const OpenApiParameter = Schema.Struct({

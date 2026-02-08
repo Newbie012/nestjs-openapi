@@ -42,6 +42,14 @@ const extractReferencedSchemas = (paths: OpenApiPaths): Set<string> => {
       schema.oneOf.forEach(extractFromSchema);
     }
 
+    if (schema.allOf) {
+      schema.allOf.forEach(extractFromSchema);
+    }
+
+    if (schema.anyOf) {
+      schema.anyOf.forEach(extractFromSchema);
+    }
+
     if (schema.properties) {
       Object.values(schema.properties).forEach(extractFromSchema);
     }
@@ -138,7 +146,16 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   // Build result object incrementally
   const result: Record<string, unknown> = {};
 
-  if (schema.type) result['type'] = schema.type;
+  // Normalize 3.1 type arrays to 3.0 nullable (e.g., ["string", "null"] → { type: "string", nullable: true })
+  if (Array.isArray(schema.type)) {
+    const nonNull = schema.type.filter((t) => t !== 'null');
+    const isNullable = nonNull.length < schema.type.length;
+
+    result['type'] = nonNull.length === 1 ? nonNull[0] : schema.type;
+    if (isNullable && nonNull.length === 1) result['nullable'] = true;
+  } else if (schema.type) {
+    result['type'] = schema.type;
+  }
   if (schema.format) result['format'] = schema.format;
   if (schema.$ref) {
     // Convert #/definitions/ to #/components/schemas/

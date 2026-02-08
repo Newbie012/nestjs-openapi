@@ -154,14 +154,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "name": "page",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "number",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "number",
           },
         },
         {
@@ -170,14 +163,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "name": "pageSize",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "number",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "number",
           },
         },
       ],
@@ -476,14 +462,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "name": "articleId",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "string",
           },
         },
       ],
@@ -609,14 +588,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "name": "type",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "string",
           },
         },
       ],
@@ -815,14 +787,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
           "name": "search",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "string",
           },
         },
       ],
@@ -923,14 +888,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
           "name": "completed",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "boolean",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "boolean",
           },
         },
         {
@@ -940,9 +898,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
           "required": false,
           "schema": {
             "oneOf": [
-              {
-                "type": "object",
-              },
               {
                 "type": "object",
               },
@@ -1129,14 +1084,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "name": "userId",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "string",
           },
         },
         {
@@ -1145,14 +1093,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "name": "type",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "string",
           },
         },
         {
@@ -1161,14 +1102,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "name": "status",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "string",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "string",
           },
         },
       ],
@@ -1310,9 +1244,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
               {
                 "type": "object",
               },
-              {
-                "type": "object",
-              },
             ],
           },
         },
@@ -1322,14 +1253,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
           "name": "isActive",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "boolean",
-              },
-              {
-                "type": "object",
-              },
-            ],
+            "type": "boolean",
           },
         },
       ],

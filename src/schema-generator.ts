@@ -53,7 +53,7 @@ export interface GeneratedSchemas {
 }
 
 export interface JsonSchema {
-  readonly type?: string;
+  readonly type?: string | readonly string[];
   readonly format?: string;
   readonly $ref?: string;
   readonly properties?: Record<string, JsonSchema>;

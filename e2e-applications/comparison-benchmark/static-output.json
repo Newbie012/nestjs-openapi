@@ -438,10 +438,8 @@
         "additionalProperties": false,
         "properties": {
           "bio": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "nullable": true,
+            "type": "string"
           },
           "email": {
             "type": "string"
@@ -484,10 +482,8 @@
         "additionalProperties": false,
         "properties": {
           "avatarUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "nullable": true,
+            "type": "string"
           },
           "displayName": {
             "type": "string"
@@ -550,16 +546,12 @@
         "additionalProperties": false,
         "properties": {
           "age": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "nullable": true,
+            "type": "number"
           },
           "bio": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "nullable": true,
+            "type": "string"
           },
           "name": {
             "type": "string"

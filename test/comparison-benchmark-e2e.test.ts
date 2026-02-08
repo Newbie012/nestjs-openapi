@@ -116,13 +116,15 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
     it('nestjs-openapi handles nullable types correctly', () => {
       const staticSchemas = staticOutput?.components?.schemas || {};
 
-      // bio: string | null should have nullable representation
-      const bioType = staticSchemas.UpdateUserDto?.properties?.bio?.type;
-      expect(bioType).toEqual(['string', 'null']);
+      // bio: string | null should have nullable representation (3.0 format)
+      const bio = staticSchemas.UpdateUserDto?.properties?.bio;
+      expect(bio?.type).toBe('string');
+      expect(bio?.nullable).toBe(true);
 
       // age: number | null
-      const ageType = staticSchemas.UpdateUserDto?.properties?.age?.type;
-      expect(ageType).toEqual(['number', 'null']);
+      const age = staticSchemas.UpdateUserDto?.properties?.age;
+      expect(age?.type).toBe('number');
+      expect(age?.nullable).toBe(true);
     });
   });
 
@@ -269,11 +271,13 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
       expect(staticSchemas.IUserProfile.properties.displayName.type).toBe(
         'string',
       );
-      // Nullable property should be handled
-      expect(staticSchemas.IUserProfile.properties.avatarUrl.type).toEqual([
+      // Nullable property should be handled (3.0 format)
+      expect(staticSchemas.IUserProfile.properties.avatarUrl.type).toBe(
         'string',
-        'null',
-      ]);
+      );
+      expect(staticSchemas.IUserProfile.properties.avatarUrl.nullable).toBe(
+        true,
+      );
     });
   });
 

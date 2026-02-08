@@ -119,6 +119,42 @@ describe('schema-merger', () => {
       expect(result.schemas['CreateUserDto']).toBeDefined();
     });
 
+    it('should extract references from allOf (e.g., $ref | null pattern)', () => {
+      const paths: OpenApiPaths = {
+        '/users/{id}': {
+          get: {
+            operationId: 'getUser',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: {
+                      allOf: [{ $ref: '#/components/schemas/UserDto' }],
+                      nullable: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          UserDto: { type: 'object', properties: { name: { type: 'string' } } },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['UserDto']).toBeDefined();
+      expect(result.schemas['UserDto'].properties?.name).toEqual({
+        type: 'string',
+      });
+    });
+
     it('should extract references from parameters', () => {
       const paths: OpenApiPaths = {
         '/users': {
@@ -148,6 +184,122 @@ describe('schema-merger', () => {
       const result = mergeSchemas(paths, schemas);
 
       expect(result.schemas['UserFilter']).toBeDefined();
+    });
+  });
+
+  describe('nullable normalization (type array to nullable: true)', () => {
+    it('should normalize type: [T, "null"] to nullable: true', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: {
+              bio: { type: ['string', 'null'] },
+            },
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['User'].properties?.bio).toEqual({
+        type: 'string',
+        nullable: true,
+      });
+    });
+
+    it('should normalize nested nullable in items', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/UserList' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          UserList: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: { type: ['number', 'null'] },
+              },
+            },
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      const items = result.schemas['UserList'].properties?.items as any;
+      expect(items.items).toEqual({ type: 'number', nullable: true });
+    });
+
+    it('should leave non-null types unchanged', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+            },
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['User'].properties?.name).toEqual({
+        type: 'string',
+      });
     });
   });
 

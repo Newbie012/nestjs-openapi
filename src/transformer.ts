@@ -149,10 +149,25 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
   }
 
   if (trimmed.includes(' | ')) {
-    const types = trimmed.split(' | ').map((t) => t.trim());
-    return {
-      oneOf: types.map((type) => tsTypeToOpenApiSchema(type)),
-    };
+    const allMembers = trimmed.split(' | ').map((t) => t.trim());
+    const hasNull = allMembers.includes('null');
+    const types = allMembers.filter((t) => t !== 'undefined' && t !== 'null');
+
+    if (types.length === 0) return { type: 'object' };
+
+    const schema =
+      types.length === 1
+        ? tsTypeToOpenApiSchema(types[0])
+        : { oneOf: types.map((type) => tsTypeToOpenApiSchema(type)) };
+
+    if (!hasNull) return schema;
+
+    // $ref can't have siblings in 3.0, wrap in allOf
+    if (schema.$ref) {
+      return { allOf: [{ $ref: schema.$ref }], nullable: true };
+    }
+
+    return { ...schema, nullable: true };
   }
 
   switch (trimmed.toLowerCase()) {
