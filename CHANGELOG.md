@@ -1,5 +1,13 @@
 # nestjs-openapi
 
+## 0.1.2
+
+### Patch Changes
+
+- [#18](https://github.com/Newbie012/nestjs-openapi/pull/18) [`60d2d5a`](https://github.com/Newbie012/nestjs-openapi/commit/60d2d5ad35d3a824636c7ba4fa3704c17c6e4241) Thanks [@Newbie012](https://github.com/Newbie012)! - Fix optional query parameters generating incorrect `oneOf` schemas with a spurious `object` branch.
+
+  Handle `null` in union types by converting to `nullable: true` (OpenAPI 3.0) or `type: ["string", "null"]` (OpenAPI 3.1+) instead of discarding nullability information. Also normalize `ts-json-schema-generator` 3.1-style nullable output to canonical 3.0 format in schema merging, and extend version transforms to cover path-level schemas (parameters, requestBody, responses).
+
 ## 0.1.1
 
 ### Patch Changes
