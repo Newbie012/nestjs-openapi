@@ -140,15 +140,11 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
 
   // Normalize 3.1 type arrays to 3.0 nullable (e.g., ["string", "null"] → { type: "string", nullable: true })
   if (Array.isArray(schema.type)) {
-    const types = schema.type.filter((t) => t !== 'null');
-    if (types.length === 1) {
-      result['type'] = types[0];
-      if (schema.type.includes('null')) {
-        result['nullable'] = true;
-      }
-    } else {
-      result['type'] = schema.type;
-    }
+    const nonNull = schema.type.filter((t) => t !== 'null');
+    const isNullable = nonNull.length < schema.type.length;
+
+    result['type'] = nonNull.length === 1 ? nonNull[0] : schema.type;
+    if (isNullable && nonNull.length === 1) result['nullable'] = true;
   } else if (schema.type) {
     result['type'] = schema.type;
   }

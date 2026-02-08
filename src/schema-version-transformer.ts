@@ -95,9 +95,9 @@ const transformOperationToV31 = (
         ...operation.requestBody,
         content: Object.fromEntries(
           Object.entries(operation.requestBody.content).map(
-            ([contentType, { schema }]) => [
+            ([contentType, mediaType]) => [
               contentType,
-              { schema: transformSchemaToV31(schema) },
+              { ...mediaType, schema: transformSchemaToV31(mediaType.schema) },
             ],
           ),
         ),
@@ -112,9 +112,12 @@ const transformOperationToV31 = (
             ...response,
             content: Object.fromEntries(
               Object.entries(response.content).map(
-                ([contentType, { schema }]) => [
+                ([contentType, mediaType]) => [
                   contentType,
-                  { schema: transformSchemaToV31(schema) },
+                  {
+                    ...mediaType,
+                    schema: transformSchemaToV31(mediaType.schema),
+                  },
                 ],
               ),
             ),
@@ -131,8 +134,21 @@ const transformOperationToV31 = (
   };
 };
 
+const HTTP_METHODS = new Set([
+  'get',
+  'put',
+  'post',
+  'delete',
+  'options',
+  'head',
+  'patch',
+  'trace',
+]);
+
 /**
- * Transforms all path operations to match the target version
+ * Transforms all path operations to match the target version.
+ * Only transforms HTTP method entries, leaving path-level fields
+ * (parameters, summary, description) untouched.
  */
 const transformPathsForVersion = (
   paths: OpenApiPaths,
@@ -141,13 +157,14 @@ const transformPathsForVersion = (
   if (version === '3.0.3') return paths;
 
   return Object.fromEntries(
-    Object.entries(paths).map(([path, methods]) => [
+    Object.entries(paths).map(([path, pathItem]) => [
       path,
       Object.fromEntries(
-        Object.entries(methods).map(([method, operation]) => [
-          method,
-          transformOperationToV31(operation),
-        ]),
+        Object.entries(pathItem).map(([key, value]) =>
+          HTTP_METHODS.has(key)
+            ? [key, transformOperationToV31(value)]
+            : [key, value],
+        ),
       ),
     ]),
   );

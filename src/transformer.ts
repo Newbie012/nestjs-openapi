@@ -155,25 +155,19 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
 
     if (types.length === 0) return { type: 'object' };
 
-    let schema: OpenApiSchema;
-    if (types.length === 1) {
-      schema = tsTypeToOpenApiSchema(types[0]);
-    } else {
-      schema = { oneOf: types.map((type) => tsTypeToOpenApiSchema(type)) };
+    const schema =
+      types.length === 1
+        ? tsTypeToOpenApiSchema(types[0])
+        : { oneOf: types.map((type) => tsTypeToOpenApiSchema(type)) };
+
+    if (!hasNull) return schema;
+
+    // $ref can't have siblings in 3.0, wrap in allOf
+    if (schema.$ref) {
+      return { allOf: [{ $ref: schema.$ref }], nullable: true };
     }
 
-    if (hasNull) {
-      // $ref can't have siblings in 3.0, wrap in allOf
-      if (schema.$ref) {
-        return {
-          allOf: [{ $ref: schema.$ref }],
-          nullable: true,
-        } as OpenApiSchema;
-      }
-      return { ...schema, nullable: true } as OpenApiSchema;
-    }
-
-    return schema;
+    return { ...schema, nullable: true };
   }
 
   switch (trimmed.toLowerCase()) {

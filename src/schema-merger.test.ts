@@ -176,7 +176,7 @@ describe('schema-merger', () => {
           User: {
             type: 'object',
             properties: {
-              bio: { type: ['string', 'null'] as any },
+              bio: { type: ['string', 'null'] },
             },
           },
         },
@@ -216,7 +216,7 @@ describe('schema-merger', () => {
             properties: {
               items: {
                 type: 'array',
-                items: { type: ['number', 'null'] as any },
+                items: { type: ['number', 'null'] },
               },
             },
           },

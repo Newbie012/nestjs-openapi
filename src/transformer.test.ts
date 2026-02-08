@@ -1289,6 +1289,44 @@ describe('transformMethod', () => {
         oneOf: [{ type: 'string' }, { type: 'number' }],
       });
     });
+
+    it('should fall back to object when union contains only undefined', () => {
+      const methodInfo = createMethodInfo({
+        parameters: [
+          {
+            name: 'param',
+            location: 'query',
+            tsType: 'undefined',
+            required: false,
+            description: Option.none(),
+          },
+        ],
+      });
+
+      const result = transformMethod(methodInfo);
+      const param = result['/test'].get.parameters?.[0];
+
+      expect(param?.schema).toEqual({ type: 'object' });
+    });
+
+    it('should fall back to object when union is null | undefined', () => {
+      const methodInfo = createMethodInfo({
+        parameters: [
+          {
+            name: 'param',
+            location: 'query',
+            tsType: 'null | undefined',
+            required: false,
+            description: Option.none(),
+          },
+        ],
+      });
+
+      const result = transformMethod(methodInfo);
+      const param = result['/test'].get.parameters?.[0];
+
+      expect(param?.schema).toEqual({ type: 'object' });
+    });
   });
 
   describe('Non-PascalCase class names', () => {
