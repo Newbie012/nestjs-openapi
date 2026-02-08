@@ -173,6 +173,7 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
       return { type: 'object' };
     case 'unknown':
     case 'any':
+    case 'object':
       return { type: 'object' };
   }
 
@@ -202,9 +203,8 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
     };
   }
 
-  // PascalCase names (including generics like PaginatedResponse<T>) become $ref to components/schemas
-  // Match: UserDto, PaginatedResponse<ArticleEntity>, ApiResponse<User,Error>
-  if (trimmed.match(/^[A-Z][a-zA-Z0-9]*(<[^>]+>)?$/)) {
+  // Any remaining identifier is a class/interface/type alias — generate a $ref
+  if (trimmed.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*(<[^>]+>)?$/)) {
     return { $ref: `#/components/schemas/${trimmed}` };
   }
 

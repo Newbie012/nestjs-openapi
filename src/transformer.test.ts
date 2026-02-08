@@ -1036,6 +1036,7 @@ describe('transformMethod', () => {
         { tsType: 'boolean', expected: { type: 'boolean' } },
         { tsType: 'Date', expected: { type: 'string', format: 'date-time' } },
         { tsType: 'unknown', expected: { type: 'object' } },
+        { tsType: 'object', expected: { type: 'object' } },
         {
           tsType: 'CustomDto',
           expected: { $ref: '#/components/schemas/CustomDto' },
@@ -1126,6 +1127,98 @@ describe('transformMethod', () => {
 
       expect(param?.schema).toEqual({
         oneOf: [{ type: 'string' }, { type: 'number' }],
+      });
+    });
+  });
+
+  describe('Non-PascalCase class names', () => {
+    it('should generate $ref for camelCase class names used as return types', () => {
+      const methodInfo = createMethodInfo({
+        httpMethod: 'GET',
+        path: '/items',
+        methodName: 'getItems',
+        returnType: {
+          type: Option.some('myResponseDto'),
+          inline: Option.none(),
+          container: Option.none(),
+          filePath: Option.none(),
+        },
+      });
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/items'].get;
+
+      expect(operation.responses).toMatchObject({
+        '200': {
+          description: '',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/myResponseDto',
+              },
+            },
+          },
+        },
+      });
+    });
+
+    it('should generate array of $ref for camelCase class names', () => {
+      const methodInfo = createMethodInfo({
+        httpMethod: 'GET',
+        path: '/items',
+        methodName: 'getItems',
+        returnType: {
+          type: Option.some('myResponseDto'),
+          inline: Option.none(),
+          container: Option.some('array'),
+          filePath: Option.none(),
+        },
+      });
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/items'].get;
+
+      expect(operation.responses).toMatchObject({
+        '200': {
+          description: '',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/myResponseDto',
+                },
+              },
+            },
+          },
+        },
+      });
+    });
+
+    it('should generate $ref for camelCase type in parameter schema', () => {
+      const methodInfo = createMethodInfo({
+        parameters: [
+          {
+            name: 'body',
+            location: 'body',
+            tsType: 'myResponseDto',
+            required: true,
+            description: Option.none(),
+          },
+        ],
+      });
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/test'].get;
+
+      expect(operation.requestBody).toMatchObject({
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/myResponseDto',
+            },
+          },
+        },
       });
     });
   });

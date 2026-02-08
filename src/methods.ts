@@ -304,8 +304,8 @@ const isExpandableType = (typeName: string): boolean => {
   if (typeName.includes(' | ') || typeName.includes(' & ')) return false;
   // Array types should not be expanded
   if (typeName.endsWith('[]')) return false;
-  // Only expand PascalCase class names
-  return /^[A-Z][a-zA-Z0-9]*$/.test(typeName);
+  // Expand named class/interface types (PascalCase or camelCase)
+  return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(typeName);
 };
 
 /** Convert TypeScript type to simpler type string for OpenAPI */
