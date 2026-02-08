@@ -151,6 +151,122 @@ describe('schema-merger', () => {
     });
   });
 
+  describe('nullable normalization (type array to nullable: true)', () => {
+    it('should normalize type: [T, "null"] to nullable: true', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: {
+              bio: { type: ['string', 'null'] as any },
+            },
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['User'].properties?.bio).toEqual({
+        type: 'string',
+        nullable: true,
+      });
+    });
+
+    it('should normalize nested nullable in items', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/UserList' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          UserList: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: { type: ['number', 'null'] as any },
+              },
+            },
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      const items = result.schemas['UserList'].properties?.items as any;
+      expect(items.items).toEqual({ type: 'number', nullable: true });
+    });
+
+    it('should leave non-null types unchanged', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+            },
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['User'].properties?.name).toEqual({
+        type: 'string',
+      });
+    });
+  });
+
   describe('mergeGeneratedSchemas', () => {
     it('should merge multiple schema objects', () => {
       const schemas1: GeneratedSchemas = {

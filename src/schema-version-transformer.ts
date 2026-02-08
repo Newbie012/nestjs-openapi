@@ -1,4 +1,10 @@
-import type { OpenApiSchema, OpenApiSpec, OpenApiVersion } from './types.js';
+import type {
+  OpenApiOperation,
+  OpenApiPaths,
+  OpenApiSchema,
+  OpenApiSpec,
+  OpenApiVersion,
+} from './types.js';
 
 /**
  * Transforms schemas between OpenAPI 3.0 and 3.1/3.2 formats
@@ -74,9 +80,84 @@ export const transformSchemasForVersion = (
 };
 
 /**
+ * Transforms an operation's schemas (parameters, requestBody, responses)
+ */
+const transformOperationToV31 = (
+  operation: OpenApiOperation,
+): OpenApiOperation => {
+  const parameters = operation.parameters?.map((param) => ({
+    ...param,
+    schema: transformSchemaToV31(param.schema),
+  }));
+
+  const requestBody = operation.requestBody
+    ? {
+        ...operation.requestBody,
+        content: Object.fromEntries(
+          Object.entries(operation.requestBody.content).map(
+            ([contentType, { schema }]) => [
+              contentType,
+              { schema: transformSchemaToV31(schema) },
+            ],
+          ),
+        ),
+      }
+    : undefined;
+
+  const responses = Object.fromEntries(
+    Object.entries(operation.responses).map(([code, response]) => [
+      code,
+      response.content
+        ? {
+            ...response,
+            content: Object.fromEntries(
+              Object.entries(response.content).map(
+                ([contentType, { schema }]) => [
+                  contentType,
+                  { schema: transformSchemaToV31(schema) },
+                ],
+              ),
+            ),
+          }
+        : response,
+    ]),
+  );
+
+  return {
+    ...operation,
+    ...(parameters && { parameters }),
+    ...(requestBody && { requestBody }),
+    responses,
+  };
+};
+
+/**
+ * Transforms all path operations to match the target version
+ */
+const transformPathsForVersion = (
+  paths: OpenApiPaths,
+  version: OpenApiVersion,
+): OpenApiPaths => {
+  if (version === '3.0.3') return paths;
+
+  return Object.fromEntries(
+    Object.entries(paths).map(([path, methods]) => [
+      path,
+      Object.fromEntries(
+        Object.entries(methods).map(([method, operation]) => [
+          method,
+          transformOperationToV31(operation),
+        ]),
+      ),
+    ]),
+  );
+};
+
+/**
  * Transforms the entire spec to match the target OpenAPI version
  * Handles:
  * - Schema transformations (nullable, type arrays)
+ * - Path-level schema transformations
  * - Version string in the openapi field
  */
 export const transformSpecForVersion = (
@@ -87,14 +168,18 @@ export const transformSpecForVersion = (
     return { ...spec, openapi: version };
   }
 
-  // Transform schemas if they exist
+  // Transform component schemas
   const transformedSchemas = spec.components?.schemas
     ? transformSchemasForVersion(spec.components.schemas, version)
     : undefined;
 
+  // Transform path-level schemas
+  const transformedPaths = transformPathsForVersion(spec.paths, version);
+
   return {
     ...spec,
     openapi: version,
+    paths: transformedPaths,
     ...(transformedSchemas && {
       components: {
         ...spec.components,

@@ -149,18 +149,31 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
   }
 
   if (trimmed.includes(' | ')) {
-    // Strip undefined/null from unions (e.g., "string | undefined" from strictNullChecks)
-    const types = trimmed
-      .split(' | ')
-      .map((t) => t.trim())
-      .filter((t) => t !== 'undefined' && t !== 'null');
+    const allMembers = trimmed.split(' | ').map((t) => t.trim());
+    const hasNull = allMembers.includes('null');
+    const types = allMembers.filter((t) => t !== 'undefined' && t !== 'null');
 
     if (types.length === 0) return { type: 'object' };
-    if (types.length === 1) return tsTypeToOpenApiSchema(types[0]);
 
-    return {
-      oneOf: types.map((type) => tsTypeToOpenApiSchema(type)),
-    };
+    let schema: OpenApiSchema;
+    if (types.length === 1) {
+      schema = tsTypeToOpenApiSchema(types[0]);
+    } else {
+      schema = { oneOf: types.map((type) => tsTypeToOpenApiSchema(type)) };
+    }
+
+    if (hasNull) {
+      // $ref can't have siblings in 3.0, wrap in allOf
+      if (schema.$ref) {
+        return {
+          allOf: [{ $ref: schema.$ref }],
+          nullable: true,
+        } as OpenApiSchema;
+      }
+      return { ...schema, nullable: true } as OpenApiSchema;
+    }
+
+    return schema;
   }
 
   switch (trimmed.toLowerCase()) {

@@ -138,7 +138,20 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   // Build result object incrementally
   const result: Record<string, unknown> = {};
 
-  if (schema.type) result['type'] = schema.type;
+  // Normalize 3.1 type arrays to 3.0 nullable (e.g., ["string", "null"] → { type: "string", nullable: true })
+  if (Array.isArray(schema.type)) {
+    const types = schema.type.filter((t) => t !== 'null');
+    if (types.length === 1) {
+      result['type'] = types[0];
+      if (schema.type.includes('null')) {
+        result['nullable'] = true;
+      }
+    } else {
+      result['type'] = schema.type;
+    }
+  } else if (schema.type) {
+    result['type'] = schema.type;
+  }
   if (schema.format) result['format'] = schema.format;
   if (schema.$ref) {
     // Convert #/definitions/ to #/components/schemas/
