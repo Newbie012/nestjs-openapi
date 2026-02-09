@@ -1,5 +1,13 @@
 # nestjs-openapi
 
+## 0.1.4
+
+### Patch Changes
+
+- [#22](https://github.com/Newbie012/nestjs-openapi/pull/22) [`a1cac44`](https://github.com/Newbie012/nestjs-openapi/commit/a1cac440bf40736ceb8a433c1b91b6b518e3f52f) Thanks [@Newbie012](https://github.com/Newbie012)! - - Added `options.schemas.aliasRefs` with two modes: `"collapse"` and `"preserve"`.
+  - Default behavior now collapses pass-through schema aliases (for example `A -> B -> C` becomes `A -> C` when `B` is a pure `$ref` alias).
+  - Added `"preserve"` mode for consumers who want to keep alias schemas in `components.schemas`.
+
 ## 0.1.3
 
 ### Patch Changes
