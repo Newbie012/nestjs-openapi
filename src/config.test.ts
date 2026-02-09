@@ -148,6 +148,7 @@ describe('Config', () => {
         'ApiExcludeController',
       ]);
       expect(resolved.extractValidation).toBe(true);
+      expect(resolved.aliasRefs).toBe('collapse');
       expect(resolved.format).toBe('json');
       expect(resolved.servers).toEqual([]);
       expect(resolved.securitySchemes).toEqual([]);
@@ -247,6 +248,9 @@ describe('Config', () => {
         options: {
           excludeDecorators: ['Internal', 'Private'],
           extractValidation: false,
+          schemas: {
+            aliasRefs: 'preserve' as const,
+          },
         },
       };
 
@@ -256,6 +260,7 @@ describe('Config', () => {
       expect(resolved.exclude).toEqual(['**/test/**']);
       expect(resolved.excludeDecorators).toEqual(['Internal', 'Private']);
       expect(resolved.extractValidation).toBe(false);
+      expect(resolved.aliasRefs).toBe('preserve');
       expect(resolved.format).toBe('yaml');
       expect(resolved.servers).toHaveLength(1);
     });

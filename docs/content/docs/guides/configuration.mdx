@@ -308,6 +308,27 @@ options: {
   inlined—they always use a schema reference regardless of this setting.
 </Callout>
 
+### `schemas`
+
+Schema generation and normalization options.
+
+#### `schemas.aliasRefs`
+
+Controls how pass-through alias schemas are emitted (default: `"collapse"`).
+
+| Value        | Description |
+| ------------ | ----------- |
+| `"collapse"` | Rewrite alias chains like `A -> B -> C` to `A -> C` when `B` is only a `$ref` wrapper, then remove `B` |
+| `"preserve"` | Keep alias schemas in `components.schemas` |
+
+```typescript
+options: {
+  schemas: {
+    aliasRefs: 'collapse', // default
+  },
+}
+```
+
 ## `extends`
 
 The type definition includes an `extends` field for future shared configs, but it is **not implemented** in the current Promise-based generator. Keep configs standalone for now.

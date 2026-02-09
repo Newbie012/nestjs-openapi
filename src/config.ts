@@ -100,6 +100,9 @@ const DEFAULT_CONFIG = {
   options: {
     excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
     extractValidation: true,
+    schemas: {
+      aliasRefs: 'collapse' as const,
+    },
   },
   format: 'json' as OutputFormat,
   openapi: {
@@ -309,6 +312,8 @@ export const resolveConfig = (
     dtoGlob,
     extractValidation:
       options.extractValidation ?? DEFAULT_CONFIG.options.extractValidation,
+    aliasRefs:
+      options.schemas?.aliasRefs ?? DEFAULT_CONFIG.options.schemas.aliasRefs,
     basePath: options.basePath,
     version: openapi.version,
     info: openapi.info,

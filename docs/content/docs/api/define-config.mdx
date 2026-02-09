@@ -208,6 +208,9 @@ defineConfig({
     extractValidation: true, // default
     excludeDecorators: ['ApiExcludeEndpoint'],
     pathFilter: /regex/ /* or function */,
+    schemas: {
+      aliasRefs: 'collapse', // default
+    },
   },
 });
 ```

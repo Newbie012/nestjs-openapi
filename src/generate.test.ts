@@ -405,5 +405,189 @@ export default defineConfig({
       const result = await generate(configPath);
       expect(result.outputPath).toBe(outputPath);
     });
+
+    it('should collapse alias ref schemas by default', async () => {
+      const appDir = join(TEST_DIR, 'alias-ref-default-collapse-app');
+      const outputPath = join(appDir, 'openapi.generated.json');
+      const configPath = join(TEST_DIR, 'alias-ref-default-collapse.config.ts');
+
+      writeMinimalApp(
+        appDir,
+        `
+import { Controller, Get } from '@nestjs/common';
+
+export type Relation<T> = T;
+
+export class UserDto {
+  id!: string;
+}
+
+export class PostDto {
+  author!: Relation<UserDto>;
+}
+
+@Controller('posts')
+export class AppController {
+  @Get()
+  list(): PostDto {
+    return { author: { id: '1' } };
+  }
+}
+`,
+      );
+
+      const config = `import { defineConfig } from '${configImportPath}';
+
+export default defineConfig({
+  output: '${outputPath.replace(/\\/g, '/')}',
+  files: {
+    entry: '${join(appDir, 'src/app.module.ts').replace(/\\/g, '/')}',
+    tsconfig: '${join(appDir, 'tsconfig.json').replace(/\\/g, '/')}',
+    dtoGlob: '${join(appDir, 'src/**/*.ts').replace(/\\/g, '/')}',
+  },
+  openapi: {
+    info: { title: 'Alias refs', version: '1.0.0' },
+  },
+});
+`;
+      writeFileSync(configPath, config, 'utf-8');
+
+      await generate(configPath);
+
+      const spec = JSON.parse(
+        readFileSync(outputPath, 'utf-8'),
+      ) as Record<string, any>;
+      const schemas = spec.components?.schemas ?? {};
+      expect(schemas['Relation<UserDto>']).toBeUndefined();
+      expect(schemas['PostDto']?.properties?.author?.$ref).toBe(
+        '#/components/schemas/UserDto',
+      );
+    });
+
+    it('should preserve alias ref schemas when options.schemas.aliasRefs is preserve', async () => {
+      const appDir = join(TEST_DIR, 'alias-ref-preserve-app');
+      const outputPath = join(appDir, 'openapi.generated.json');
+      const configPath = join(TEST_DIR, 'alias-ref-preserve.config.ts');
+
+      writeMinimalApp(
+        appDir,
+        `
+import { Controller, Get } from '@nestjs/common';
+
+export type Relation<T> = T;
+
+export class UserDto {
+  id!: string;
+}
+
+export class PostDto {
+  author!: Relation<UserDto>;
+}
+
+@Controller('posts')
+export class AppController {
+  @Get()
+  list(): PostDto {
+    return { author: { id: '1' } };
+  }
+}
+`,
+      );
+
+      const config = `import { defineConfig } from '${configImportPath}';
+
+export default defineConfig({
+  output: '${outputPath.replace(/\\/g, '/')}',
+  files: {
+    entry: '${join(appDir, 'src/app.module.ts').replace(/\\/g, '/')}',
+    tsconfig: '${join(appDir, 'tsconfig.json').replace(/\\/g, '/')}',
+    dtoGlob: '${join(appDir, 'src/**/*.ts').replace(/\\/g, '/')}',
+  },
+  openapi: {
+    info: { title: 'Alias refs', version: '1.0.0' },
+  },
+  options: {
+    schemas: {
+      aliasRefs: 'preserve',
+    },
+  },
+});
+`;
+      writeFileSync(configPath, config, 'utf-8');
+
+      await generate(configPath);
+
+      const spec = JSON.parse(
+        readFileSync(outputPath, 'utf-8'),
+      ) as Record<string, any>;
+      const schemas = spec.components?.schemas ?? {};
+      expect(schemas['Relation<UserDto>']).toBeDefined();
+      expect(schemas['PostDto']?.properties?.author?.$ref).toBe(
+        '#/components/schemas/Relation<UserDto>',
+      );
+    });
+
+    it('should collapse alias ref schemas when options.schemas.aliasRefs is collapse', async () => {
+      const appDir = join(TEST_DIR, 'alias-ref-collapse-app');
+      const outputPath = join(appDir, 'openapi.generated.json');
+      const configPath = join(TEST_DIR, 'alias-ref-collapse.config.ts');
+
+      writeMinimalApp(
+        appDir,
+        `
+import { Controller, Get } from '@nestjs/common';
+
+export type Relation<T> = T;
+
+export class UserDto {
+  id!: string;
+}
+
+export class PostDto {
+  author!: Relation<UserDto>;
+}
+
+@Controller('posts')
+export class AppController {
+  @Get()
+  list(): PostDto {
+    return { author: { id: '1' } };
+  }
+}
+`,
+      );
+
+      const config = `import { defineConfig } from '${configImportPath}';
+
+export default defineConfig({
+  output: '${outputPath.replace(/\\/g, '/')}',
+  files: {
+    entry: '${join(appDir, 'src/app.module.ts').replace(/\\/g, '/')}',
+    tsconfig: '${join(appDir, 'tsconfig.json').replace(/\\/g, '/')}',
+    dtoGlob: '${join(appDir, 'src/**/*.ts').replace(/\\/g, '/')}',
+  },
+  openapi: {
+    info: { title: 'Alias refs', version: '1.0.0' },
+  },
+  options: {
+    schemas: {
+      aliasRefs: 'collapse',
+    },
+  },
+});
+`;
+      writeFileSync(configPath, config, 'utf-8');
+
+      await generate(configPath);
+
+      const spec = JSON.parse(
+        readFileSync(outputPath, 'utf-8'),
+      ) as Record<string, any>;
+      const schemas = spec.components?.schemas ?? {};
+      expect(schemas['Relation<UserDto>']).toBeUndefined();
+      expect(schemas['PostDto']?.properties?.author?.$ref).toBe(
+        '#/components/schemas/UserDto',
+      );
+    });
   });
 });
