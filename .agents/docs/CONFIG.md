@@ -102,6 +102,7 @@ When `files.tsconfig` is omitted, the Promise API (`generate()`) searches upward
 | `excludeDecorators` | `string[]` | `['ApiExcludeEndpoint', 'ApiExcludeController']` | Exclusion decorators |
 | `pathFilter` | `RegExp \| Function` | — | Filter routes |
 | `query.style` | `"inline" \| "ref"` | `"inline"` | How to represent query DTOs |
+| `schemas.aliasRefs` | `"collapse" \| "preserve"` | `"collapse"` | Collapse pass-through `$ref` aliases |
 
 #### Query DTO Style
 
@@ -136,6 +137,19 @@ parameters:
     schema:
       $ref: '#/components/schemas/PaginationDto'
 ```
+
+#### Schema Alias Refs
+
+Use `schemas.aliasRefs` to control how pass-through alias schemas are emitted:
+
+```typescript
+options: {
+  schemas: { aliasRefs: 'collapse' }, // default
+}
+```
+
+- `"collapse"` rewrites `A -> B -> C` to `A -> C` when `B` is just a `$ref` alias (plus optional description), and removes `B`.
+- `"preserve"` keeps alias schemas in `components.schemas`.
 
 #### Validation Extraction
 

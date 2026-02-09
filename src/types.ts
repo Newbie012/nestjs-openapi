@@ -299,6 +299,25 @@ export interface OptionsConfig {
    * Query parameter handling options.
    */
   readonly query?: QueryOptions;
+
+  /**
+   * Schema generation and normalization options.
+   */
+  readonly schemas?: SchemaOptions;
+}
+
+/**
+ * Schema generation and normalization options.
+ */
+export interface SchemaOptions {
+  /**
+   * How to handle schema aliases that only redirect via `$ref`.
+   * - `"collapse"`: Rewrite refs to the final target schema and remove alias entries
+   * - `"preserve"`: Keep alias schemas as-is
+   *
+   * @default "collapse"
+   */
+  readonly aliasRefs?: 'collapse' | 'preserve';
 }
 
 /**

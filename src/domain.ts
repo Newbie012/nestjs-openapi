@@ -384,6 +384,12 @@ export type OpenApiConfig = typeof OpenApiConfig.Type;
 export const QueryOptionsConfig = Schema.Struct({
   style: Schema.optional(Schema.Literal('inline', 'ref')),
 });
+export type QueryOptionsConfig = typeof QueryOptionsConfig.Type;
+
+export const SchemaOptionsConfig = Schema.Struct({
+  aliasRefs: Schema.optional(Schema.Literal('collapse', 'preserve')),
+});
+export type SchemaOptionsConfig = typeof SchemaOptionsConfig.Type;
 
 // Schema for path filter functions: (path: string) => boolean
 const PathFilterFunction = Schema.declare(
@@ -407,6 +413,7 @@ export const OptionsConfig = Schema.Struct({
   extractValidation: Schema.optional(Schema.Boolean),
   excludeDecorators: Schema.optional(Schema.Array(Schema.String)),
   query: Schema.optional(QueryOptionsConfig),
+  schemas: Schema.optional(SchemaOptionsConfig),
   pathFilter: Schema.optional(PathFilter),
 });
 export type OptionsConfig = typeof OptionsConfig.Type;
@@ -429,6 +436,7 @@ export const ResolvedConfig = Schema.Struct({
   excludeDecorators: Schema.Array(Schema.String),
   dtoGlob: Schema.Array(Schema.String),
   extractValidation: Schema.Boolean,
+  aliasRefs: Schema.Literal('collapse', 'preserve'),
   basePath: Schema.optional(Schema.String),
   pathFilter: Schema.optional(PathFilter),
   version: Schema.optional(Schema.String),

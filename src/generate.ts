@@ -38,6 +38,7 @@ import {
   type GeneratedSchemas,
 } from './schema-generator.js';
 import { normalizeStructureRefs } from './schema-normalizer.js';
+import { collapseAliasRefs } from './schema-alias-collapser.js';
 import { mergeSchemas } from './schema-merger.js';
 import { filterMethods } from './filter.js';
 import { transformSpecForVersion } from './schema-version-transformer.js';
@@ -628,6 +629,7 @@ export const generate = async (
 
   const files = config.files ?? {};
   const options = config.options ?? {};
+  const aliasRefsMode = options.schemas?.aliasRefs ?? 'collapse';
   const openapi = config.openapi;
   const security = openapi.security ?? {};
 
@@ -867,6 +869,12 @@ export const generate = async (
         }
       }
     }
+  }
+
+  if (aliasRefsMode === 'collapse' && Object.keys(schemas).length > 0) {
+    const collapsed = collapseAliasRefs(paths as OpenApiPaths, schemas);
+    paths = collapsed.paths as typeof paths;
+    schemas = collapsed.schemas;
   }
 
   const securitySchemes =

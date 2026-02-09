@@ -292,6 +292,11 @@ interface OptionsConfig {
    * Query parameter handling options.
    */
   readonly query?: QueryOptions;
+
+  /**
+   * Schema generation and normalization options.
+   */
+  readonly schemas?: SchemaOptions;
 }
 ```
 
@@ -308,6 +313,22 @@ interface QueryOptions {
    * @default "inline"
    */
   readonly style?: 'inline' | 'ref';
+}
+```
+
+### SchemaOptions
+
+Schema generation and normalization options:
+
+```typescript
+interface SchemaOptions {
+  /**
+   * How to handle pass-through alias schemas.
+   * - "collapse" (default): Rewrite refs to the final target and remove aliases
+   * - "preserve": Keep alias schemas in components.schemas
+   * @default "collapse"
+   */
+  readonly aliasRefs?: 'collapse' | 'preserve';
 }
 ```
 
