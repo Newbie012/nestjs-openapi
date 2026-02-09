@@ -91,4 +91,36 @@ describe('schema-alias-collapser', () => {
     expect(result.schemas['A']).toBeDefined();
     expect(result.schemas['B']).toBeDefined();
   });
+
+  it('should not rewrite literal $ref fields in schema data values', () => {
+    const schemas: Record<string, OpenApiSchema> = {
+      Alias: { $ref: '#/components/schemas/User' },
+      Container: {
+        type: 'object',
+        properties: {
+          payload: {
+            type: 'object',
+            default: {
+              $ref: '#/components/schemas/Alias',
+            },
+          },
+        },
+      },
+      User: { type: 'object' },
+    };
+
+    const result = collapseAliasRefs(
+      createPaths('#/components/schemas/Alias'),
+      schemas,
+    );
+
+    expect(
+      result.paths['/items'].get.responses['200'].content?.['application/json']
+        .schema,
+    ).toEqual({ $ref: '#/components/schemas/User' });
+    expect(
+      (result.schemas['Container'].properties?.payload?.default as { $ref: string })
+        .$ref,
+    ).toBe('#/components/schemas/Alias');
+  });
 });

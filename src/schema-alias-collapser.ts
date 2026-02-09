@@ -18,33 +18,131 @@ const isAliasSchema = (schema: OpenApiSchema): boolean => {
   );
 };
 
-const rewriteRefs = <T>(
-  value: T,
+const rewriteSchemaRefs = (
+  schema: OpenApiSchema,
   rewriteRef: (ref: string) => string,
-): T => {
-  if (Array.isArray(value)) {
-    return value.map((item) => rewriteRefs(item, rewriteRef)) as T;
+): OpenApiSchema => {
+  const result: Record<string, unknown> = { ...schema };
+
+  if (typeof schema.$ref === 'string') {
+    result['$ref'] = rewriteRef(schema.$ref);
   }
 
-  if (!value || typeof value !== 'object') {
-    return value;
+  if (schema.items) {
+    result['items'] = rewriteSchemaRefs(schema.items, rewriteRef);
   }
 
-  const result: Record<string, unknown> = {};
-
-  for (const [key, nestedValue] of Object.entries(
-    value as Record<string, unknown>,
-  )) {
-    if (key === '$ref' && typeof nestedValue === 'string') {
-      result[key] = rewriteRef(nestedValue);
-      continue;
-    }
-
-    result[key] = rewriteRefs(nestedValue, rewriteRef);
+  if (schema.oneOf) {
+    result['oneOf'] = schema.oneOf.map((item) =>
+      rewriteSchemaRefs(item, rewriteRef),
+    );
   }
 
-  return result as T;
+  if (schema.anyOf) {
+    result['anyOf'] = schema.anyOf.map((item) =>
+      rewriteSchemaRefs(item, rewriteRef),
+    );
+  }
+
+  if (schema.allOf) {
+    result['allOf'] = schema.allOf.map((item) =>
+      rewriteSchemaRefs(item, rewriteRef),
+    );
+  }
+
+  if (schema.properties) {
+    result['properties'] = Object.fromEntries(
+      Object.entries(schema.properties).map(([key, propertySchema]) => [
+        key,
+        rewriteSchemaRefs(propertySchema, rewriteRef),
+      ]),
+    );
+  }
+
+  if (
+    schema.additionalProperties &&
+    typeof schema.additionalProperties === 'object'
+  ) {
+    result['additionalProperties'] = rewriteSchemaRefs(
+      schema.additionalProperties,
+      rewriteRef,
+    );
+  }
+
+  return result as OpenApiSchema;
 };
+
+const rewritePathsRefs = (
+  paths: OpenApiPaths,
+  rewriteRef: (ref: string) => string,
+): OpenApiPaths =>
+  Object.fromEntries(
+    Object.entries(paths).map(([path, methods]) => [
+      path,
+      Object.fromEntries(
+        Object.entries(methods).map(([method, operation]) => [
+          method,
+          {
+            ...operation,
+            ...(operation.parameters && {
+              parameters: operation.parameters.map((parameter) => ({
+                ...parameter,
+                schema: rewriteSchemaRefs(parameter.schema, rewriteRef),
+              })),
+            }),
+            ...(operation.requestBody && {
+              requestBody: {
+                ...operation.requestBody,
+                content: Object.fromEntries(
+                  Object.entries(operation.requestBody.content).map(
+                    ([contentType, content]) => [
+                      contentType,
+                      {
+                        ...content,
+                        schema: rewriteSchemaRefs(content.schema, rewriteRef),
+                      },
+                    ],
+                  ),
+                ),
+              },
+            }),
+            responses: Object.fromEntries(
+              Object.entries(operation.responses).map(([statusCode, response]) => [
+                statusCode,
+                response.content
+                  ? {
+                      ...response,
+                      content: Object.fromEntries(
+                        Object.entries(response.content).map(
+                          ([contentType, content]) => [
+                            contentType,
+                            {
+                              ...content,
+                              schema: rewriteSchemaRefs(content.schema, rewriteRef),
+                            },
+                          ],
+                        ),
+                      ),
+                    }
+                  : response,
+              ]),
+            ),
+          },
+        ]),
+      ),
+    ]),
+  ) as OpenApiPaths;
+
+const rewriteSchemasRefs = (
+  schemas: Record<string, OpenApiSchema>,
+  rewriteRef: (ref: string) => string,
+): Record<string, OpenApiSchema> =>
+  Object.fromEntries(
+    Object.entries(schemas).map(([name, schema]) => [
+      name,
+      rewriteSchemaRefs(schema, rewriteRef),
+    ]),
+  ) as Record<string, OpenApiSchema>;
 
 const resolveAliasTargets = (
   schemas: Record<string, OpenApiSchema>,
@@ -108,8 +206,8 @@ export const collapseAliasRefs = (
     return finalTarget ? toSchemaRef(finalTarget) : ref;
   };
 
-  const rewrittenPaths = rewriteRefs(paths, rewriteRef);
-  const rewrittenSchemas = rewriteRefs(schemas, rewriteRef);
+  const rewrittenPaths = rewritePathsRefs(paths, rewriteRef);
+  const rewrittenSchemas = rewriteSchemasRefs(schemas, rewriteRef);
 
   const collapsedSchemas = Object.fromEntries(
     Object.entries(rewrittenSchemas).filter(
