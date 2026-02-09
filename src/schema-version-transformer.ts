@@ -20,6 +20,13 @@ import type {
 /**
  * Recursively transforms a schema from 3.0 to 3.1 format
  */
+const NULL_SCHEMA: OpenApiSchema = { type: 'null' };
+
+const schemaIncludesNull = (schema: OpenApiSchema): boolean => {
+  if (schema.type === 'null') return true;
+  return Array.isArray(schema.type) && schema.type.includes('null');
+};
+
 const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
   // Transform nested schemas first
   const transformedOneOf = schema.oneOf?.map(transformSchemaToV31);
@@ -37,26 +44,58 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
       )
     : undefined;
 
-  // Handle nullable: transform to type array
-  const hasNullable =
-    schema.nullable && schema.type && typeof schema.type === 'string';
-  const transformedType = hasNullable
-    ? ([schema.type, 'null'] as const)
-    : schema.type;
+  // Remove OpenAPI 3.0 nullable keyword and represent nullability in 3.1 schema form.
+  const { nullable, ...restWithoutNullable } = schema;
 
-  // Build new schema object without the nullable field if we transformed it
-  const { nullable: _nullable, ...restWithoutNullable } = schema;
+  // Simple primitive nullable: { type: "string", nullable: true } -> { type: ["string", "null"] }
+  const transformedType =
+    nullable && typeof schema.type === 'string'
+      ? ([schema.type, 'null'] as const)
+      : schema.type;
 
-  return {
+  const transformedSchema: OpenApiSchema = {
     ...restWithoutNullable,
-    type: transformedType,
+    ...(transformedType !== undefined && { type: transformedType }),
     ...(transformedOneOf && { oneOf: transformedOneOf }),
     ...(transformedAnyOf && { anyOf: transformedAnyOf }),
     ...(transformedAllOf && { allOf: transformedAllOf }),
     ...(transformedItems && { items: transformedItems }),
     ...(transformedProperties && { properties: transformedProperties }),
   };
+
+  if (!nullable) return transformedSchema;
+
+  // Nullability is already encoded in type array form.
+  if (schema.type && typeof schema.type === 'string') {
+    return transformedSchema;
+  }
+
+  // oneOf/anyOf can represent nullability directly by adding a null branch.
+  if (transformedSchema.oneOf) {
+    return {
+      ...transformedSchema,
+      oneOf: schemaIncludesNullInVariants(transformedSchema.oneOf)
+        ? transformedSchema.oneOf
+        : [...transformedSchema.oneOf, NULL_SCHEMA],
+    };
+  }
+
+  if (transformedSchema.anyOf) {
+    return {
+      ...transformedSchema,
+      anyOf: schemaIncludesNullInVariants(transformedSchema.anyOf)
+        ? transformedSchema.anyOf
+        : [...transformedSchema.anyOf, NULL_SCHEMA],
+    };
+  }
+
+  // allOf/$ref/other schema forms need an outer union to keep nullability.
+  return { anyOf: [transformedSchema, NULL_SCHEMA] };
 };
+
+const schemaIncludesNullInVariants = (
+  variants: readonly OpenApiSchema[],
+): boolean => variants.some(schemaIncludesNull);
 
 /**
  * Transforms all schemas in a spec to match the target OpenAPI version

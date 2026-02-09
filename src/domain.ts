@@ -283,15 +283,60 @@ export type SecuritySchemeType = typeof SecuritySchemeType.Type;
 export const SecuritySchemeIn = Schema.Literal('query', 'header', 'cookie');
 export type SecuritySchemeIn = typeof SecuritySchemeIn.Type;
 
-export const SecuritySchemeConfig = Schema.Struct({
+export const OAuth2FlowConfig = Schema.Struct({
+  authorizationUrl: Schema.optional(Schema.String),
+  tokenUrl: Schema.optional(Schema.String),
+  refreshUrl: Schema.optional(Schema.String),
+  scopes: Schema.optional(
+    Schema.Record({ key: Schema.String, value: Schema.String }),
+  ),
+});
+export type OAuth2FlowConfig = typeof OAuth2FlowConfig.Type;
+
+export const OAuth2FlowsConfig = Schema.Struct({
+  implicit: Schema.optional(OAuth2FlowConfig),
+  password: Schema.optional(OAuth2FlowConfig),
+  clientCredentials: Schema.optional(OAuth2FlowConfig),
+  authorizationCode: Schema.optional(OAuth2FlowConfig),
+});
+export type OAuth2FlowsConfig = typeof OAuth2FlowsConfig.Type;
+
+const HttpSecuritySchemeConfig = Schema.Struct({
   name: Schema.String,
-  type: SecuritySchemeType,
-  scheme: Schema.optional(Schema.String),
+  type: Schema.Literal('http'),
+  scheme: Schema.String,
   bearerFormat: Schema.optional(Schema.String),
-  in: Schema.optional(SecuritySchemeIn),
-  parameterName: Schema.optional(Schema.String),
   description: Schema.optional(Schema.String),
 });
+
+const ApiKeySecuritySchemeConfig = Schema.Struct({
+  name: Schema.String,
+  type: Schema.Literal('apiKey'),
+  in: SecuritySchemeIn,
+  parameterName: Schema.String,
+  description: Schema.optional(Schema.String),
+});
+
+const OAuth2SecuritySchemeConfig = Schema.Struct({
+  name: Schema.String,
+  type: Schema.Literal('oauth2'),
+  flows: OAuth2FlowsConfig,
+  description: Schema.optional(Schema.String),
+});
+
+const OpenIdConnectSecuritySchemeConfig = Schema.Struct({
+  name: Schema.String,
+  type: Schema.Literal('openIdConnect'),
+  openIdConnectUrl: Schema.String,
+  description: Schema.optional(Schema.String),
+});
+
+export const SecuritySchemeConfig = Schema.Union(
+  HttpSecuritySchemeConfig,
+  ApiKeySecuritySchemeConfig,
+  OAuth2SecuritySchemeConfig,
+  OpenIdConnectSecuritySchemeConfig,
+);
 export type SecuritySchemeConfig = typeof SecuritySchemeConfig.Type;
 
 export const SecurityRequirement = Schema.Record({

@@ -12,6 +12,7 @@ import {
   OpenApiGeneratorConfig,
   ResolvedConfig,
   type OutputFormat,
+  type SecuritySchemeConfig,
 } from './domain.js';
 import type { Config } from './types.js';
 
@@ -105,10 +106,7 @@ const DEFAULT_CONFIG = {
     servers: [] as readonly { url: string; description?: string }[],
     tags: [] as readonly { name: string; description?: string }[],
     security: {
-      schemes: [] as readonly {
-        name: string;
-        type: 'apiKey' | 'http' | 'oauth2' | 'openIdConnect';
-      }[],
+      schemes: [] as readonly SecuritySchemeConfig[],
       global: [] as readonly Record<string, readonly string[]>[],
     },
   },
@@ -119,9 +117,8 @@ export const findConfigFile = (
 ): Effect.Effect<string, ConfigNotFoundError> =>
   Effect.gen(function* () {
     let currentDir = resolve(startDir);
-    const root = dirname(currentDir);
 
-    while (currentDir !== root) {
+    while (true) {
       for (const fileName of CONFIG_FILE_NAMES) {
         const configPath = resolve(currentDir, fileName);
         if (existsSync(configPath)) {

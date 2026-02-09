@@ -19,7 +19,7 @@ import type {
   OpenApiPaths,
 } from './types.js';
 import { buildSecuritySchemes } from './security.js';
-import { EntryNotFoundError } from './errors.js';
+import { EntryNotFoundError, ConfigValidationError } from './errors.js';
 import { getModules } from './modules.js';
 import {
   getControllerMethodInfos,
@@ -50,6 +50,12 @@ import {
 } from './validation-mapper.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
+const DEFAULT_DTO_GLOB = [
+  '**/*.dto.ts',
+  '**/*.entity.ts',
+  '**/*.model.ts',
+  '**/*.schema.ts',
+] as const;
 
 type MutablePaths = {
   [path: string]: {
@@ -65,6 +71,22 @@ type MutablePaths = {
  * - If operation has decorator security, merge with global security
  * - Merging combines both into a single security requirement (AND logic)
  */
+const mergeSingleSecurityRequirement = (
+  left: SecurityRequirement,
+  right: SecurityRequirement,
+): SecurityRequirement => {
+  const merged: Record<string, string[]> = {};
+
+  for (const requirement of [left, right]) {
+    for (const [scheme, scopes] of Object.entries(requirement)) {
+      const existingScopes = merged[scheme] ?? [];
+      merged[scheme] = [...new Set([...existingScopes, ...scopes])];
+    }
+  }
+
+  return merged;
+};
+
 const mergeSecurityWithGlobal = (
   paths: OpenApiPaths,
   globalSecurity: readonly SecurityRequirement[] | undefined,
@@ -80,32 +102,22 @@ const mergeSecurityWithGlobal = (
 
     for (const [method, operation] of Object.entries(methods)) {
       if (operation.security && operation.security.length > 0) {
-        // Operation has decorator security - merge with global
-        // Combine global and decorator requirements into single object (AND logic)
-        const merged: Record<string, string[]> = {};
+        // Preserve OR alternatives by building a cross product:
+        // (global A OR global B) AND (operation C OR operation D)
+        // -> (A+C) OR (A+D) OR (B+C) OR (B+D)
+        const mergedSecurity: SecurityRequirement[] = [];
 
-        // Add global requirements
         for (const globalReq of globalSecurity) {
-          for (const [scheme, scopes] of Object.entries(globalReq)) {
-            merged[scheme] = [...(merged[scheme] ?? []), ...scopes];
+          for (const operationReq of operation.security) {
+            mergedSecurity.push(
+              mergeSingleSecurityRequirement(globalReq, operationReq),
+            );
           }
-        }
-
-        // Add decorator requirements
-        for (const decoratorReq of operation.security) {
-          for (const [scheme, scopes] of Object.entries(decoratorReq)) {
-            merged[scheme] = [...(merged[scheme] ?? []), ...scopes];
-          }
-        }
-
-        // Deduplicate scopes
-        for (const scheme of Object.keys(merged)) {
-          merged[scheme] = [...new Set(merged[scheme])];
         }
 
         mergedMethods[method] = {
           ...operation,
-          security: [merged],
+          security: mergedSecurity,
         };
       } else {
         // No decorator security - operation inherits global (no change)
@@ -281,9 +293,8 @@ const extractValidationConstraints = async (
  */
 const findTsConfig = (startDir: string): string | undefined => {
   let currentDir = resolve(startDir);
-  const root = dirname(currentDir);
 
-  while (currentDir !== root) {
+  while (true) {
     const tsconfigPath = join(currentDir, 'tsconfig.json');
     if (existsSync(tsconfigPath)) {
       return tsconfigPath;
@@ -458,29 +469,42 @@ export const generate = async (
   );
   const output = resolve(configDir, config.output);
 
-  const tsconfig = files.tsconfig
-    ? resolve(configDir, files.tsconfig)
-    : findTsConfig(dirname(entries[0]));
+  const tsconfig = await runEffect(
+    Effect.gen(function* () {
+      const discoveredTsconfig = files.tsconfig
+        ? resolve(configDir, files.tsconfig)
+        : findTsConfig(dirname(entries[0]));
 
-  if (!tsconfig) {
-    throw new Error(
-      `Could not find tsconfig.json. Please specify files.tsconfig in your config file.`,
-    );
-  }
+      if (!discoveredTsconfig) {
+        return yield* Effect.fail(
+          ConfigValidationError.fromIssues(absoluteConfigPath, [
+            'Could not find tsconfig.json. Please specify files.tsconfig in your config file.',
+          ]),
+        );
+      }
 
-  if (!existsSync(tsconfig)) {
-    throw new Error(`tsconfig.json not found at: ${tsconfig}`);
-  }
+      if (!existsSync(discoveredTsconfig)) {
+        return yield* Effect.fail(
+          ConfigValidationError.fromIssues(absoluteConfigPath, [
+            `tsconfig.json not found at: ${discoveredTsconfig}`,
+          ]),
+        );
+      }
+
+      return discoveredTsconfig;
+    }).pipe(Effect.mapError((error) => new Error(error.message))),
+  );
 
   const extractOptions: ExtractParametersOptions = {
     query: options.query,
   };
 
-  const dtoGlobArray = files.dtoGlob
-    ? Array.isArray(files.dtoGlob)
-      ? files.dtoGlob
-      : [files.dtoGlob]
-    : null;
+  const dtoGlobArray =
+    files.dtoGlob === undefined
+      ? [...DEFAULT_DTO_GLOB]
+      : Array.isArray(files.dtoGlob)
+        ? files.dtoGlob
+        : [files.dtoGlob];
 
   const [extractedMethodInfos, initialSchemas] = await Promise.all([
     runEffect(
@@ -493,25 +517,23 @@ export const generate = async (
         Effect.mapError((error) => new Error(error.message)),
       ),
     ),
-    dtoGlobArray
-      ? runEffect(
-          generateSchemas({
-            dtoGlob: dtoGlobArray as string[],
-            tsconfig,
-            basePath: configDir,
-          }).pipe(
-            Effect.tap((schemas) =>
-              Effect.logDebug('Schema generation complete').pipe(
-                Effect.annotateLogs({
-                  schemaCount: Object.keys(schemas.definitions).length,
-                  dtoGlob: dtoGlobArray,
-                }),
-              ),
-            ),
-            Effect.mapError((error) => new Error(error.message)),
+    runEffect(
+      generateSchemas({
+        dtoGlob: dtoGlobArray as string[],
+        tsconfig,
+        basePath: configDir,
+      }).pipe(
+        Effect.tap((schemas) =>
+          Effect.logDebug('Schema generation complete').pipe(
+            Effect.annotateLogs({
+              schemaCount: Object.keys(schemas.definitions).length,
+              dtoGlob: dtoGlobArray,
+            }),
           ),
-        )
-      : Promise.resolve(null),
+        ),
+        Effect.mapError((error) => new Error(error.message)),
+      ),
+    ),
   ]);
 
   // Process method infos into paths
@@ -547,7 +569,7 @@ export const generate = async (
   // Process schemas if generated
   let schemas: Record<string, OpenApiSchema> = {};
 
-  if (initialSchemas && dtoGlobArray) {
+  if (initialSchemas) {
     let generatedSchemas: GeneratedSchemas = initialSchemas;
 
     const shouldExtractValidation = options.extractValidation !== false;
