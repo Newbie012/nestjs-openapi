@@ -22,6 +22,7 @@ import { generate } from '../src/index.js';
 describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
   let swaggerOutput: any;
   let staticOutput: any;
+  let generateResult: Awaited<ReturnType<typeof generate>>;
 
   beforeAll(async () => {
     const benchmarkDir = path.join(
@@ -36,9 +37,14 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
     }
 
     // Generate with our library
-    await generate(path.join(benchmarkDir, 'openapi.config.ts'));
+    generateResult = await generate(path.join(benchmarkDir, 'openapi.config.ts'));
     const staticPath = path.join(benchmarkDir, 'static-output.json');
     staticOutput = JSON.parse(fs.readFileSync(staticPath, 'utf-8'));
+  });
+
+  it('generates a validation-clean OpenAPI spec (no broken refs)', () => {
+    expect(generateResult.validation.valid).toBe(true);
+    expect(generateResult.validation.brokenRefCount).toBe(0);
   });
 
   describe('Schema Generation', () => {
@@ -170,7 +176,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
 
       // Should reference the union type
       expect(response?.content?.['application/json']?.schema?.$ref).toContain(
-        'ApiResponseType',
+        'ApiResponse',
       );
     });
   });

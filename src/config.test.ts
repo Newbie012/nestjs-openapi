@@ -107,6 +107,15 @@ describe('Config', () => {
 
       expect(result).toBe(tsConfigPath);
     });
+
+    it('should find config in ancestor directories', async () => {
+      const configPath = join(testDir, 'openapi.config.ts');
+      writeFileSync(configPath, 'export default {}');
+
+      const result = await Effect.runPromise(findConfigFile(nestedDir));
+
+      expect(result).toBe(configPath);
+    });
   });
 
   describe('resolveConfig', () => {
@@ -441,6 +450,144 @@ describe('Config', () => {
 
       expect(result.output).toBe('standalone.json');
       expect(result.openapi.info.title).toBe('Standalone API');
+    });
+  });
+
+  describe('security scheme config validation', () => {
+    const testDir = join(process.cwd(), '.test-security-config-dir');
+
+    beforeEach(() => {
+      mkdirSync(testDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(testDir, { recursive: true, force: true });
+    });
+
+    it('should preserve oauth2 flows when loading config', async () => {
+      const config = `
+        export default {
+          output: 'openapi.json',
+          openapi: {
+            info: { title: 'Security API', version: '1.0.0' },
+            security: {
+              schemes: [
+                {
+                  name: 'oauth2',
+                  type: 'oauth2',
+                  flows: {
+                    authorizationCode: {
+                      authorizationUrl: 'https://example.com/oauth/authorize',
+                      tokenUrl: 'https://example.com/oauth/token',
+                      scopes: { read: 'Read access' },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        };
+      `;
+
+      const configPath = join(testDir, 'oauth.config.ts');
+      writeFileSync(configPath, config);
+
+      const result = await Effect.runPromise(loadConfigFromFile(configPath));
+
+      expect(result.openapi.security?.schemes?.[0]).toEqual(
+        expect.objectContaining({
+          flows: expect.objectContaining({
+            authorizationCode: expect.objectContaining({
+              authorizationUrl: 'https://example.com/oauth/authorize',
+              tokenUrl: 'https://example.com/oauth/token',
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should preserve openIdConnectUrl when loading config', async () => {
+      const config = `
+        export default {
+          output: 'openapi.json',
+          openapi: {
+            info: { title: 'Security API', version: '1.0.0' },
+            security: {
+              schemes: [
+                {
+                  name: 'oidc',
+                  type: 'openIdConnect',
+                  openIdConnectUrl: 'https://issuer.example.com/.well-known/openid-configuration',
+                },
+              ],
+            },
+          },
+        };
+      `;
+
+      const configPath = join(testDir, 'oidc.config.ts');
+      writeFileSync(configPath, config);
+
+      const result = await Effect.runPromise(loadConfigFromFile(configPath));
+
+      expect(result.openapi.security?.schemes?.[0]).toEqual(
+        expect.objectContaining({
+          openIdConnectUrl:
+            'https://issuer.example.com/.well-known/openid-configuration',
+        }),
+      );
+    });
+
+    it('should reject apiKey scheme without in and parameterName', async () => {
+      const config = `
+        export default {
+          output: 'openapi.json',
+          openapi: {
+            info: { title: 'Security API', version: '1.0.0' },
+            security: {
+              schemes: [
+                {
+                  name: 'apiKey',
+                  type: 'apiKey',
+                },
+              ],
+            },
+          },
+        };
+      `;
+
+      const configPath = join(testDir, 'invalid-apikey.config.ts');
+      writeFileSync(configPath, config);
+
+      const result = await Effect.runPromiseExit(loadConfigFromFile(configPath));
+
+      expect(result._tag).toBe('Failure');
+    });
+
+    it('should reject http scheme without scheme field', async () => {
+      const config = `
+        export default {
+          output: 'openapi.json',
+          openapi: {
+            info: { title: 'Security API', version: '1.0.0' },
+            security: {
+              schemes: [
+                {
+                  name: 'httpAuth',
+                  type: 'http',
+                },
+              ],
+            },
+          },
+        };
+      `;
+
+      const configPath = join(testDir, 'invalid-http.config.ts');
+      writeFileSync(configPath, config);
+
+      const result = await Effect.runPromiseExit(loadConfigFromFile(configPath));
+
+      expect(result._tag).toBe('Failure');
     });
   });
 });

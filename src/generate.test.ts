@@ -270,4 +270,140 @@ export default defineConfig({
       expect(yamlContent).toEqual(jsonContent);
     });
   });
+
+  describe('regressions', () => {
+    const configImportPath = resolve(process.cwd(), 'src/config.js').replace(
+      /\\/g,
+      '/',
+    );
+
+    const writeMinimalApp = (
+      appDir: string,
+      controllerSource: string,
+      withTsconfig = true,
+    ) => {
+      const srcDir = join(appDir, 'src');
+      mkdirSync(srcDir, { recursive: true });
+
+      writeFileSync(join(srcDir, 'app.controller.ts'), controllerSource, 'utf-8');
+      writeFileSync(
+        join(srcDir, 'app.module.ts'),
+        `
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller.js';
+
+@Module({
+  controllers: [AppController],
+})
+export class AppModule {}
+`,
+        'utf-8',
+      );
+
+      if (withTsconfig) {
+        writeFileSync(
+          join(appDir, 'tsconfig.json'),
+          JSON.stringify(
+            {
+              compilerOptions: {
+                target: 'ES2022',
+                module: 'NodeNext',
+                moduleResolution: 'NodeNext',
+                strict: true,
+                skipLibCheck: true,
+                noEmit: true,
+                experimentalDecorators: true,
+                emitDecoratorMetadata: true,
+              },
+              include: ['src/**/*.ts'],
+            },
+            null,
+            2,
+          ),
+          'utf-8',
+        );
+      }
+    };
+
+    it('should generate valid refs without explicit dtoGlob', async () => {
+      const appDir = join(TEST_DIR, 'missing-dtoglob-app');
+      const outputPath = join(appDir, 'openapi.generated.json');
+      const configPath = join(TEST_DIR, 'missing-dtoglob.config.ts');
+
+      writeMinimalApp(
+        appDir,
+        `
+import { Controller, Get } from '@nestjs/common';
+
+export class UserDto {
+  id!: string;
+}
+
+@Controller('users')
+export class AppController {
+  @Get()
+  getUser(): UserDto {
+    return { id: '1' };
+  }
+}
+`,
+      );
+
+      const config = `import { defineConfig } from '${configImportPath}';
+
+export default defineConfig({
+  output: '${outputPath.replace(/\\/g, '/')}',
+  files: {
+    entry: '${join(appDir, 'src/app.module.ts').replace(/\\/g, '/')}',
+    tsconfig: '${join(appDir, 'tsconfig.json').replace(/\\/g, '/')}',
+  },
+  openapi: {
+    info: { title: 'Missing dtoGlob', version: '1.0.0' },
+  },
+});
+`;
+      writeFileSync(configPath, config, 'utf-8');
+
+      const result = await generate(configPath);
+      expect(result.validation.valid).toBe(true);
+    });
+
+    it('should auto-discover tsconfig from parent directories', async () => {
+      const appDir = join(TEST_DIR, 'tsconfig-discovery-app');
+      const outputPath = join(appDir, 'openapi.generated.json');
+      const configPath = join(TEST_DIR, 'tsconfig-discovery.config.ts');
+
+      writeMinimalApp(
+        appDir,
+        `
+import { Controller, Get } from '@nestjs/common';
+
+@Controller('health')
+export class AppController {
+  @Get()
+  health(): string {
+    return 'ok';
+  }
+}
+`,
+      );
+
+      const config = `import { defineConfig } from '${configImportPath}';
+
+export default defineConfig({
+  output: '${outputPath.replace(/\\/g, '/')}',
+  files: {
+    entry: '${join(appDir, 'src/app.module.ts').replace(/\\/g, '/')}',
+  },
+  openapi: {
+    info: { title: 'tsconfig discovery', version: '1.0.0' },
+  },
+});
+`;
+      writeFileSync(configPath, config, 'utf-8');
+
+      const result = await generate(configPath);
+      expect(result.outputPath).toBe(outputPath);
+    });
+  });
 });

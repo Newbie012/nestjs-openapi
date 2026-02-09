@@ -210,8 +210,82 @@ describe('schema-version-transformer', () => {
       const schema =
         result.paths['/users'].get.responses['200']?.content?.[
           'application/json'
-        ]?.schema;
+      ]?.schema;
       expect(schema?.type).toEqual(['number', 'null']);
+    });
+
+    it('should preserve nullability for allOf-wrapped refs in path schemas', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users/{id}': {
+            get: {
+              operationId: 'getUser',
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        allOf: [{ $ref: '#/components/schemas/UserDto' }],
+                        nullable: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const schema =
+        result.paths['/users/{id}'].get.responses['200']?.content?.[
+          'application/json'
+        ]?.schema;
+
+      expect(schema).toEqual({
+        anyOf: [
+          { allOf: [{ $ref: '#/components/schemas/UserDto' }] },
+          { type: 'null' },
+        ],
+      });
+    });
+
+    it('should preserve nullability for oneOf path schemas', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              parameters: [
+                {
+                  name: 'filter',
+                  in: 'query',
+                  required: false,
+                  schema: {
+                    oneOf: [{ type: 'string' }, { type: 'number' }],
+                    nullable: true,
+                  },
+                },
+              ],
+              responses: { '200': { description: 'OK' } },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const schema = result.paths['/users'].get.parameters?.[0]?.schema;
+      expect(schema).toEqual({
+        oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }],
+      });
     });
 
     it('should transform nullable in request body schemas for 3.1.0', () => {

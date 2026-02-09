@@ -6,8 +6,14 @@
  */
 
 import { Effect, Layer, Logger, LogLevel } from 'effect';
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import {
+  existsSync,
+  writeFileSync,
+  mkdirSync,
+  unlinkSync,
+} from 'node:fs';
+import { resolve, dirname, join, relative } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { Project } from 'ts-morph';
 import { glob as nodeGlob } from 'glob';
 import yaml from 'js-yaml';
@@ -19,7 +25,7 @@ import type {
   OpenApiPaths,
 } from './types.js';
 import { buildSecuritySchemes } from './security.js';
-import { EntryNotFoundError } from './errors.js';
+import { EntryNotFoundError, ConfigValidationError } from './errors.js';
 import { getModules } from './modules.js';
 import {
   getControllerMethodInfos,
@@ -50,6 +56,12 @@ import {
 } from './validation-mapper.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
+const DEFAULT_DTO_GLOB = [
+  '**/*.dto.ts',
+  '**/*.entity.ts',
+  '**/*.model.ts',
+  '**/*.schema.ts',
+] as const;
 
 type MutablePaths = {
   [path: string]: {
@@ -65,6 +77,22 @@ type MutablePaths = {
  * - If operation has decorator security, merge with global security
  * - Merging combines both into a single security requirement (AND logic)
  */
+const mergeSingleSecurityRequirement = (
+  left: SecurityRequirement,
+  right: SecurityRequirement,
+): SecurityRequirement => {
+  const merged: Record<string, string[]> = {};
+
+  for (const requirement of [left, right]) {
+    for (const [scheme, scopes] of Object.entries(requirement)) {
+      const existingScopes = merged[scheme] ?? [];
+      merged[scheme] = [...new Set([...existingScopes, ...scopes])];
+    }
+  }
+
+  return merged;
+};
+
 const mergeSecurityWithGlobal = (
   paths: OpenApiPaths,
   globalSecurity: readonly SecurityRequirement[] | undefined,
@@ -80,32 +108,22 @@ const mergeSecurityWithGlobal = (
 
     for (const [method, operation] of Object.entries(methods)) {
       if (operation.security && operation.security.length > 0) {
-        // Operation has decorator security - merge with global
-        // Combine global and decorator requirements into single object (AND logic)
-        const merged: Record<string, string[]> = {};
+        // Preserve OR alternatives by building a cross product:
+        // (global A OR global B) AND (operation C OR operation D)
+        // -> (A+C) OR (A+D) OR (B+C) OR (B+D)
+        const mergedSecurity: SecurityRequirement[] = [];
 
-        // Add global requirements
         for (const globalReq of globalSecurity) {
-          for (const [scheme, scopes] of Object.entries(globalReq)) {
-            merged[scheme] = [...(merged[scheme] ?? []), ...scopes];
+          for (const operationReq of operation.security) {
+            mergedSecurity.push(
+              mergeSingleSecurityRequirement(globalReq, operationReq),
+            );
           }
-        }
-
-        // Add decorator requirements
-        for (const decoratorReq of operation.security) {
-          for (const [scheme, scopes] of Object.entries(decoratorReq)) {
-            merged[scheme] = [...(merged[scheme] ?? []), ...scopes];
-          }
-        }
-
-        // Deduplicate scopes
-        for (const scheme of Object.keys(merged)) {
-          merged[scheme] = [...new Set(merged[scheme])];
         }
 
         mergedMethods[method] = {
           ...operation,
-          security: [merged],
+          security: mergedSecurity,
         };
       } else {
         // No decorator security - operation inherits global (no change)
@@ -203,6 +221,168 @@ const findMissingSchemaRefs = (
   return missing;
 };
 
+const isGenericSchemaRef = (name: string): boolean =>
+  name.includes('<') && name.endsWith('>');
+
+const NON_IMPORTABLE_TYPE_NAMES = new Set([
+  'string',
+  'number',
+  'boolean',
+  'null',
+  'undefined',
+  'void',
+  'unknown',
+  'any',
+  'never',
+  'object',
+  'true',
+  'false',
+  'Array',
+  'ReadonlyArray',
+  'Record',
+  'Promise',
+  'Partial',
+  'Required',
+  'Pick',
+  'Omit',
+  'Exclude',
+  'Extract',
+  'Readonly',
+  'keyof',
+  'infer',
+  'extends',
+]);
+
+const extractTypeIdentifiers = (typeRef: string): Set<string> => {
+  const withoutStringLiterals = typeRef.replace(
+    /'[^']*'|"[^"]*"|`[^`]*`/g,
+    '',
+  );
+
+  const matches =
+    withoutStringLiterals.match(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g) ?? [];
+
+  return new Set(
+    matches.filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
+  );
+};
+
+const toModuleImportPath = (fromDir: string, filePath: string): string => {
+  const importPath = relative(fromDir, filePath).replace(/\\/g, '/');
+  return importPath.startsWith('.') ? importPath : `./${importPath}`;
+};
+
+const resolveSymbolLocations = (
+  tsconfig: string,
+  symbolNames: Set<string>,
+): Map<string, string> => {
+  if (symbolNames.size === 0) {
+    return new Map();
+  }
+
+  const tsconfigDir = dirname(tsconfig);
+  const resolved = resolveTypeLocationsFast(tsconfigDir, symbolNames);
+
+  const unresolved = new Set(
+    [...symbolNames].filter((name) => !resolved.has(name)),
+  );
+
+  if (unresolved.size > 0) {
+    const project = createTypeResolverProject(tsconfig);
+    const morphResolved = resolveTypeLocations(project, unresolved);
+    for (const [name, filePath] of morphResolved) {
+      resolved.set(name, filePath);
+    }
+  }
+
+  return resolved;
+};
+
+const generateMissingGenericSchemas = async (
+  genericRefs: readonly string[],
+  tsconfig: string,
+  symbolLocations: ReadonlyMap<string, string>,
+  runEffect: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>,
+): Promise<GeneratedSchemas> => {
+  if (genericRefs.length === 0) {
+    return { definitions: {} };
+  }
+
+  const importGroups = new Map<string, Set<string>>();
+  const aliases: Array<{ aliasName: string; schemaName: string }> = [];
+  const aliasLines: string[] = [];
+
+  for (const [index, genericRef] of genericRefs.entries()) {
+    const identifiers = [...extractTypeIdentifiers(genericRef)];
+    if (identifiers.length === 0) {
+      continue;
+    }
+
+    const unresolved = identifiers.filter((name) => !symbolLocations.has(name));
+    if (unresolved.length > 0) {
+      continue;
+    }
+
+    for (const identifier of identifiers) {
+      const filePath = symbolLocations.get(identifier);
+      if (!filePath) continue;
+      const existing = importGroups.get(filePath) ?? new Set<string>();
+      existing.add(identifier);
+      importGroups.set(filePath, existing);
+    }
+
+    const aliasName = `__MissingGenericRef${index}`;
+    aliases.push({ aliasName, schemaName: genericRef });
+    aliasLines.push(`export type ${aliasName} = ${genericRef};`);
+  }
+
+  if (aliases.length === 0) {
+    return { definitions: {} };
+  }
+
+  const tempDir = dirname(tsconfig);
+  const tempFilePath = join(
+    tempDir,
+    `.openapi.missing-generic.${randomUUID()}.ts`,
+  );
+
+  const importLines = [...importGroups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([filePath, symbols]) => {
+      const importPath = toModuleImportPath(tempDir, filePath);
+      const names = [...symbols].sort().join(', ');
+      return `import type { ${names} } from '${importPath}';`;
+    });
+
+  writeFileSync(
+    tempFilePath,
+    [...importLines, '', ...aliasLines, ''].join('\n'),
+    'utf-8',
+  );
+
+  try {
+    const generated = await runEffect(
+      generateSchemasFromFiles([tempFilePath], tsconfig),
+    );
+
+    const definitions = { ...generated.definitions };
+    for (const { aliasName, schemaName } of aliases) {
+      const resolvedSchema =
+        definitions[schemaName] ?? definitions[aliasName] ?? undefined;
+      if (resolvedSchema) {
+        definitions[schemaName] = resolvedSchema;
+      }
+      delete definitions[aliasName];
+    }
+
+    return { definitions };
+  } finally {
+    if (existsSync(tempFilePath)) {
+      unlinkSync(tempFilePath);
+    }
+  }
+};
+
 /**
  * Extract validation constraints from DTO files and merge into schemas
  */
@@ -281,9 +461,8 @@ const extractValidationConstraints = async (
  */
 const findTsConfig = (startDir: string): string | undefined => {
   let currentDir = resolve(startDir);
-  const root = dirname(currentDir);
 
-  while (currentDir !== root) {
+  while (true) {
     const tsconfigPath = join(currentDir, 'tsconfig.json');
     if (existsSync(tsconfigPath)) {
       return tsconfigPath;
@@ -458,29 +637,42 @@ export const generate = async (
   );
   const output = resolve(configDir, config.output);
 
-  const tsconfig = files.tsconfig
-    ? resolve(configDir, files.tsconfig)
-    : findTsConfig(dirname(entries[0]));
+  const tsconfig = await runEffect(
+    Effect.gen(function* () {
+      const discoveredTsconfig = files.tsconfig
+        ? resolve(configDir, files.tsconfig)
+        : findTsConfig(dirname(entries[0]));
 
-  if (!tsconfig) {
-    throw new Error(
-      `Could not find tsconfig.json. Please specify files.tsconfig in your config file.`,
-    );
-  }
+      if (!discoveredTsconfig) {
+        return yield* Effect.fail(
+          ConfigValidationError.fromIssues(absoluteConfigPath, [
+            'Could not find tsconfig.json. Please specify files.tsconfig in your config file.',
+          ]),
+        );
+      }
 
-  if (!existsSync(tsconfig)) {
-    throw new Error(`tsconfig.json not found at: ${tsconfig}`);
-  }
+      if (!existsSync(discoveredTsconfig)) {
+        return yield* Effect.fail(
+          ConfigValidationError.fromIssues(absoluteConfigPath, [
+            `tsconfig.json not found at: ${discoveredTsconfig}`,
+          ]),
+        );
+      }
+
+      return discoveredTsconfig;
+    }).pipe(Effect.mapError((error) => new Error(error.message))),
+  );
 
   const extractOptions: ExtractParametersOptions = {
     query: options.query,
   };
 
-  const dtoGlobArray = files.dtoGlob
-    ? Array.isArray(files.dtoGlob)
-      ? files.dtoGlob
-      : [files.dtoGlob]
-    : null;
+  const dtoGlobArray =
+    files.dtoGlob === undefined
+      ? [...DEFAULT_DTO_GLOB]
+      : Array.isArray(files.dtoGlob)
+        ? files.dtoGlob
+        : [files.dtoGlob];
 
   const [extractedMethodInfos, initialSchemas] = await Promise.all([
     runEffect(
@@ -493,25 +685,23 @@ export const generate = async (
         Effect.mapError((error) => new Error(error.message)),
       ),
     ),
-    dtoGlobArray
-      ? runEffect(
-          generateSchemas({
-            dtoGlob: dtoGlobArray as string[],
-            tsconfig,
-            basePath: configDir,
-          }).pipe(
-            Effect.tap((schemas) =>
-              Effect.logDebug('Schema generation complete').pipe(
-                Effect.annotateLogs({
-                  schemaCount: Object.keys(schemas.definitions).length,
-                  dtoGlob: dtoGlobArray,
-                }),
-              ),
-            ),
-            Effect.mapError((error) => new Error(error.message)),
+    runEffect(
+      generateSchemas({
+        dtoGlob: dtoGlobArray as string[],
+        tsconfig,
+        basePath: configDir,
+      }).pipe(
+        Effect.tap((schemas) =>
+          Effect.logDebug('Schema generation complete').pipe(
+            Effect.annotateLogs({
+              schemaCount: Object.keys(schemas.definitions).length,
+              dtoGlob: dtoGlobArray,
+            }),
           ),
-        )
-      : Promise.resolve(null),
+        ),
+        Effect.mapError((error) => new Error(error.message)),
+      ),
+    ),
   ]);
 
   // Process method infos into paths
@@ -547,7 +737,7 @@ export const generate = async (
   // Process schemas if generated
   let schemas: Record<string, OpenApiSchema> = {};
 
-  if (initialSchemas && dtoGlobArray) {
+  if (initialSchemas) {
     let generatedSchemas: GeneratedSchemas = initialSchemas;
 
     const shouldExtractValidation = options.extractValidation !== false;
@@ -618,6 +808,56 @@ export const generate = async (
               ...normalizedAdditional.definitions,
             },
           };
+          generatedSchemas = combinedSchemas;
+
+          mergeResult = mergeSchemas(
+            paths as unknown as OpenApiSpec['paths'],
+            combinedSchemas,
+          );
+          schemas = mergeResult.schemas;
+        }
+      }
+
+      const unresolvedAfterFileResolution = findMissingSchemaRefs(
+        paths as unknown as OpenApiSpec['paths'],
+        schemas,
+      );
+      const unresolvedGenericRefs = [...unresolvedAfterFileResolution].filter(
+        isGenericSchemaRef,
+      );
+
+      if (unresolvedGenericRefs.length > 0) {
+        const genericSymbols = new Set<string>();
+        for (const ref of unresolvedGenericRefs) {
+          for (const symbol of extractTypeIdentifiers(ref)) {
+            genericSymbols.add(symbol);
+          }
+        }
+
+        const resolvedGenericSymbols = resolveSymbolLocations(
+          tsconfig,
+          genericSymbols,
+        );
+        for (const [name, filePath] of resolvedLocations) {
+          resolvedGenericSymbols.set(name, filePath);
+        }
+
+        const genericSchemas = await generateMissingGenericSchemas(
+          unresolvedGenericRefs,
+          tsconfig,
+          resolvedGenericSymbols,
+          runEffect,
+        );
+
+        if (Object.keys(genericSchemas.definitions).length > 0) {
+          const normalizedGeneric = normalizeStructureRefs(genericSchemas);
+          const combinedSchemas: GeneratedSchemas = {
+            definitions: {
+              ...generatedSchemas.definitions,
+              ...normalizedGeneric.definitions,
+            },
+          };
+          generatedSchemas = combinedSchemas;
 
           mergeResult = mergeSchemas(
             paths as unknown as OpenApiSpec['paths'],

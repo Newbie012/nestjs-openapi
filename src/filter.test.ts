@@ -119,6 +119,30 @@ describe('createPathFilter', () => {
         false,
       );
     });
+
+    it('should be deterministic when using global regex flags', () => {
+      const filter = createPathFilter(/^\/api/g);
+
+      const results = [
+        filter(createMethodInfo({ path: '/api/users' })),
+        filter(createMethodInfo({ path: '/api/posts' })),
+        filter(createMethodInfo({ path: '/api/comments' })),
+      ];
+
+      expect(results).toEqual([true, true, true]);
+    });
+
+    it('should preserve sticky regex semantics while remaining deterministic', () => {
+      const filter = createPathFilter(/api/y);
+
+      const results = [
+        filter(createMethodInfo({ path: '/v1/api' })),
+        filter(createMethodInfo({ path: 'api/users' })),
+        filter(createMethodInfo({ path: 'api/posts' })),
+      ];
+
+      expect(results).toEqual([false, true, true]);
+    });
   });
 
   describe('with predicate function', () => {

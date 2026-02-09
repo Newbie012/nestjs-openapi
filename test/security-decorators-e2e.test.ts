@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { resolve } from 'path';
-import { existsSync, unlinkSync, readFileSync } from 'fs';
+import { existsSync, unlinkSync, readFileSync, writeFileSync } from 'fs';
 import { generate } from '../src/generate.js';
 import type { OpenApiSpec } from '../src/types.js';
 
@@ -13,11 +13,25 @@ describe('Security Decorators E2E', () => {
     process.cwd(),
     'e2e-applications/security-decorators/openapi.generated.json',
   );
+  const mergedConfigPath = resolve(
+    process.cwd(),
+    'e2e-applications/security-decorators/openapi.global-merge.config.ts',
+  );
+  const mergedOutputPath = resolve(
+    process.cwd(),
+    'e2e-applications/security-decorators/openapi.global-merge.generated.json',
+  );
 
   afterEach(() => {
     // Clean up generated file
     if (existsSync(outputPath)) {
       unlinkSync(outputPath);
+    }
+    if (existsSync(mergedOutputPath)) {
+      unlinkSync(mergedOutputPath);
+    }
+    if (existsSync(mergedConfigPath)) {
+      unlinkSync(mergedConfigPath);
     }
   });
 
@@ -207,6 +221,52 @@ describe('Security Decorators E2E', () => {
       expect(spec.paths['/articles']?.get?.tags).toContain('Articles');
       expect(spec.paths['/projects']?.get?.tags).toContain('Projects');
       expect(spec.paths['/admin/actions']?.get?.tags).toContain('Admin');
+    });
+  });
+
+  describe('Global + decorator merge semantics', () => {
+    it('should preserve global OR alternatives when merging with operation security', async () => {
+      writeFileSync(
+        mergedConfigPath,
+        `
+import { defineConfig } from '../../src/config.js';
+
+export default defineConfig({
+  output: 'openapi.global-merge.generated.json',
+  files: {
+    entry: 'src/app.module.ts',
+    tsconfig: '../../tsconfig.json',
+    dtoGlob: 'src/**/*.ts',
+  },
+  openapi: {
+    info: {
+      title: 'Security Merge API',
+      version: '1.0.0',
+    },
+    security: {
+      schemes: [
+        { name: 'bearer', type: 'http', scheme: 'bearer' },
+        { name: 'apiKey', type: 'apiKey', in: 'header', parameterName: 'X-API-Key' },
+        { name: 'admin-key', type: 'apiKey', in: 'header', parameterName: 'X-Admin-Key' },
+      ],
+      global: [{ bearer: [] }, { apiKey: [] }],
+    },
+  },
+});
+`,
+      );
+
+      await generate(mergedConfigPath);
+
+      const spec: OpenApiSpec = JSON.parse(
+        readFileSync(mergedOutputPath, 'utf-8'),
+      );
+
+      const deleteOp = spec.paths['/articles/{id}']?.delete;
+      expect(deleteOp?.security).toEqual([
+        { bearer: [], 'admin-key': [] },
+        { apiKey: [], 'admin-key': [] },
+      ]);
     });
   });
 });

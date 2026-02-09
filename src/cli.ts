@@ -162,8 +162,7 @@ const main = async (): Promise<void> => {
       }
     }
 
-    // Exit with code 0 even with validation warnings (spec was generated)
-    process.exit(0);
+    process.exit(result.validation.valid ? 0 : 1);
   } catch (err) {
     const duration = performance.now() - startTime;
     const message = err instanceof Error ? err.message : String(err);

@@ -90,7 +90,14 @@ export const createPathFilter = (
     return (method: MethodInfo): boolean => pathFilter(method.path);
   }
 
-  return (method: MethodInfo): boolean => pathFilter.test(method.path);
+  // Global/sticky regexes mutate lastIndex between calls.
+  // Preserve semantics by keeping flags and resetting state before each test.
+  const pattern = new RegExp(pathFilter.source, pathFilter.flags);
+
+  return (method: MethodInfo): boolean => {
+    pattern.lastIndex = 0;
+    return pattern.test(method.path);
+  };
 };
 
 /**

@@ -105,6 +105,29 @@ const parseTypeText = (
     : { type: Option.some(trimmed), inline: Option.none() };
 };
 
+const getGenericBaseType = (text: string): string | null => {
+  const genericStart = text.indexOf('<');
+  return genericStart === -1 ? null : text.slice(0, genericStart).trim();
+};
+
+const hasAliasedImportCollision = (
+  method: MethodDeclaration,
+  exportedName: string,
+): boolean => {
+  const localNames = new Set<string>();
+
+  for (const importDecl of method.getSourceFile().getImportDeclarations()) {
+    for (const namedImport of importDecl.getNamedImports()) {
+      const aliasNode = namedImport.getAliasNode();
+      if (!aliasNode) continue;
+      if (namedImport.getName() !== exportedName) continue;
+      localNames.add(aliasNode.getText());
+    }
+  }
+
+  return localNames.size > 1;
+};
+
 const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   const returnType = method.getReturnType();
   const awaited =
@@ -127,6 +150,42 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   };
 
   let text = getOriginalTypeName() ?? awaited.getText(method);
+
+  // For aliased generic types (e.g. ApiResponse as ApiResponseType),
+  // prefer the original exported symbol name so refs match generated schemas.
+  const compilerType = awaited.compilerType as {
+    aliasSymbol?: { escapedName?: string | number | symbol };
+  };
+  const aliasName = compilerType.aliasSymbol?.escapedName?.toString();
+  if (aliasName && !aliasName.startsWith('__')) {
+    const genericBase = getGenericBaseType(text);
+    const shouldPreserveLocalAlias =
+      genericBase !== null &&
+      genericBase !== aliasName &&
+      hasAliasedImportCollision(method, aliasName);
+
+    if (!shouldPreserveLocalAlias) {
+      text =
+        genericBase === null
+          ? aliasName
+          : `${aliasName}${text.slice(text.indexOf('<'))}`;
+    }
+  }
+
+  // Some generic aliases expose the original symbol via getSymbol() instead of
+  // compilerType.aliasSymbol. Normalize those as well.
+  const symbolName = symbol?.getName();
+  if (symbolName && !symbolName.startsWith('__')) {
+    const genericBase = getGenericBaseType(text);
+    if (genericBase !== null) {
+      const shouldPreserveLocalAlias =
+        genericBase !== symbolName &&
+        hasAliasedImportCollision(method, symbolName);
+      if (!shouldPreserveLocalAlias) {
+        text = `${symbolName}${text.slice(text.indexOf('<'))}`;
+      }
+    }
+  }
 
   const promiseMatch = text.match(/^Promise<(.+)>$/);
   if (promiseMatch) text = promiseMatch[1].trim();

@@ -203,7 +203,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApiResponseDto<ArticleEntity>",
+                "$ref": "#/components/schemas/ApiResponse<ArticleEntity>",
               },
             },
           },
@@ -261,7 +261,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApiResponseDto<ArticleEntity>",
+                "$ref": "#/components/schemas/ApiResponse<ArticleEntity>",
               },
             },
           },
@@ -305,7 +305,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApiResponseDto<ArticleEntity>",
+                "$ref": "#/components/schemas/ApiResponse<ArticleEntity>",
               },
             },
           },
@@ -503,7 +503,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApiResponseDto<CommentEntity>",
+                "$ref": "#/components/schemas/ApiResponse<CommentEntity>",
               },
             },
           },
@@ -654,7 +654,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApiResponseDto<UserEntity>",
+                "$ref": "#/components/schemas/ApiResponse<UserEntity>",
               },
             },
           },
@@ -759,7 +759,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApiResponseDto<UserSettings>",
+                "$ref": "#/components/schemas/ApiResponse<UserSettings>",
               },
             },
           },
