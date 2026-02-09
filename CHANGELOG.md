@@ -1,5 +1,16 @@
 # nestjs-openapi
 
+## 0.1.3
+
+### Patch Changes
+
+- [#20](https://github.com/Newbie012/nestjs-openapi/pull/20) [`e590f93`](https://github.com/Newbie012/nestjs-openapi/commit/e590f93e029fe5ebeea88eaefede173f969ac035) Thanks [@Newbie012](https://github.com/Newbie012)! - - CLI exits with non-zero when generated spec fails validation.
+  - Config is found by walking up the directory tree (works from nested/monorepo paths).
+  - Global + per-route security now produces correct combinations instead of one merged requirement.
+  - Regex path filters are deterministic (no more paths appearing or disappearing by run order).
+  - Default DTO discovery: `*.dto.ts`, `*.entity.ts`, `*.model.ts`, `*.schema.ts` when `files.dtoGlob` is unset.
+  - OpenAPI 3.1: nullable fields in unions and combined schemas are translated correctly.
+
 ## 0.1.2
 
 ### Patch Changes
