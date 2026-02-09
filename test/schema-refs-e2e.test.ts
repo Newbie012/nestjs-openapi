@@ -33,6 +33,8 @@ describe('Schema Refs E2E', () => {
 
     expect(result.outputPath).toBe(outputPath);
     expect(existsSync(outputPath)).toBe(true);
+    expect(result.validation.valid).toBe(true);
+    expect(result.validation.brokenRefCount).toBe(0);
 
     const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
 
@@ -52,7 +54,7 @@ describe('Schema Refs E2E', () => {
 
     // These patterns SHOULD appear (clean generic refs)
     expect(rawContent).toContain('PaginatedResponse<');
-    expect(rawContent).toContain('ApiResponseDto<');
+    expect(rawContent).toContain('ApiResponse<');
     expect(rawContent).toContain('BatchResult<');
   });
 
@@ -73,7 +75,7 @@ describe('Schema Refs E2E', () => {
     expect(
       articlesPost?.responses['201']?.content?.['application/json']?.schema,
     ).toEqual({
-      $ref: '#/components/schemas/ApiResponseDto<ArticleEntity>',
+      $ref: '#/components/schemas/ApiResponse<ArticleEntity>',
     });
   });
 

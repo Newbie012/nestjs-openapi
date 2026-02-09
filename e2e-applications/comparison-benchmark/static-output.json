@@ -344,7 +344,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseType<UserDto>"
+                  "$ref": "#/components/schemas/ApiResponse<UserDto>"
                 }
               }
             },
@@ -378,6 +378,48 @@
           "zipCode"
         ],
         "type": "object"
+      },
+      "ApiResponse<UserDto>": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/UserDto"
+              },
+              "status": {
+                "const": "success",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "number"
+              },
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "const": "error",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "message",
+              "code"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "CatDto": {
         "additionalProperties": false,
@@ -510,6 +552,33 @@
           "delivered"
         ],
         "type": "string"
+      },
+      "PaginatedResponse<UserDto>": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserDto"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ],
+        "type": "object"
       },
       "PetOwnerDto": {
         "additionalProperties": false,

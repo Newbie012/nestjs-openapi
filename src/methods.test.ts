@@ -731,6 +731,89 @@ describe('getMethodInfo', () => {
       expect(info.parameters).toHaveLength(1);
       expect(info.parameters[0].tsType).toBe('UserDto');
     });
+
+    it('should preserve aliased generic return type names to avoid collisions', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/user-response.ts',
+        `
+        export class UserDto {
+          id: string;
+        }
+
+        export type Response<T> = {
+          kind: 'user';
+          data: T;
+        };
+      `,
+      );
+
+      project.createSourceFile(
+        'dto/admin-response.ts',
+        `
+        export class AdminDto {
+          id: string;
+        }
+
+        export type Response<T> = {
+          kind: 'admin';
+          data: T;
+        };
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/user.controller.ts',
+        `
+        import { Response as UserResponse, UserDto } from '../dto/user-response';
+        import { Response as AdminResponse, AdminDto } from '../dto/admin-response';
+
+        @Controller('/users')
+        class UsersController {
+          @Get('user')
+          getUser(): UserResponse<UserDto> {
+            return {} as unknown as UserResponse<UserDto>;
+          }
+
+          @Get('admin')
+          getAdmin(): AdminResponse<AdminDto> {
+            return {} as unknown as AdminResponse<AdminDto>;
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const userMethod = controller.getMethodOrThrow('getUser');
+      const adminMethod = controller.getMethodOrThrow('getAdmin');
+
+      const userResult = getMethodInfo(controller, userMethod);
+      const adminResult = getMethodInfo(controller, adminMethod);
+
+      expect(Option.isSome(userResult)).toBe(true);
+      expect(Option.isSome(adminResult)).toBe(true);
+
+      const userInfo = Option.getOrThrow(userResult);
+      const adminInfo = Option.getOrThrow(adminResult);
+
+      expect(Option.getOrNull(userInfo.returnType.type)).toBe(
+        'UserResponse<UserDto>',
+      );
+      expect(Option.getOrNull(adminInfo.returnType.type)).toBe(
+        'AdminResponse<AdminDto>',
+      );
+      expect(Option.getOrNull(userInfo.returnType.type)).not.toBe(
+        Option.getOrNull(adminInfo.returnType.type),
+      );
+    });
   });
 
   describe('Query DTO inlining', () => {
