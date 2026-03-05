@@ -58,6 +58,7 @@ export type {
   ServerConfig,
   TagConfig,
   OutputFormat,
+  TelemetryConfig,
   GenerateOverrides,
   OpenApiSpec,
   OpenApiPaths,
@@ -76,6 +77,7 @@ export {
   OPENAPI_MODULE_OPTIONS,
   OPENAPI_SPEC,
   loadSpecFile,
+  loadSpecFileEffect,
   generateSwaggerUiHtml,
   resolveOptions,
 } from './module.js';
@@ -96,6 +98,10 @@ export type {
 export {
   generate as generateEffect,
   generateAsync,
+  generatePathsEffect,
+  generatePathsAsync,
+  generateFromConfigEffect,
+  generateFromConfigAsync,
   type GenerateOptions,
 } from './internal.js';
 
@@ -117,7 +123,14 @@ export {
   ConfigNotFoundError,
   ConfigLoadError,
   ConfigValidationError,
+  DtoGlobResolutionError,
   InvalidMethodError,
+  MissingGenericSchemaTempFileCleanupError,
+  MissingGenericSchemaTempFileWriteError,
+  PublicApiError,
+  SpecFileNotFoundError,
+  SpecFileReadError,
+  SpecFileParseError,
   type ProjectError,
   type ConfigError,
   type AnalysisError,
@@ -137,6 +150,7 @@ export {
 export {
   getModules,
   getAllControllers,
+  ModuleTraversalService,
   type ModuleWithControllers,
 } from './modules.js';
 
@@ -154,19 +168,90 @@ export {
 } from './controllers.js';
 
 // Method Analysis
-export { getMethodInfo, getControllerMethodInfos } from './methods.js';
+export {
+  getMethodInfo,
+  getMethodInfoEffect,
+  getControllerMethodInfos,
+  getControllerMethodInfosEffect,
+  MethodExtractionService,
+} from './methods.js';
 
 // Transformation
-export { transformMethod, transformMethods } from './transformer.js';
+export {
+  transformMethod,
+  transformMethodEffect,
+  transformMethods,
+  transformMethodsEffect,
+} from './transformer.js';
+
+// Schema merging
+export {
+  mergeSchemas,
+  mergeSchemasEffect,
+  mergeGeneratedSchemas,
+  mergeGeneratedSchemasEffect,
+  filterSchemas,
+  filterSchemasEffect,
+  type MergedResult,
+} from './schema-merger.js';
+
+// Schema normalization
+export {
+  normalizeSchemas,
+  normalizeSchemasEffect,
+  filterInternalSchemas,
+  filterInternalSchemasEffect,
+  normalizeStructureRefs,
+  normalizeStructureRefsEffect,
+  toPascalCase,
+  type NormalizerOptions,
+} from './schema-normalizer.js';
+
+// Schema generation
+export {
+  generateSchemas,
+  generateSchemasFromFiles,
+  SchemaGenerationError,
+  type SchemaError,
+  type SchemaGeneratorOptions,
+  type GeneratedSchemas,
+  type JsonSchema,
+} from './schema-generator.js';
+
+export { SchemaService } from './schema-service.js';
+
+// Validation mapping
+export {
+  extractPropertyConstraints,
+  isPropertyOptional,
+  extractPropertyValidationInfo,
+  extractClassValidationInfo,
+  extractClassValidationInfoEffect,
+  extractClassConstraints,
+  getRequiredProperties,
+  applyConstraintsToSchema,
+  mergeValidationConstraints,
+  mergeValidationConstraintsEffect,
+  type ValidationConstraints,
+  type PropertyValidationInfo,
+  type ClassValidationInfo,
+} from './validation-mapper.js';
+
+export { ValidationService } from './validation-service.js';
+export { OutputService } from './output-service.js';
 
 // Config utilities
 export {
+  ConfigService,
   findConfigFile,
   loadConfigFromFile,
   loadConfig,
   resolveConfig,
   loadAndResolveConfig,
 } from './config.js';
+
+// Service layers
+export { generatorServicesLayer } from './service-layer.js';
 
 // AST Utilities
 export {

@@ -10,11 +10,16 @@
 // Register tsx TypeScript loader to support .ts config files
 import 'tsx';
 
-import { generate } from './generate.js';
+import { Cause, Effect, Exit, Option } from 'effect';
+import { generateEffect } from './generate.js';
 import { formatValidationResult } from './spec-validator.js';
+import { toUserFacingErrorMessage } from './error-message.js';
+import { runtimeLayerFor } from './runtime-layer.js';
+import { generatorServicesLayer } from './service-layer.js';
 import minimist from 'minimist';
 import { relative } from 'node:path';
 import { createRequire } from 'node:module';
+import type { TelemetryConfig } from './types.js';
 
 // Read version from package.json at runtime
 const require = createRequire(import.meta.url);
@@ -30,6 +35,10 @@ interface CliArgs {
   q?: boolean;
   debug?: boolean;
   d?: boolean;
+  otel?: boolean;
+  'otel-exporter'?: string;
+  'otel-endpoint'?: string;
+  'otel-service-name'?: string;
   help?: boolean;
   h?: boolean;
   version?: boolean;
@@ -51,6 +60,10 @@ Options:
   -f, --format <format>   Output format: json or yaml (overrides config)
   -q, --quiet             Suppress output (only show errors)
   -d, --debug             Enable debug output (verbose logging, full stack traces)
+      --otel              Enable OpenTelemetry tracing
+      --otel-exporter     OTel exporter: console or otlp (default: console)
+      --otel-endpoint     OTLP HTTP endpoint (default: http://localhost:4318/v1/traces)
+      --otel-service-name Service name for trace resource (default: nestjs-openapi)
   -h, --help              Show this help message
   -v, --version           Show version
 
@@ -58,6 +71,7 @@ Examples:
   nestjs-openapi generate -c openapi.config.ts
   nestjs-openapi generate -c openapi.config.ts --format yaml
   nestjs-openapi generate -c openapi.config.ts --debug
+  nestjs-openapi generate -c openapi.config.ts --otel --otel-exporter console
 `.trim();
 
 const formatDuration = (ms: number): string => {
@@ -77,10 +91,34 @@ const error = (message: string): void => {
   console.error(`\x1b[31m✗\x1b[0m ${message}`);
 };
 
+const formatCauseForDebug = (cause: unknown): string | undefined => {
+  if (!cause || typeof cause !== 'object') {
+    return undefined;
+  }
+
+  if ('stack' in cause && typeof cause.stack === 'string') {
+    return cause.stack;
+  }
+
+  if ('cause' in cause && cause.cause !== undefined) {
+    return String(cause.cause);
+  }
+
+  return undefined;
+};
+
 const main = async (): Promise<void> => {
   const args = minimist<CliArgs>(process.argv.slice(2), {
-    string: ['c', 'config', 'f', 'format'],
-    boolean: ['quiet', 'q', 'debug', 'd', 'help', 'h', 'version', 'v'],
+    string: [
+      'c',
+      'config',
+      'f',
+      'format',
+      'otel-exporter',
+      'otel-endpoint',
+      'otel-service-name',
+    ],
+    boolean: ['quiet', 'q', 'debug', 'd', 'otel', 'help', 'h', 'version', 'v'],
     alias: {
       c: 'config',
       f: 'format',
@@ -121,8 +159,12 @@ const main = async (): Promise<void> => {
   // Handle generate command
   const configPath = args.config || args.c;
   const format = args.format || args.f;
-  const quiet = args.quiet || args.q;
-  const debug = args.debug || args.d;
+  const quiet = Boolean(args.quiet || args.q);
+  const debug = Boolean(args.debug || args.d);
+  const otel = Boolean(args.otel);
+  const otelExporter = args['otel-exporter'];
+  const otelEndpoint = args['otel-endpoint'];
+  const otelServiceName = args['otel-service-name'];
 
   if (!configPath) {
     error('Config path is required. Use -c or --config to specify the path.');
@@ -136,13 +178,40 @@ const main = async (): Promise<void> => {
     process.exit(1);
   }
 
+  if (
+    otelExporter &&
+    otelExporter !== 'console' &&
+    otelExporter !== 'otlp'
+  ) {
+    error(`Invalid --otel-exporter: ${otelExporter}. Must be 'console' or 'otlp'.`);
+    process.exit(1);
+  }
+
+  const telemetry: TelemetryConfig | undefined = otel
+    ? {
+        enabled: true,
+        exporter: (otelExporter as 'console' | 'otlp' | undefined) ?? 'console',
+        otlpEndpoint: otelEndpoint,
+        serviceName: otelServiceName,
+      }
+    : undefined;
+
   const startTime = performance.now();
 
-  try {
-    const result = await generate(configPath, {
-      format: format as 'json' | 'yaml' | undefined,
-      debug,
-    });
+  const program = generateEffect(configPath, {
+    format: format as 'json' | 'yaml' | undefined,
+    debug,
+    telemetry,
+  }).pipe(
+    Effect.provide(generatorServicesLayer),
+    Effect.provide(runtimeLayerFor(debug, telemetry)),
+    Effect.exit,
+  );
+
+  const exit = await Effect.runPromise(program);
+
+  if (Exit.isSuccess(exit)) {
+    const result = exit.value;
     const duration = performance.now() - startTime;
 
     if (!quiet) {
@@ -163,19 +232,33 @@ const main = async (): Promise<void> => {
     }
 
     process.exit(result.validation.valid ? 0 : 1);
-  } catch (err) {
+  } else {
     const duration = performance.now() - startTime;
-    const message = err instanceof Error ? err.message : String(err);
+    const failure = Cause.failureOption(exit.cause);
+    const message = failure.pipe(
+      Option.map(toUserFacingErrorMessage),
+      Option.getOrElse(() => toUserFacingErrorMessage(undefined)),
+    );
 
     error(`Generation failed (${formatDuration(Math.round(duration))})`);
     console.error(`  ${message}`);
 
-    if (debug && err instanceof Error && err.stack) {
-      console.error('\nStack trace:');
-      console.error(err.stack);
-      if (err.cause) {
-        console.error('\nCause:', err.cause);
-      }
+    if (debug) {
+      failure.pipe(
+        Option.map(formatCauseForDebug),
+        Option.match({
+          onNone: () => undefined,
+          onSome: (debugOutput) => {
+            if (debugOutput) {
+              console.error('\nStack trace:');
+              console.error(debugOutput);
+            } else {
+              console.error('\nCause:');
+              console.error(Cause.pretty(exit.cause));
+            }
+          },
+        }),
+      );
     }
 
     process.exit(1);

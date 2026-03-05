@@ -6,6 +6,7 @@
  */
 
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
+import { Effect } from 'effect';
 
 /**
  * Pattern to match ugly generated type names
@@ -254,7 +255,7 @@ const convertRefFormat = (schema: JsonSchema): JsonSchema =>
 /**
  * Normalize all schema names in a GeneratedSchemas object
  */
-export const normalizeSchemas = (
+const normalizeSchemasInternal = (
   schemas: GeneratedSchemas,
   options: NormalizerOptions = {},
 ): GeneratedSchemas => {
@@ -276,10 +277,21 @@ export const normalizeSchemas = (
   return { definitions: normalizedDefinitions };
 };
 
+export const normalizeSchemas = (
+  schemas: GeneratedSchemas,
+  options: NormalizerOptions = {},
+): GeneratedSchemas => normalizeSchemasInternal(schemas, options);
+
+export const normalizeSchemasEffect = Effect.fn(
+  'SchemaNormalizer.normalizeSchemas',
+)(function* (schemas: GeneratedSchemas, options: NormalizerOptions = {}) {
+  return yield* Effect.succeed(normalizeSchemasInternal(schemas, options));
+});
+
 /**
  * Filter out internal/temporary schemas that shouldn't be exposed
  */
-export const filterInternalSchemas = (
+const filterInternalSchemasInternal = (
   schemas: GeneratedSchemas,
 ): GeneratedSchemas => {
   const filteredDefinitions: Record<string, JsonSchema> = {};
@@ -303,6 +315,16 @@ export const filterInternalSchemas = (
 
   return { definitions: filteredDefinitions };
 };
+
+export const filterInternalSchemas = (
+  schemas: GeneratedSchemas,
+): GeneratedSchemas => filterInternalSchemasInternal(schemas);
+
+export const filterInternalSchemasEffect = Effect.fn(
+  'SchemaNormalizer.filterInternalSchemas',
+)(function* (schemas: GeneratedSchemas) {
+  return yield* Effect.succeed(filterInternalSchemasInternal(schemas));
+});
 
 /**
  * Convert a string to PascalCase
@@ -484,7 +506,7 @@ const findUniqueName = (
  * - `SelectRule<structure-1231915544-...>` → `SelectRule<NamespaceLabels>`
  * - `structure-123-456` → `Labels`
  */
-export const normalizeStructureRefs = (
+const normalizeStructureRefsInternal = (
   schemas: GeneratedSchemas,
 ): GeneratedSchemas => {
   // 1. Collect all existing schema names (reserved - can't use these)
@@ -528,6 +550,16 @@ export const normalizeStructureRefs = (
 
   return { definitions: normalizedDefinitions };
 };
+
+export const normalizeStructureRefs = (
+  schemas: GeneratedSchemas,
+): GeneratedSchemas => normalizeStructureRefsInternal(schemas);
+
+export const normalizeStructureRefsEffect = Effect.fn(
+  'SchemaNormalizer.normalizeStructureRefs',
+)(function* (schemas: GeneratedSchemas) {
+  return yield* Effect.succeed(normalizeStructureRefsInternal(schemas));
+});
 
 /** Resolve new schema name, returning null if schema should be skipped */
 const resolveNewSchemaName = (

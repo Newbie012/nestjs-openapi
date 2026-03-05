@@ -211,7 +211,10 @@ describe('DTO Validation E2E', () => {
     // Check numeric enum (UserStatus) - optional field
     const statusProperty = properties['status'] as Record<string, unknown>;
     if (statusProperty) {
-      expect(statusProperty.enum).toEqual([0, 1, 2]);
+      expect(statusProperty.$ref).toBe('#/components/schemas/UserStatus');
+      expect(
+        (schemas['UserStatus'] as Record<string, unknown> | undefined)?.enum,
+      ).toEqual([0, 1, 2]);
     }
   });
 

@@ -1,4 +1,4 @@
-import { Option } from 'effect';
+import { Effect, Option } from 'effect';
 import type {
   MethodInfo,
   MethodSecurityRequirement,
@@ -226,6 +226,17 @@ const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
   return { type: 'object' };
 };
 
+const isNodeModulesPath = (filePath: string): boolean =>
+  filePath.includes('/node_modules/') || filePath.includes('\\node_modules\\');
+
+const shouldFallbackExternalReturnRef = (
+  returnType: MethodInfo['returnType'],
+): boolean =>
+  Option.isSome(returnType.filePath) && isNodeModulesPath(returnType.filePath.value);
+
+const responseSchemaOrObjectFallback = (schema: OpenApiSchema): OpenApiSchema =>
+  schema.$ref ? { type: 'object' } : schema;
+
 const getParameterLocation = (
   location: ResolvedParameter['location'],
 ): OpenApiParameter['in'] => {
@@ -262,9 +273,18 @@ const transformParameter = (param: ResolvedParameter): OpenApiParameter => {
   };
 };
 
+const isInlineOptionalBodyType = (tsType: string): boolean => {
+  const parsed = parseInlineObjectType(tsType);
+  return parsed !== null && parsed.required.length === 0;
+};
+
 const buildResponseSchema = (
   returnType: MethodInfo['returnType'],
 ): OpenApiSchema => {
+  const shouldFallback =
+    Option.isNone(returnType.container) &&
+    shouldFallbackExternalReturnRef(returnType);
+
   if (
     Option.isSome(returnType.container) &&
     returnType.container.value === 'array'
@@ -277,17 +297,22 @@ const buildResponseSchema = (
       };
     }
     // Use tsTypeToOpenApiSchema to properly handle primitives, unions, etc.
+    const itemSchema = Option.isSome(returnType.type)
+      ? tsTypeToOpenApiSchema(returnType.type.value)
+      : { type: 'object' };
+
     return {
       type: 'array',
-      items: Option.isSome(returnType.type)
-        ? tsTypeToOpenApiSchema(returnType.type.value)
-        : { type: 'object' },
+      items: shouldFallback
+        ? responseSchemaOrObjectFallback(itemSchema)
+        : itemSchema,
     };
   }
 
   // Use tsTypeToOpenApiSchema to properly handle primitives, unions, and refs
   if (Option.isSome(returnType.type)) {
-    return tsTypeToOpenApiSchema(returnType.type.value);
+    const schema = tsTypeToOpenApiSchema(returnType.type.value);
+    return shouldFallback ? responseSchemaOrObjectFallback(schema) : schema;
   }
 
   // Handle inline object type - parse and extract properties
@@ -430,7 +455,7 @@ const buildResponses = (
 const buildOpenApiPath = (path: string): string =>
   path.replace(/:([^/]+)/g, '{$1}') || '/';
 
-export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
+const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
   const path = buildOpenApiPath(methodInfo.path);
   const method = methodInfo.httpMethod.toLowerCase();
 
@@ -446,7 +471,9 @@ export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
     bodyParams.length > 0
       ? {
           description: `Request body parameter: ${bodyParams[0].name}`,
-          required: bodyParams[0].required,
+          required:
+            bodyParams[0].required &&
+            !isInlineOptionalBodyType(bodyParams[0].tsType),
           content: buildContentObject(
             requestContentTypes,
             tsTypeToOpenApiSchema(bodyParams[0].tsType),
@@ -491,6 +518,15 @@ export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
   };
 };
 
+export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths =>
+  transformMethodInternal(methodInfo);
+
+export const transformMethodEffect = Effect.fn('Transformer.transformMethod')(
+  function* (methodInfo: MethodInfo) {
+    return yield* Effect.succeed(transformMethodInternal(methodInfo));
+  },
+);
+
 type MutableOpenApiPaths = {
   [path: string]: {
     [method: string]: OpenApiOperation;
@@ -501,10 +537,26 @@ export const transformMethods = (
   methodInfos: readonly MethodInfo[],
 ): OpenApiPaths =>
   methodInfos.reduce<MutableOpenApiPaths>((acc, methodInfo) => {
-    const endpoint = transformMethod(methodInfo);
+    const endpoint = transformMethodInternal(methodInfo);
     for (const path in endpoint) {
       if (!acc[path]) acc[path] = {};
       Object.assign(acc[path], endpoint[path]);
     }
     return acc;
   }, {});
+
+export const transformMethodsEffect = Effect.fn(
+  'Transformer.transformMethods',
+)(function* (methodInfos: readonly MethodInfo[]) {
+  const endpoints = yield* Effect.forEach(methodInfos, transformMethodEffect, {
+    concurrency: 'unbounded',
+  });
+
+  return endpoints.reduce<MutableOpenApiPaths>((acc, endpoint) => {
+    for (const path in endpoint) {
+      if (!acc[path]) acc[path] = {};
+      Object.assign(acc[path], endpoint[path]);
+    }
+    return acc;
+  }, {});
+});

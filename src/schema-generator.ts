@@ -4,47 +4,29 @@
  * This module generates JSON Schema definitions from TypeScript DTO files.
  */
 
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 import {
   createGenerator,
   type Config as TsJsonSchemaConfig,
   type Schema as TsJsonSchema,
 } from 'ts-json-schema-generator';
-import { join, dirname } from 'node:path';
+import { ts } from 'ts-morph';
+import { join, dirname, resolve as resolvePath, basename } from 'node:path';
 import { globSync } from 'glob';
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  existsSync,
+} from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { SchemaGenerationError } from './errors.js';
 
 // Error types
 
-export class SchemaGenerationError extends Schema.TaggedError<SchemaGenerationError>()(
-  'SchemaGenerationError',
-  {
-    message: Schema.String,
-    cause: Schema.optional(Schema.Unknown),
-  },
-) {
-  static fromError(error: unknown, context?: string): SchemaGenerationError {
-    const baseMessage =
-      error instanceof Error
-        ? error.message
-        : 'Unknown schema generation error';
-    const message = context ? `${baseMessage} (${context})` : baseMessage;
-
-    return new SchemaGenerationError({
-      message,
-      cause: error,
-    });
-  }
-
-  static noFilesFound(patterns: readonly string[]): SchemaGenerationError {
-    return new SchemaGenerationError({
-      message: `No DTO files found matching patterns: ${patterns.join(', ')}`,
-    });
-  }
-}
-
 export type SchemaError = SchemaGenerationError;
+export { SchemaGenerationError };
 
 // Schema types
 
@@ -83,7 +65,106 @@ export interface SchemaGeneratorOptions {
   readonly tsconfig: string;
   /** Base directory for resolving globs */
   readonly basePath: string;
+  /** Optional shared TypeScript program to reuse compiler context */
+  readonly reuseProgram?: unknown;
 }
+
+const MAX_SCHEMA_FILES_PER_BATCH = 16;
+
+const chunkArray = <T>(items: readonly T[], chunkSize: number): T[][] => {
+  if (items.length === 0) return [];
+  if (items.length <= chunkSize) return [[...items]];
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+};
+
+const toSortedUniquePaths = (filePaths: readonly string[]): readonly string[] =>
+  [...new Set(filePaths)].sort();
+
+const extractDiagnosticFilePathFromCause = (
+  cause: unknown,
+): string | undefined => {
+  if (!cause || typeof cause !== 'object') {
+    return undefined;
+  }
+
+  if ('diagnostic' in cause && cause.diagnostic && typeof cause.diagnostic === 'object') {
+    const diagnostic = cause.diagnostic as {
+      readonly file?: { readonly fileName?: unknown };
+    };
+    if (
+      diagnostic.file &&
+      typeof diagnostic.file === 'object' &&
+      typeof diagnostic.file.fileName === 'string'
+    ) {
+      return diagnostic.file.fileName;
+    }
+  }
+
+  if ('cause' in cause) {
+    return extractDiagnosticFilePathFromCause(
+      (cause as { readonly cause?: unknown }).cause,
+    );
+  }
+
+  return undefined;
+};
+
+const resolveFailedBatchFilePath = (
+  error: SchemaGenerationError,
+  filePaths: readonly string[],
+): string | undefined => {
+  const diagnosticPath = extractDiagnosticFilePathFromCause(error.cause);
+  if (!diagnosticPath) {
+    return undefined;
+  }
+
+  const normalizedDiagnosticPath = resolvePath(diagnosticPath);
+  for (const filePath of filePaths) {
+    if (resolvePath(filePath) === normalizedDiagnosticPath) {
+      return filePath;
+    }
+  }
+
+  const diagnosticFileName = basename(normalizedDiagnosticPath);
+  return filePaths.find((filePath) => basename(filePath) === diagnosticFileName);
+};
+
+const createSchemaGenerator = (
+  config: TsJsonSchemaConfig,
+  reuseProgram?: unknown,
+): { createSchema: (type: string) => TsJsonSchema } => {
+  if (!reuseProgram) {
+    return createGenerator(config);
+  }
+
+  const require = createRequire(import.meta.url);
+  const tsj = require('ts-json-schema-generator') as {
+    createParser: (program: unknown, config: unknown) => unknown;
+    createFormatter: (config: unknown) => unknown;
+    DEFAULT_CONFIG: Record<string, unknown>;
+    SchemaGenerator: new (
+      program: unknown,
+      parser: unknown,
+      formatter: unknown,
+      config: unknown,
+    ) => { createSchema: (type: string) => TsJsonSchema };
+  };
+
+  const completedConfig = { ...tsj.DEFAULT_CONFIG, ...config };
+  const parser = tsj.createParser(reuseProgram, completedConfig);
+  const formatter = tsj.createFormatter(completedConfig);
+  return new tsj.SchemaGenerator(
+    reuseProgram,
+    parser,
+    formatter,
+    completedConfig,
+  );
+};
 
 /**
  * Generate JSON Schema definitions from TypeScript DTO files
@@ -98,35 +179,73 @@ export const generateSchemas = Effect.fn('SchemaGenerator.generate')(function* (
     }),
   );
 
-  const patterns = options.dtoGlob.map((pattern) => ({
-    pattern,
-    combinable: !pattern.startsWith('/') && !pattern.includes('..'),
-  }));
+  if (options.reuseProgram) {
+    const patterns = options.dtoGlob.map((pattern) => ({
+      pattern,
+      combinable: !pattern.startsWith('/') && !pattern.includes('..'),
+    }));
 
-  const combinable = patterns.filter((p) => p.combinable);
-  const nonCombinable = patterns.filter((p) => !p.combinable);
+    const combinable = patterns.filter((p) => p.combinable);
+    const nonCombinable = patterns.filter((p) => !p.combinable);
 
-  const groupedPatterns: string[] = [];
-  if (combinable.length > 0) {
-    groupedPatterns.push(
-      combinable.length === 1
-        ? combinable[0]!.pattern
-        : `{${combinable.map((p) => p.pattern).join(',')}}`,
+    const groupedPatterns: string[] = [];
+    if (combinable.length > 0) {
+      groupedPatterns.push(
+        combinable.length === 1
+          ? combinable[0]!.pattern
+          : `{${combinable.map((p) => p.pattern).join(',')}}`,
+      );
+    }
+    groupedPatterns.push(...nonCombinable.map((p) => p.pattern));
+
+    const schemaResults = yield* Effect.all(
+      groupedPatterns.map((pattern) =>
+        generateSchemasFromGlob(
+          pattern,
+          options.tsconfig,
+          options.basePath,
+          options.reuseProgram,
+        ),
+      ),
+      { concurrency: 'unbounded' },
     );
+
+    const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
+      (acc, schemas) => ({ ...acc, ...schemas.definitions }),
+      {},
+    );
+
+    yield* Effect.logDebug('Schema generation complete').pipe(
+      Effect.annotateLogs({
+        definitionCount: Object.keys(allDefinitions).length,
+      }),
+    );
+
+    return { definitions: allDefinitions } as GeneratedSchemas;
   }
-  groupedPatterns.push(...nonCombinable.map((p) => p.pattern));
 
-  const schemaResults = yield* Effect.all(
-    groupedPatterns.map((pattern) =>
-      generateSchemasFromGlob(pattern, options.tsconfig, options.basePath),
-    ),
-    { concurrency: 'unbounded' },
+  const absolutePatterns = options.dtoGlob.map((pattern) =>
+    pattern.startsWith('/') ? pattern : join(options.basePath, pattern),
   );
 
-  const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
-    (acc, schemas) => ({ ...acc, ...schemas.definitions }),
-    {},
+  const matchedFiles = [
+    ...new Set(absolutePatterns.flatMap((pattern) => globSync(pattern))),
+  ];
+
+  if (matchedFiles.length === 0) {
+    yield* Effect.logDebug('No DTO files matched patterns, skipping').pipe(
+      Effect.annotateLogs({
+        patternCount: absolutePatterns.length,
+      }),
+    );
+    return { definitions: {} } as GeneratedSchemas;
+  }
+
+  const batchedSchemas = yield* generateSchemasFromFiles(
+    matchedFiles,
+    options.tsconfig,
   );
+  const allDefinitions = { ...batchedSchemas.definitions };
 
   yield* Effect.logDebug('Schema generation complete').pipe(
     Effect.annotateLogs({
@@ -141,7 +260,12 @@ export const generateSchemas = Effect.fn('SchemaGenerator.generate')(function* (
  * Generate schemas from a glob pattern
  */
 const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
-  function* (pattern: string, tsconfig: string, basePath: string) {
+  function* (
+    pattern: string,
+    tsconfig: string,
+    basePath: string,
+    reuseProgram?: unknown,
+  ) {
     // Resolve the pattern relative to basePath. Brace patterns may include
     // multiple absolute paths, so we detect that case and skip joining.
     const isBraceAbsolute =
@@ -185,8 +309,8 @@ const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
           additionalProperties: false,
         };
 
-        const generator = createGenerator(config);
-        const schema = generator.createSchema(config.type);
+        const generator = createSchemaGenerator(config, reuseProgram);
+        const schema = generator.createSchema(config.type ?? '*');
 
         return convertToGeneratedSchemas(schema);
       },
@@ -226,24 +350,30 @@ const convertToGeneratedSchemas = (schema: TsJsonSchema): GeneratedSchemas => {
 export const generateSchemasFromFiles = Effect.fn(
   'SchemaGenerator.generateFromFiles',
 )(function* (filePaths: readonly string[], tsconfig: string) {
-  if (filePaths.length === 0) {
+  const uniqueFilePaths = toSortedUniquePaths(filePaths);
+
+  if (uniqueFilePaths.length === 0) {
     return { definitions: {} } as GeneratedSchemas;
   }
 
   yield* Effect.logDebug('Generating schemas from resolved files').pipe(
     Effect.annotateLogs({
-      fileCount: filePaths.length,
+      fileCount: uniqueFilePaths.length,
     }),
   );
 
-  const batchedResult = yield* generateSchemasWithTempTsconfig(
-    filePaths,
-    tsconfig,
-  ).pipe(
-    Effect.catchTag('SchemaGenerationError', () =>
-      generateSchemasFromFilesIndividual(filePaths, tsconfig),
-    ),
+  const batches = chunkArray(uniqueFilePaths, MAX_SCHEMA_FILES_PER_BATCH);
+
+  const batchResults = yield* Effect.forEach(batches, (batch) =>
+    generateSchemasFromFilesBatchWithFallback(batch, tsconfig),
   );
+
+  const batchedResult = {
+    definitions: batchResults.reduce<Record<string, JsonSchema>>(
+      (acc, schemas) => ({ ...acc, ...schemas.definitions }),
+      {},
+    ),
+  } as GeneratedSchemas;
 
   yield* Effect.logDebug('Additional schema generation complete').pipe(
     Effect.annotateLogs({
@@ -254,6 +384,90 @@ export const generateSchemasFromFiles = Effect.fn(
   return batchedResult;
 });
 
+const generateSchemasFromFilesBatchWithFallback = (
+  filePaths: readonly string[],
+  tsconfig: string,
+): Effect.Effect<GeneratedSchemas, never, never> =>
+  Effect.gen(function* () {
+  const directBatch = yield* generateSchemasWithTempTsconfig(
+    filePaths,
+    tsconfig,
+  ).pipe(Effect.either);
+
+  if (directBatch._tag === 'Right') {
+    return directBatch.right;
+  }
+
+  const failedBatch = directBatch.left;
+  const failedFilePath = resolveFailedBatchFilePath(failedBatch, filePaths);
+
+  if (failedFilePath && filePaths.length > 1) {
+    yield* Effect.logDebug('Schema batch failed, isolating problematic file').pipe(
+      Effect.annotateLogs({
+        fileCount: filePaths.length,
+        filePath: failedFilePath,
+      }),
+    );
+
+    const remainingFilePaths = filePaths.filter(
+      (filePath) => filePath !== failedFilePath,
+    );
+
+    const [remainingSchemas, failedFileSchemas]: readonly [
+      GeneratedSchemas,
+      GeneratedSchemas,
+    ] = yield* Effect.all(
+      [
+        remainingFilePaths.length > 0
+          ? generateSchemasFromFilesBatchWithFallback(
+              remainingFilePaths,
+              tsconfig,
+            )
+          : Effect.succeed({ definitions: {} } as GeneratedSchemas),
+        generateSchemasFromFilesIndividual([failedFilePath], tsconfig),
+      ],
+      { concurrency: 2 },
+    );
+
+    return {
+      definitions: {
+        ...remainingSchemas.definitions,
+        ...failedFileSchemas.definitions,
+      },
+    } as GeneratedSchemas;
+  }
+
+  yield* Effect.logDebug('Schema batch failed, splitting fallback').pipe(
+    Effect.annotateLogs({
+      fileCount: filePaths.length,
+    }),
+  );
+
+  if (filePaths.length <= 1) {
+    return yield* generateSchemasFromFilesIndividual(filePaths, tsconfig);
+  }
+
+  const middle = Math.ceil(filePaths.length / 2);
+  const left = filePaths.slice(0, middle);
+  const right = filePaths.slice(middle);
+
+  const [leftSchemas, rightSchemas]: readonly [GeneratedSchemas, GeneratedSchemas] =
+    yield* Effect.all(
+      [
+        generateSchemasFromFilesBatchWithFallback(left, tsconfig),
+        generateSchemasFromFilesBatchWithFallback(right, tsconfig),
+      ],
+      { concurrency: 2 },
+    );
+
+  return {
+    definitions: {
+      ...leftSchemas.definitions,
+      ...rightSchemas.definitions,
+    },
+  } as GeneratedSchemas;
+});
+
 /**
  * Generate schemas using a temporary tsconfig that only includes the specified files.
  * This avoids loading the entire project and is much faster.
@@ -262,64 +476,89 @@ const generateSchemasWithTempTsconfig = (
   filePaths: readonly string[],
   tsconfig: string,
 ): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.try({
-    try: () => {
-      const originalConfig = JSON.parse(readFileSync(tsconfig, 'utf-8'));
+  Effect.gen(function* () {
+    const context = `files: ${filePaths.slice(0, 3).join(', ')}${
+      filePaths.length > 3 ? ` (+${filePaths.length - 3} more)` : ''
+    }`;
 
-      const tempConfig = {
-        ...originalConfig,
-        compilerOptions: {
-          ...originalConfig.compilerOptions,
-          skipLibCheck: true,
-          skipDefaultLibCheck: true,
-          noEmit: true,
-        },
-        files: [...filePaths],
-        // Prevent loading other files from the project
-        include: undefined,
-        exclude: undefined,
-      };
+    const rawConfig = yield* Effect.try({
+      try: () => readFileSync(tsconfig, 'utf-8'),
+      catch: (error) => SchemaGenerationError.fromError(error, context),
+    });
 
-      const tempTsconfigPath = join(
-        dirname(tsconfig),
-        `.tsconfig.schema-gen.${randomUUID()}.json`,
+    const parsed = ts.parseConfigFileTextToJson(tsconfig, rawConfig);
+    if (!parsed.config || parsed.error) {
+      const message = parsed.error
+        ? ts.flattenDiagnosticMessageText(parsed.error.messageText, '\n')
+        : 'Failed to parse tsconfig';
+      return yield* Effect.fail(
+        new SchemaGenerationError({
+          message: `${message} (${context})`,
+        }),
       );
+    }
 
-      try {
-        writeFileSync(tempTsconfigPath, JSON.stringify(tempConfig, null, 2));
+    const originalConfig = parsed.config as Record<string, unknown>;
+    const originalCompilerOptions =
+      typeof originalConfig.compilerOptions === 'object' &&
+      originalConfig.compilerOptions
+        ? (originalConfig.compilerOptions as Record<string, unknown>)
+        : {};
 
-        const pattern =
-          filePaths.length === 1 ? filePaths[0]! : `{${filePaths.join(',')}}`;
+    const tempConfig = {
+      ...originalConfig,
+      compilerOptions: {
+        ...originalCompilerOptions,
+        skipLibCheck: true,
+        skipDefaultLibCheck: true,
+        noEmit: true,
+      },
+      files: [...filePaths],
+      // Prevent loading other files from the project
+      include: undefined,
+      exclude: undefined,
+    };
 
-        const config: TsJsonSchemaConfig = {
-          path: pattern,
-          tsconfig: tempTsconfigPath,
-          type: '*',
-          skipTypeCheck: true,
-          expose: 'export',
-          jsDoc: 'extended',
-          sortProps: true,
-          strictTuples: false,
-          encodeRefs: false,
-          additionalProperties: false,
-        };
+    const tempTsconfigPath = join(
+      dirname(tsconfig),
+      `.tsconfig.schema-gen.${randomUUID()}.json`,
+    );
 
-        const generator = createGenerator(config);
-        const schema = generator.createSchema(config.type);
+    return yield* Effect.try({
+      try: () => {
+        try {
+          writeFileSync(tempTsconfigPath, JSON.stringify(tempConfig, null, 2));
+          const pattern =
+            filePaths.length === 1
+              ? filePaths[0]!
+              : `{${filePaths.join(',')}}`;
 
-        return convertToGeneratedSchemas(schema);
-      } finally {
-        // Clean up temporary file
-        if (existsSync(tempTsconfigPath)) {
-          unlinkSync(tempTsconfigPath);
+          const config: TsJsonSchemaConfig = {
+            path: pattern,
+            tsconfig: tempTsconfigPath,
+            type: '*',
+            skipTypeCheck: true,
+            expose: 'export',
+            jsDoc: 'extended',
+            sortProps: true,
+            strictTuples: false,
+            encodeRefs: false,
+            additionalProperties: false,
+          };
+
+          const generator = createGenerator(config);
+          const schema = generator.createSchema(config.type);
+
+          return convertToGeneratedSchemas(schema);
+        } finally {
+          // Clean up temporary file
+          if (existsSync(tempTsconfigPath)) {
+            unlinkSync(tempTsconfigPath);
+          }
         }
-      }
-    },
-    catch: (error) =>
-      SchemaGenerationError.fromError(
-        error,
-        `files: ${filePaths.slice(0, 3).join(', ')}${filePaths.length > 3 ? ` (+${filePaths.length - 3} more)` : ''}`,
-      ),
+      },
+      catch: (error) => SchemaGenerationError.fromError(error, context),
+    });
   });
 
 /**
@@ -354,28 +593,132 @@ const generateSchemasFromFilesIndividual = Effect.fn(
  */
 const generateSchemasFromFile = Effect.fn('SchemaGenerator.generateFromFile')(
   function* (filePath: string, tsconfig: string) {
-    return yield* Effect.try({
-      try: () => {
-        const config: TsJsonSchemaConfig = {
-          path: filePath,
-          tsconfig,
-          type: '*',
-          skipTypeCheck: true,
-          expose: 'export',
-          jsDoc: 'extended',
-          sortProps: true,
-          strictTuples: false,
-          encodeRefs: false,
-          additionalProperties: false,
-        };
+    const generateFromPath = (
+      path: string,
+      context: string,
+    ): Effect.Effect<GeneratedSchemas, SchemaError> =>
+      Effect.try({
+        try: () => {
+          const config: TsJsonSchemaConfig = {
+            path,
+            tsconfig,
+            type: '*',
+            skipTypeCheck: true,
+            expose: 'export',
+            jsDoc: 'extended',
+            sortProps: true,
+            strictTuples: false,
+            encodeRefs: false,
+            additionalProperties: false,
+          };
 
-        const generator = createGenerator(config);
-        const schema = generator.createSchema(config.type);
+          const generator = createGenerator(config);
+          const schema = generator.createSchema(config.type);
 
-        return convertToGeneratedSchemas(schema);
-      },
-      catch: (error) =>
-        SchemaGenerationError.fromError(error, `file: ${filePath}`),
-    });
+          return convertToGeneratedSchemas(schema);
+        },
+        catch: (error) =>
+          SchemaGenerationError.fromError(error, context),
+      });
+
+    return yield* generateFromPath(filePath, `file: ${filePath}`).pipe(
+      Effect.catchTag('SchemaGenerationError', (originalError) =>
+        generateSchemasFromSanitizedFile(filePath, tsconfig).pipe(
+          Effect.catchTag('SchemaGenerationError', () =>
+            Effect.fail(originalError),
+          ),
+        ),
+      ),
+    );
   },
 );
+
+const stripClassHeritageClauses = (source: string, filePath: string): string => {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  const ranges: Array<readonly [start: number, end: number]> = [];
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && node.heritageClauses) {
+      for (const clause of node.heritageClauses) {
+        ranges.push([clause.pos, clause.end] as const);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  if (ranges.length === 0) {
+    return source;
+  }
+
+  let sanitized = source;
+  for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) {
+    sanitized = `${sanitized.slice(0, start)}${sanitized.slice(end)}`;
+  }
+
+  return sanitized;
+};
+
+const generateSchemasFromSanitizedFile = (
+  filePath: string,
+  tsconfig: string,
+): Effect.Effect<GeneratedSchemas, SchemaError> =>
+  Effect.gen(function* () {
+    const context = `file (sanitized): ${filePath}`;
+    const originalSource = yield* Effect.try({
+      try: () => readFileSync(filePath, 'utf-8'),
+      catch: (error) => SchemaGenerationError.fromError(error, context),
+    });
+    const sanitizedSource = stripClassHeritageClauses(originalSource, filePath);
+
+    if (sanitizedSource === originalSource) {
+      return yield* Effect.fail(
+        new SchemaGenerationError({
+          message: `No class heritage clauses to sanitize (${context})`,
+        }),
+      );
+    }
+
+    const tempSanitizedPath = join(
+      dirname(filePath),
+      `.schema-sanitized.${randomUUID()}.ts`,
+    );
+
+    return yield* Effect.try({
+      try: () => {
+        try {
+          writeFileSync(tempSanitizedPath, sanitizedSource, 'utf-8');
+
+          const config: TsJsonSchemaConfig = {
+            path: tempSanitizedPath,
+            tsconfig,
+            type: '*',
+            skipTypeCheck: true,
+            expose: 'export',
+            jsDoc: 'extended',
+            sortProps: true,
+            strictTuples: false,
+            encodeRefs: false,
+            additionalProperties: false,
+          };
+
+          const generator = createGenerator(config);
+          const schema = generator.createSchema(config.type);
+          return convertToGeneratedSchemas(schema);
+        } finally {
+          if (existsSync(tempSanitizedPath)) {
+            unlinkSync(tempSanitizedPath);
+          }
+        }
+      },
+      catch: (error) => SchemaGenerationError.fromError(error, context),
+    });
+  });

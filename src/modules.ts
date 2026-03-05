@@ -67,3 +67,26 @@ export const getAllControllers = Effect.fn('Modules.getAllControllers')(
     return modules.flatMap((m) => m.controllers);
   },
 );
+
+const serviceGetModules = Effect.fn('ModuleTraversalService.getModules')(
+  function* (root: ClassDeclaration) {
+    return yield* getModules(root);
+  },
+);
+
+const serviceGetAllControllers = Effect.fn(
+  'ModuleTraversalService.getAllControllers',
+)(function* (root: ClassDeclaration) {
+  return yield* getAllControllers(root);
+});
+
+export class ModuleTraversalService extends Effect.Service<ModuleTraversalService>()(
+  'ModuleTraversalService',
+  {
+    accessors: true,
+    effect: Effect.succeed({
+      getModules: serviceGetModules,
+      getAllControllers: serviceGetAllControllers,
+    }),
+  },
+) {}

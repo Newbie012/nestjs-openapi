@@ -13,6 +13,11 @@
     "declarationMap": true,
     "sourceMap": true,
     "resolveJsonModule": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ],
     "noEmit": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

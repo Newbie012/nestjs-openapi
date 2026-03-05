@@ -448,7 +448,8 @@
           }
         },
         "required": [
-          "status"
+          "status",
+          "notes"
         ],
         "type": "object"
       },
@@ -480,16 +481,21 @@
         "additionalProperties": false,
         "properties": {
           "bio": {
+            "description": "User bio",
             "nullable": true,
             "type": "string"
           },
           "email": {
+            "description": "User email",
+            "format": "email",
             "type": "string"
           },
           "id": {
+            "description": "User ID",
             "type": "string"
           },
           "name": {
+            "description": "User name",
             "type": "string"
           },
           "role": {
@@ -500,7 +506,8 @@
           "id",
           "name",
           "email",
-          "role"
+          "role",
+          "bio"
         ],
         "type": "object"
       },
@@ -628,7 +635,8 @@
         },
         "required": [
           "bio",
-          "age"
+          "age",
+          "name"
         ],
         "type": "object"
       },

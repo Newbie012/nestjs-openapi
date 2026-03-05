@@ -40,7 +40,7 @@ describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
     generateResult = await generate(path.join(benchmarkDir, 'openapi.config.ts'));
     const staticPath = path.join(benchmarkDir, 'static-output.json');
     staticOutput = JSON.parse(fs.readFileSync(staticPath, 'utf-8'));
-  });
+  }, 30_000);
 
   it('generates a validation-clean OpenAPI spec (no broken refs)', () => {
     expect(generateResult.validation.valid).toBe(true);

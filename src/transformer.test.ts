@@ -461,6 +461,50 @@ describe('transformMethod', () => {
         },
       });
     });
+
+    it('should mark inline all-optional body objects as optional request bodies', () => {
+      const parameters: ResolvedParameter[] = [
+        {
+          name: '__namedParameters',
+          location: 'body',
+          tsType: '{ imageIds?: string[]; zip?: boolean }',
+          required: true,
+          description: Option.none(),
+        },
+      ];
+
+      const methodInfo: MethodInfo = {
+        httpMethod: 'POST',
+        path: '/images/sbom/csv',
+        methodName: 'getSbomsV2Csv',
+        controllerName: 'ImageController',
+        controllerTags: ['images'],
+        returnType: {
+          type: Option.some('void'),
+          inline: Option.none(),
+          container: Option.none(),
+          filePath: Option.none(),
+        },
+        parameters,
+        decorators: [],
+        operation: {
+          summary: Option.none(),
+          description: Option.none(),
+          operationId: Option.none(),
+          deprecated: Option.none(),
+        },
+        responses: [],
+        httpCode: Option.none(),
+        consumes: [],
+        produces: [],
+        security: [],
+      };
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/images/sbom/csv'].post;
+
+      expect(operation.requestBody?.required).toBe(false);
+    });
   });
 
   describe('Response transformation', () => {
@@ -506,6 +550,83 @@ describe('transformMethod', () => {
             },
           },
         },
+      });
+    });
+
+    it('should fallback external node_modules return types to object schemas', () => {
+      const methodInfo: MethodInfo = {
+        httpMethod: 'GET',
+        path: '/jira',
+        methodName: 'getProjects',
+        controllerName: 'JiraController',
+        controllerTags: ['jira'],
+        returnType: {
+          type: Option.some('JsonResponse'),
+          inline: Option.none(),
+          container: Option.none(),
+          filePath: Option.some(
+            '/workspace/node_modules/jira-client/index.d.ts',
+          ),
+        },
+        parameters: [],
+        decorators: [],
+        operation: {
+          summary: Option.none(),
+          description: Option.none(),
+          operationId: Option.none(),
+          deprecated: Option.none(),
+        },
+        responses: [],
+        httpCode: Option.none(),
+        consumes: [],
+        produces: [],
+        security: [],
+      };
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/jira'].get;
+
+      expect(
+        operation.responses['200'].content?.['application/json'].schema,
+      ).toEqual({ type: 'object' });
+    });
+
+    it('should keep array item refs when filePath points to TypeScript lib Array type', () => {
+      const methodInfo: MethodInfo = {
+        httpMethod: 'GET',
+        path: '/sources',
+        methodName: 'getSources',
+        controllerName: 'SourceController',
+        controllerTags: ['sources'],
+        returnType: {
+          type: Option.some('CodeExecutionSourceDto'),
+          inline: Option.none(),
+          container: Option.some('array'),
+          filePath: Option.some('/node_modules/typescript/lib/lib.es5.d.ts'),
+        },
+        parameters: [],
+        decorators: [],
+        operation: {
+          summary: Option.none(),
+          description: Option.none(),
+          operationId: Option.none(),
+          deprecated: Option.none(),
+        },
+        responses: [],
+        httpCode: Option.none(),
+        consumes: [],
+        produces: [],
+        security: [],
+      };
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/sources'].get;
+
+      expect(
+        operation.responses['200'].content?.['application/json'].schema,
+      ).toEqual({
+        type: 'array',
+        items: { $ref: '#/components/schemas/CodeExecutionSourceDto' },
       });
     });
 

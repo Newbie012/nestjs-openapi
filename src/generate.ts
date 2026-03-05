@@ -5,18 +5,12 @@
  * Effect-TS implementation from consumers.
  */
 
-import { Effect, Layer, Logger, LogLevel } from 'effect';
-import {
-  existsSync,
-  writeFileSync,
-  mkdirSync,
-  unlinkSync,
-} from 'node:fs';
+import { Effect } from 'effect';
+import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Project } from 'ts-morph';
 import { glob as nodeGlob } from 'glob';
-import yaml from 'js-yaml';
 import type {
   GenerateOverrides,
   OpenApiSpec,
@@ -25,36 +19,40 @@ import type {
   OpenApiPaths,
 } from './types.js';
 import { buildSecuritySchemes } from './security.js';
-import { EntryNotFoundError, ConfigValidationError } from './errors.js';
-import { getModules } from './modules.js';
 import {
-  getControllerMethodInfos,
+  EntryNotFoundError,
+  ConfigValidationError,
+  DtoGlobResolutionError,
+  MissingGenericSchemaTempFileCleanupError,
+  MissingGenericSchemaTempFileWriteError,
+  type GeneratorError,
+} from './errors.js';
+import { ModuleTraversalService } from './modules.js';
+import {
+  MethodExtractionService,
   type ExtractParametersOptions,
 } from './methods.js';
-import { transformMethods } from './transformer.js';
-import {
-  generateSchemas,
-  generateSchemasFromFiles,
-  type GeneratedSchemas,
-} from './schema-generator.js';
-import { normalizeStructureRefs } from './schema-normalizer.js';
+import { transformMethodsEffect } from './transformer.js';
+import type { GeneratedSchemas } from './schema-generator.js';
+import { normalizeStructureRefsEffect } from './schema-normalizer.js';
 import { collapseAliasRefs } from './schema-alias-collapser.js';
-import { mergeSchemas } from './schema-merger.js';
+import { mergeSchemasEffect } from './schema-merger.js';
 import { filterMethods } from './filter.js';
 import { transformSpecForVersion } from './schema-version-transformer.js';
-import { loadConfigFromFile } from './config.js';
+import { ConfigService } from './config.js';
 import { validateSpec, type ValidationResult } from './spec-validator.js';
+import { runGeneratorApiPromise } from './public-api.js';
 import {
   createTypeResolverProject,
   resolveTypeLocations,
   resolveTypeLocationsFast,
 } from './type-resolver.js';
-import {
-  extractClassConstraints,
-  getRequiredProperties,
-  mergeValidationConstraints,
-  type ValidationConstraints,
-} from './validation-mapper.js';
+import type { ValidationConstraints } from './validation-mapper.js';
+import { runtimeLayerFor } from './runtime-layer.js';
+import { generatorServicesLayer } from './service-layer.js';
+import { SchemaService } from './schema-service.js';
+import { ValidationService } from './validation-service.js';
+import { OutputService } from './output-service.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
 const DEFAULT_DTO_GLOB = [
@@ -255,10 +253,7 @@ const NON_IMPORTABLE_TYPE_NAMES = new Set([
 ]);
 
 const extractTypeIdentifiers = (typeRef: string): Set<string> => {
-  const withoutStringLiterals = typeRef.replace(
-    /'[^']*'|"[^"]*"|`[^`]*`/g,
-    '',
-  );
+  const withoutStringLiterals = typeRef.replace(/'[^']*'|"[^"]*"|`[^`]*`/g, '');
 
   const matches =
     withoutStringLiterals.match(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g) ?? [];
@@ -299,14 +294,48 @@ const resolveSymbolLocations = (
   return resolved;
 };
 
-const generateMissingGenericSchemas = async (
+const missingGenericSchemasCache = new Map<string, GeneratedSchemas>();
+
+const buildMissingGenericCacheKey = (
   genericRefs: readonly string[],
   tsconfig: string,
   symbolLocations: ReadonlyMap<string, string>,
-  runEffect: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>,
-): Promise<GeneratedSchemas> => {
+): string => {
+  const refs = [...genericRefs].sort();
+  const relevantSymbols = new Set<string>();
+
+  for (const genericRef of refs) {
+    for (const identifier of extractTypeIdentifiers(genericRef)) {
+      relevantSymbols.add(identifier);
+    }
+  }
+
+  const symbolEntries = [...relevantSymbols]
+    .sort()
+    .map((symbol) => `${symbol}:${symbolLocations.get(symbol) ?? ''}`);
+
+  return `${tsconfig}||${refs.join('|')}||${symbolEntries.join('|')}`;
+};
+
+const generateMissingGenericSchemasEffect = Effect.fn(
+  'Generate.generateMissingGenericSchemas',
+)(function* (
+  genericRefs: readonly string[],
+  tsconfig: string,
+  symbolLocations: ReadonlyMap<string, string>,
+) {
   if (genericRefs.length === 0) {
     return { definitions: {} };
+  }
+
+  const cacheKey = buildMissingGenericCacheKey(
+    genericRefs,
+    tsconfig,
+    symbolLocations,
+  );
+  const cached = missingGenericSchemasCache.get(cacheKey);
+  if (cached) {
+    return { definitions: { ...cached.definitions } };
   }
 
   const importGroups = new Map<string, Set<string>>();
@@ -355,15 +384,37 @@ const generateMissingGenericSchemas = async (
       return `import type { ${names} } from '${importPath}';`;
     });
 
-  writeFileSync(
-    tempFilePath,
-    [...importLines, '', ...aliasLines, ''].join('\n'),
-    'utf-8',
+  yield* Effect.try({
+    try: () =>
+      writeFileSync(
+        tempFilePath,
+        [...importLines, '', ...aliasLines, ''].join('\n'),
+        'utf-8',
+      ),
+    catch: (cause) =>
+      MissingGenericSchemaTempFileWriteError.create(tempFilePath, cause),
+  });
+
+  const cleanupEffect = Effect.try({
+    try: () => {
+      if (existsSync(tempFilePath)) {
+        unlinkSync(tempFilePath);
+      }
+    },
+    catch: (cause) =>
+      MissingGenericSchemaTempFileCleanupError.create(tempFilePath, cause),
+  }).pipe(
+    Effect.catchTag('MissingGenericSchemaTempFileCleanupError', () =>
+      Effect.void,
+    ),
   );
 
-  try {
-    const generated = await runEffect(
-      generateSchemasFromFiles([tempFilePath], tsconfig),
+  const generateFromTempFile = Effect.fn(
+    'Generate.generateMissingGenericSchemas.fromTempFile',
+  )(function* (inputTempFilePath: string, inputTsconfig: string) {
+    const generated = yield* SchemaService.generateSchemasFromFiles(
+      [inputTempFilePath],
+      inputTsconfig,
     );
 
     const definitions = { ...generated.definitions };
@@ -377,34 +428,49 @@ const generateMissingGenericSchemas = async (
     }
 
     return { definitions };
-  } finally {
-    if (existsSync(tempFilePath)) {
-      unlinkSync(tempFilePath);
-    }
-  }
-};
+  });
+
+  const generated = yield* generateFromTempFile(tempFilePath, tsconfig).pipe(
+    Effect.ensuring(cleanupEffect),
+  );
+
+  missingGenericSchemasCache.set(cacheKey, {
+    definitions: { ...generated.definitions },
+  });
+
+  return generated;
+});
 
 /**
  * Extract validation constraints from DTO files and merge into schemas
  */
-const extractValidationConstraints = async (
+const extractValidationConstraintsEffect = Effect.fn(
+  'Generate.extractValidationConstraints',
+)(function* (
   dtoGlobPatterns: readonly string[],
   basePath: string,
   tsconfig: string,
   schemas: GeneratedSchemas,
-): Promise<GeneratedSchemas> => {
+) {
   // Find all DTO files in parallel
   const absolutePatterns = dtoGlobPatterns.map((pattern) =>
     pattern.startsWith('/') ? pattern : join(basePath, pattern),
   );
 
-  const fileArrays = await Promise.all(
+  const fileArrays = yield* Effect.all(
     absolutePatterns.map((pattern) =>
-      nodeGlob(pattern, { absolute: true, nodir: true }),
+      Effect.tryPromise({
+        try: () => nodeGlob(pattern, { absolute: true, nodir: true }),
+        catch: (cause) => DtoGlobResolutionError.create(pattern, cause),
+      }),
     ),
+    { concurrency: 'unbounded' },
   );
 
   const dtoFiles = fileArrays.flat();
+
+  yield* Effect.annotateCurrentSpan('dtoPatternCount', absolutePatterns.length);
+  yield* Effect.annotateCurrentSpan('dtoFileCount', dtoFiles.length);
 
   if (dtoFiles.length === 0) {
     return schemas;
@@ -425,23 +491,28 @@ const extractValidationConstraints = async (
   });
 
   // Add all DTO files at once for efficiency
-  project.addSourceFilesAtPaths(dtoFiles);
+  const dtoSourceFiles = project.addSourceFilesAtPaths(dtoFiles);
 
-  // Extract constraints from each class
+  // Resolve imports so symbols from imported files (e.g., enums) can be followed.
+  // This is needed for @ApiProperty({ enum: MyEnum }) where MyEnum is in a non-DTO file.
+  project.resolveSourceFileDependencies();
+
+  // Extract constraints from each class — only from DTO files, not resolved dependencies.
+  // Resolved dependencies are for symbol resolution only (e.g., following enum imports).
   const classConstraints = new Map<
     string,
     Record<string, ValidationConstraints>
   >();
   const classRequired = new Map<string, readonly string[]>();
 
-  for (const sourceFile of project.getSourceFiles()) {
+  for (const sourceFile of dtoSourceFiles) {
     for (const classDecl of sourceFile.getClasses()) {
       const className = classDecl.getName();
       if (!className) continue;
 
       // Process all classes in DTO files
-      const constraints = extractClassConstraints(classDecl);
-      const required = getRequiredProperties(classDecl);
+      const { constraints, required } =
+        yield* ValidationService.extractClassValidationInfo(classDecl);
 
       if (Object.keys(constraints).length > 0) {
         classConstraints.set(className, constraints);
@@ -453,19 +524,41 @@ const extractValidationConstraints = async (
     }
   }
 
+  yield* Effect.logDebug('Validation extraction complete').pipe(
+    Effect.annotateLogs({
+      dtoFiles: dtoFiles.length,
+      constrainedClasses: classConstraints.size,
+      classesWithRequired: classRequired.size,
+    }),
+  );
+
   // Merge constraints into schemas
-  return mergeValidationConstraints(schemas, classConstraints, classRequired);
-};
+  return yield* ValidationService.mergeValidationConstraints(
+    schemas,
+    classConstraints,
+    classRequired,
+  );
+});
+
+const pathExistsEffect = Effect.fn('Generate.pathExists')(function* (
+  filePath: string,
+) {
+  return yield* Effect.sync(() => existsSync(filePath));
+});
 
 /**
- * Finds tsconfig.json by searching up from the given directory
+ * Finds tsconfig.json by searching up from the given directory.
+ * File-system checks are kept in Effect to avoid hidden helper IO.
  */
-const findTsConfig = (startDir: string): string | undefined => {
+const findTsConfigEffect = Effect.fn('Generate.findTsConfig')(function* (
+  startDir: string,
+) {
   let currentDir = resolve(startDir);
 
   while (true) {
     const tsconfigPath = join(currentDir, 'tsconfig.json');
-    if (existsSync(tsconfigPath)) {
+    const tsconfigExists = yield* pathExistsEffect(tsconfigPath);
+    if (tsconfigExists) {
       return tsconfigPath;
     }
     const parentDir = dirname(currentDir);
@@ -474,7 +567,7 @@ const findTsConfig = (startDir: string): string | undefined => {
   }
 
   return undefined;
-};
+});
 
 /**
  * Internal Effect-based logic to extract method infos from a single entry
@@ -484,9 +577,13 @@ const extractMethodInfosFromEntry = (
   entry: string,
   extractOptions: ExtractParametersOptions = {},
 ) =>
-  Effect.gen(function* () {
+  Effect.fn('Generate.extractMethodInfosFromEntry')(function* (
+    inputTsconfig: string,
+    inputEntry: string,
+    inputExtractOptions: ExtractParametersOptions,
+  ) {
     const project = new Project({
-      tsConfigFilePath: tsconfig,
+      tsConfigFilePath: inputTsconfig,
       skipAddingFilesFromTsConfig: true,
       compilerOptions: {
         skipLibCheck: true,
@@ -498,11 +595,11 @@ const extractMethodInfosFromEntry = (
     });
 
     // Add only the entry file - ts-morph will resolve imports on-demand
-    project.addSourceFilesAtPaths(entry);
+    project.addSourceFilesAtPaths(inputEntry);
 
-    const entrySourceFile = project.getSourceFile(entry);
+    const entrySourceFile = project.getSourceFile(inputEntry);
     if (!entrySourceFile) {
-      return yield* EntryNotFoundError.fileNotFound(entry);
+      return yield* EntryNotFoundError.fileNotFound(inputEntry);
     }
 
     // Find the module class - try AppModule first, then any class with @Module decorator
@@ -521,52 +618,84 @@ const extractMethodInfosFromEntry = (
     }
 
     if (!entryClass) {
-      return yield* EntryNotFoundError.classNotFound(entry, 'Module');
+      return yield* EntryNotFoundError.classNotFound(inputEntry, 'Module');
     }
 
-    const modules = yield* getModules(entryClass);
+    const modules = yield* ModuleTraversalService.getModules(entryClass);
 
-    const methodInfos = modules.flatMap((mod) =>
-      mod.controllers.flatMap((controller) =>
-        getControllerMethodInfos(controller, extractOptions),
-      ),
+    const methodInfos = yield* Effect.forEach(
+      modules.flatMap((mod) => mod.controllers),
+      (controller) =>
+        MethodExtractionService.getControllerMethodInfos(
+          controller,
+          inputExtractOptions,
+        ),
+      { concurrency: 'unbounded' },
     );
 
-    return methodInfos;
-  });
+    return methodInfos.flat();
+  })(tsconfig, entry, extractOptions);
 
 /**
  * Internal Effect-based logic to extract method infos from multiple entries
  */
-const extractMethodInfosEffect = (
+const extractMethodInfosEffect = Effect.fn(
+  'Generate.extractMethodInfos',
+)(function* (
   tsconfig: string,
   entries: readonly string[],
-  extractOptions: ExtractParametersOptions = {},
-) =>
-  Effect.gen(function* () {
-    // Process all entries and collect method infos
-    const allMethodInfos = yield* Effect.forEach(
-      entries,
-      (entry) => extractMethodInfosFromEntry(tsconfig, entry, extractOptions),
-      { concurrency: 'unbounded' },
-    );
+  extractOptions: ExtractParametersOptions,
+) {
+  const allMethodInfos = yield* Effect.forEach(
+    entries,
+    (entry) => extractMethodInfosFromEntry(tsconfig, entry, extractOptions),
+    { concurrency: 'unbounded' },
+  );
 
-    // Flatten and deduplicate by path + method combination
-    const seen = new Set<string>();
-    const deduped: (typeof allMethodInfos)[0] = [];
+  // Flatten and deduplicate by path + method combination
+  const seen = new Set<string>();
+  const deduped: (typeof allMethodInfos)[number] = [];
 
-    for (const methodInfos of allMethodInfos) {
-      for (const info of methodInfos) {
-        const key = `${info.httpMethod}:${info.path}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          deduped.push(info);
-        }
+  for (const methodInfos of allMethodInfos) {
+    for (const info of methodInfos) {
+      const key = `${info.httpMethod}:${info.path}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(info);
       }
     }
+  }
 
-    return deduped;
-  });
+  return deduped;
+});
+
+const resolveTsconfigForGenerate = Effect.fn(
+  'Generate.resolveTsconfig',
+)(function* (
+  filesTsconfig: string | undefined,
+  configDir: string,
+  entries: readonly string[],
+  absoluteConfigPath: string,
+) {
+  const discoveredTsconfig = filesTsconfig
+    ? resolve(configDir, filesTsconfig)
+    : yield* findTsConfigEffect(dirname(entries[0]));
+
+  if (!discoveredTsconfig) {
+    return yield* ConfigValidationError.fromIssues(absoluteConfigPath, [
+      'Could not find tsconfig.json. Please specify files.tsconfig in your config file.',
+    ]);
+  }
+
+  const discoveredTsconfigExists = yield* pathExistsEffect(discoveredTsconfig);
+  if (!discoveredTsconfigExists) {
+    return yield* ConfigValidationError.fromIssues(absoluteConfigPath, [
+      `tsconfig.json not found at: ${discoveredTsconfig}`,
+    ]);
+  }
+
+  return discoveredTsconfig;
+});
 
 export interface GenerateResult {
   /** Path where the OpenAPI spec was written */
@@ -582,48 +711,22 @@ export interface GenerateResult {
 }
 
 /**
- * Generates an OpenAPI specification from a NestJS application.
- *
- * @param configPath - Path to the configuration file (openapi.config.ts)
- * @param options - Optional overrides for config values (e.g., format)
- * @returns Promise that resolves with generation result when complete
- *
- * @example
- * ```typescript
- * import { generate } from 'nestjs-openapi';
- *
- * await generate('apps/backend-api/openapi.config.ts');
- *
- * // Override format from CLI
- * await generate('apps/backend-api/openapi.config.ts', { format: 'yaml' });
- * ```
+ * Canonical Effect-native generation pipeline.
  */
-export const generate = async (
+export const generateEffect = Effect.fn('Generate.generateEffect')(function* (
   configPath: string,
   overrides?: GenerateOverrides,
-): Promise<GenerateResult> => {
-  const debug = overrides?.debug ?? false;
-
-  const loggerLayer = debug
-    ? Logger.replace(Logger.defaultLogger, Logger.prettyLoggerDefault).pipe(
-        Layer.merge(Logger.minimumLogLevel(LogLevel.Debug)),
-      )
-    : Logger.minimumLogLevel(LogLevel.Info);
-
-  const runEffect = <A, E>(effect: Effect.Effect<A, E>): Promise<A> =>
-    Effect.runPromise(effect.pipe(Effect.provide(loggerLayer)));
-
+) {
   const absoluteConfigPath = resolve(configPath);
   const configDir = dirname(absoluteConfigPath);
 
-  const config = await runEffect(
-    loadConfigFromFile(absoluteConfigPath).pipe(
-      Effect.tap(() =>
-        Effect.logDebug('Config loaded').pipe(
-          Effect.annotateLogs({ configPath: absoluteConfigPath }),
-        ),
+  yield* Effect.annotateCurrentSpan('configPath', absoluteConfigPath);
+
+  const config = yield* ConfigService.loadConfigFromFile(absoluteConfigPath).pipe(
+    Effect.tap(() =>
+      Effect.logDebug('Config loaded').pipe(
+        Effect.annotateLogs({ configPath: absoluteConfigPath }),
       ),
-      Effect.mapError((e) => new Error(e.message)),
     ),
   );
 
@@ -639,31 +742,15 @@ export const generate = async (
   );
   const output = resolve(configDir, config.output);
 
-  const tsconfig = await runEffect(
-    Effect.gen(function* () {
-      const discoveredTsconfig = files.tsconfig
-        ? resolve(configDir, files.tsconfig)
-        : findTsConfig(dirname(entries[0]));
-
-      if (!discoveredTsconfig) {
-        return yield* Effect.fail(
-          ConfigValidationError.fromIssues(absoluteConfigPath, [
-            'Could not find tsconfig.json. Please specify files.tsconfig in your config file.',
-          ]),
-        );
-      }
-
-      if (!existsSync(discoveredTsconfig)) {
-        return yield* Effect.fail(
-          ConfigValidationError.fromIssues(absoluteConfigPath, [
-            `tsconfig.json not found at: ${discoveredTsconfig}`,
-          ]),
-        );
-      }
-
-      return discoveredTsconfig;
-    }).pipe(Effect.mapError((error) => new Error(error.message))),
+  const tsconfig = yield* resolveTsconfigForGenerate(
+    files.tsconfig,
+    configDir,
+    entries,
+    absoluteConfigPath,
   );
+
+  yield* Effect.annotateCurrentSpan('entryCount', entries.length);
+  yield* Effect.annotateCurrentSpan('tsconfig', tsconfig);
 
   const extractOptions: ExtractParametersOptions = {
     query: options.query,
@@ -676,19 +763,17 @@ export const generate = async (
         ? files.dtoGlob
         : [files.dtoGlob];
 
-  const [extractedMethodInfos, initialSchemas] = await Promise.all([
-    runEffect(
+  yield* Effect.annotateCurrentSpan('dtoGlobCount', dtoGlobArray.length);
+  const [extractedMethodInfos, initialSchemas] = yield* Effect.all(
+    [
       extractMethodInfosEffect(tsconfig, entries, extractOptions).pipe(
         Effect.tap((methods) =>
           Effect.logDebug('Method extraction complete').pipe(
             Effect.annotateLogs({ methodCount: methods.length, entries }),
           ),
         ),
-        Effect.mapError((error) => new Error(error.message)),
       ),
-    ),
-    runEffect(
-      generateSchemas({
+      SchemaService.generateSchemas({
         dtoGlob: dtoGlobArray as string[],
         tsconfig,
         basePath: configDir,
@@ -701,18 +786,23 @@ export const generate = async (
             }),
           ),
         ),
-        Effect.mapError((error) => new Error(error.message)),
       ),
-    ),
-  ]);
+    ],
+    { concurrency: 2 },
+  );
 
   // Process method infos into paths
   const filteredMethodInfos = filterMethods(extractedMethodInfos, {
     excludeDecorators: options.excludeDecorators,
     pathFilter: options.pathFilter,
   });
+  yield* Effect.annotateCurrentSpan(
+    'filteredMethodCount',
+    filteredMethodInfos.length,
+  );
 
-  let paths = transformMethods(filteredMethodInfos);
+  let paths = yield* transformMethodsEffect(filteredMethodInfos);
+  yield* Effect.annotateCurrentSpan('initialPathCount', Object.keys(paths).length);
 
   if (options.basePath) {
     const prefix = options.basePath.startsWith('/')
@@ -727,6 +817,10 @@ export const generate = async (
     }
     paths = prefixedPaths;
   }
+  yield* Effect.annotateCurrentSpan(
+    'basePathApplied',
+    options.basePath ? 'true' : 'false',
+  );
 
   // Merge decorator security with global security
   // Operations with decorator security get merged with global (AND logic)
@@ -735,6 +829,10 @@ export const generate = async (
     paths as OpenApiPaths,
     security.global,
   ) as typeof paths;
+  yield* Effect.annotateCurrentSpan(
+    'globalSecurityRequirementCount',
+    security.global?.length ?? 0,
+  );
 
   // Process schemas if generated
   let schemas: Record<string, OpenApiSchema> = {};
@@ -743,66 +841,116 @@ export const generate = async (
     let generatedSchemas: GeneratedSchemas = initialSchemas;
 
     const shouldExtractValidation = options.extractValidation !== false;
+    yield* Effect.annotateCurrentSpan(
+      'validationExtractionEnabled',
+      shouldExtractValidation ? 'true' : 'false',
+    );
 
     if (shouldExtractValidation) {
-      generatedSchemas = await extractValidationConstraints(
-        dtoGlobArray,
-        configDir,
-        tsconfig,
-        generatedSchemas,
-      );
+      if (Object.keys(generatedSchemas.definitions).length > 0) {
+        generatedSchemas = yield* extractValidationConstraintsEffect(
+          dtoGlobArray,
+          configDir,
+          tsconfig,
+          generatedSchemas,
+        );
+      } else {
+        yield* Effect.annotateCurrentSpan('validationExtractionSkipped', 'true');
+      }
     }
 
     // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
-    generatedSchemas = normalizeStructureRefs(generatedSchemas);
+    generatedSchemas = yield* normalizeStructureRefsEffect(generatedSchemas);
 
     // First merge to get initial schemas
-    let mergeResult = mergeSchemas(
+    let mergeResult = yield* mergeSchemasEffect(
       paths as unknown as OpenApiSpec['paths'],
       generatedSchemas,
     );
     schemas = mergeResult.schemas;
+    yield* Effect.annotateCurrentSpan(
+      'initialMergedSchemaCount',
+      Object.keys(schemas).length,
+    );
 
     // Hybrid approach: Find and resolve any missing schemas automatically
     const missingRefs = findMissingSchemaRefs(
       paths as unknown as OpenApiSpec['paths'],
       schemas,
     );
+    const missingGenericRefsBeforeResolution = [...missingRefs].filter(
+      isGenericSchemaRef,
+    );
+    const missingNonGenericRefsBeforeResolution = new Set(
+      [...missingRefs].filter((ref) => !isGenericSchemaRef(ref)),
+    );
+    yield* Effect.annotateCurrentSpan(
+      'missingRefCountBeforeResolution',
+      missingRefs.size,
+    );
+    yield* Effect.annotateCurrentSpan(
+      'missingGenericRefCountBeforeResolution',
+      missingGenericRefsBeforeResolution.length,
+    );
+    yield* Effect.annotateCurrentSpan(
+      'missingNonGenericRefCountBeforeResolution',
+      missingNonGenericRefsBeforeResolution.size,
+    );
 
     if (missingRefs.size > 0) {
-      // Fast grep-based resolution (much faster for large codebases)
-      const tsconfigDir = dirname(tsconfig);
-      const resolvedLocations = resolveTypeLocationsFast(
-        tsconfigDir,
-        missingRefs,
-      );
+      const resolvedNonGenericLocations = new Map<string, string>();
 
-      // Fall back to ts-morph for types not found by fast resolution
-      const unresolvedTypes = new Set(
-        [...missingRefs].filter(
-          (t) => !resolvedLocations.has(t.replace(/<.*>$/, '')),
-        ),
-      );
+      if (missingNonGenericRefsBeforeResolution.size > 0) {
+        // Fast grep-based resolution (much faster for large codebases)
+        const tsconfigDir = dirname(tsconfig);
+        const fastResolved = resolveTypeLocationsFast(
+          tsconfigDir,
+          missingNonGenericRefsBeforeResolution,
+        );
 
-      if (unresolvedTypes.size > 0) {
-        const project = createTypeResolverProject(tsconfig);
-        const morphResolved = resolveTypeLocations(project, unresolvedTypes);
-
-        for (const [type, path] of morphResolved) {
-          resolvedLocations.set(type, path);
+        for (const [type, path] of fastResolved) {
+          resolvedNonGenericLocations.set(type, path);
         }
+
+        // Fall back to ts-morph for types not found by fast resolution
+        const unresolvedTypes = new Set(
+          [...missingNonGenericRefsBeforeResolution].filter(
+            (t) => !resolvedNonGenericLocations.has(t.replace(/<.*>$/, '')),
+          ),
+        );
+        yield* Effect.annotateCurrentSpan(
+          'unresolvedTypeCountAfterFastLookup',
+          unresolvedTypes.size,
+        );
+
+        if (unresolvedTypes.size > 0) {
+          const project = createTypeResolverProject(tsconfig);
+          const morphResolved = resolveTypeLocations(project, unresolvedTypes);
+
+          for (const [type, path] of morphResolved) {
+            resolvedNonGenericLocations.set(type, path);
+          }
+        }
+      } else {
+        yield* Effect.annotateCurrentSpan('unresolvedTypeCountAfterFastLookup', 0);
       }
+      yield* Effect.annotateCurrentSpan(
+        'resolvedTypeLocationCount',
+        resolvedNonGenericLocations.size,
+      );
 
-      if (resolvedLocations.size > 0) {
-        const additionalFiles = [...new Set(resolvedLocations.values())];
+      if (resolvedNonGenericLocations.size > 0) {
+        const additionalFiles = [...new Set(resolvedNonGenericLocations.values())];
 
-        const additionalSchemas = await runEffect(
-          generateSchemasFromFiles(additionalFiles, tsconfig),
+        const additionalSchemas = yield* SchemaService.generateSchemasFromFiles(
+          additionalFiles,
+          tsconfig,
         );
 
         if (Object.keys(additionalSchemas.definitions).length > 0) {
-          const normalizedAdditional =
-            normalizeStructureRefs(additionalSchemas);
+          const normalizedAdditional = yield* normalizeStructureRefsEffect(
+            additionalSchemas,
+          );
 
           const combinedSchemas: GeneratedSchemas = {
             definitions: {
@@ -812,11 +960,15 @@ export const generate = async (
           };
           generatedSchemas = combinedSchemas;
 
-          mergeResult = mergeSchemas(
+          mergeResult = yield* mergeSchemasEffect(
             paths as unknown as OpenApiSpec['paths'],
             combinedSchemas,
           );
           schemas = mergeResult.schemas;
+          yield* Effect.annotateCurrentSpan(
+            'schemaCountAfterAdditionalResolution',
+            Object.keys(schemas).length,
+          );
         }
       }
 
@@ -824,8 +976,16 @@ export const generate = async (
         paths as unknown as OpenApiSpec['paths'],
         schemas,
       );
+      yield* Effect.annotateCurrentSpan(
+        'missingRefCountAfterFileResolution',
+        unresolvedAfterFileResolution.size,
+      );
       const unresolvedGenericRefs = [...unresolvedAfterFileResolution].filter(
         isGenericSchemaRef,
+      );
+      yield* Effect.annotateCurrentSpan(
+        'unresolvedGenericRefCount',
+        unresolvedGenericRefs.length,
       );
 
       if (unresolvedGenericRefs.length > 0) {
@@ -840,19 +1000,19 @@ export const generate = async (
           tsconfig,
           genericSymbols,
         );
-        for (const [name, filePath] of resolvedLocations) {
+        for (const [name, filePath] of resolvedNonGenericLocations) {
           resolvedGenericSymbols.set(name, filePath);
         }
 
-        const genericSchemas = await generateMissingGenericSchemas(
+        const genericSchemas = yield* generateMissingGenericSchemasEffect(
           unresolvedGenericRefs,
           tsconfig,
           resolvedGenericSymbols,
-          runEffect,
         );
 
         if (Object.keys(genericSchemas.definitions).length > 0) {
-          const normalizedGeneric = normalizeStructureRefs(genericSchemas);
+          const normalizedGeneric =
+            yield* normalizeStructureRefsEffect(genericSchemas);
           const combinedSchemas: GeneratedSchemas = {
             definitions: {
               ...generatedSchemas.definitions,
@@ -861,11 +1021,15 @@ export const generate = async (
           };
           generatedSchemas = combinedSchemas;
 
-          mergeResult = mergeSchemas(
+          mergeResult = yield* mergeSchemasEffect(
             paths as unknown as OpenApiSpec['paths'],
             combinedSchemas,
           );
           schemas = mergeResult.schemas;
+          yield* Effect.annotateCurrentSpan(
+            'schemaCountAfterGenericResolution',
+            Object.keys(schemas).length,
+          );
         }
       }
     }
@@ -876,6 +1040,7 @@ export const generate = async (
     paths = collapsed.paths as typeof paths;
     schemas = collapsed.schemas;
   }
+  yield* Effect.annotateCurrentSpan('aliasRefMode', aliasRefsMode);
 
   const securitySchemes =
     security.schemes && security.schemes.length > 0
@@ -895,6 +1060,7 @@ export const generate = async (
 
   // Get OpenAPI version from config (default to 3.0.3)
   const openApiVersion = openapi.version ?? '3.0.3';
+  yield* Effect.annotateCurrentSpan('openApiVersion', openApiVersion);
 
   // Always include servers and tags (even if empty) to match NestJS Swagger output
   let spec: OpenApiSpec = {
@@ -926,27 +1092,16 @@ export const generate = async (
   // Sort keys to match NestJS Swagger output order
   const sortedSpec = sortObjectKeysDeep(spec, true);
 
-  const outputDir = dirname(output);
-  if (!existsSync(outputDir)) {
-    mkdirSync(outputDir, { recursive: true });
-  }
+  yield* OutputService.ensureOutputDirectory(output);
 
   const format = overrides?.format ?? config.format ?? 'json';
-  if (format === 'json') {
-    writeFileSync(output, JSON.stringify(sortedSpec, null, 2), 'utf-8');
-  } else {
-    writeFileSync(
-      output,
-      yaml.dump(sortedSpec, {
-        indent: 2,
-        lineWidth: -1, // Disable line wrapping
-        noRefs: true, // Disable anchor/alias references
-        quotingType: '"', // Use double quotes for strings
-        forceQuotes: false, // Only quote when necessary
-      }),
-      'utf-8',
-    );
-  }
+  yield* Effect.annotateCurrentSpan('outputFormat', format);
+  const serializedSpec = yield* OutputService.serializeSpec(
+    sortedSpec,
+    output,
+    format,
+  );
+  yield* OutputService.writeOutput(output, serializedSpec, format);
 
   const pathCount = Object.keys(paths).length;
   const operationCount = Object.values(paths).reduce(
@@ -954,9 +1109,33 @@ export const generate = async (
     0,
   );
   const schemaCount = Object.keys(schemas).length;
+  yield* Effect.annotateCurrentSpan('finalPathCount', pathCount);
+  yield* Effect.annotateCurrentSpan('finalOperationCount', operationCount);
+  yield* Effect.annotateCurrentSpan('finalSchemaCount', schemaCount);
 
   // Validate the spec for broken refs
   const validation = validateSpec(sortedSpec);
+  yield* Effect.annotateCurrentSpan('validationTotalRefCount', validation.totalRefs);
+  yield* Effect.annotateCurrentSpan(
+    'validationBrokenRefCount',
+    validation.brokenRefCount,
+  );
+  yield* Effect.annotateCurrentSpan(
+    'validationValid',
+    validation.valid ? 'true' : 'false',
+  );
+
+  yield* Effect.logInfo('OpenAPI generation pipeline complete').pipe(
+    Effect.annotateLogs({
+      outputPath: output,
+      format,
+      pathCount,
+      operationCount,
+      schemaCount,
+      validationValid: validation.valid,
+      brokenRefCount: validation.brokenRefCount,
+    }),
+  );
 
   return {
     outputPath: output,
@@ -965,4 +1144,21 @@ export const generate = async (
     schemaCount,
     validation,
   };
+});
+
+/**
+ * Promise-based public compatibility wrapper.
+ */
+export const generate = async (
+  configPath: string,
+  overrides?: GenerateOverrides,
+): Promise<GenerateResult> => {
+  const debug = overrides?.debug ?? false;
+  const telemetry = overrides?.telemetry;
+  const program = generateEffect(configPath, overrides).pipe(
+    Effect.provide(generatorServicesLayer),
+    Effect.provide(runtimeLayerFor(debug, telemetry)),
+  ) as Effect.Effect<GenerateResult, GeneratorError, never>;
+
+  return runGeneratorApiPromise(program);
 };

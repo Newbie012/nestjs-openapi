@@ -21,8 +21,8 @@ export interface ParameterConstraints {
   // Number constraints
   readonly minimum?: number;
   readonly maximum?: number;
-  readonly exclusiveMinimum?: number;
-  readonly exclusiveMaximum?: number;
+  readonly exclusiveMinimum?: number | boolean;
+  readonly exclusiveMaximum?: number | boolean;
   // Array constraints
   readonly minItems?: number;
   readonly maxItems?: number;

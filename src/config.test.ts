@@ -119,7 +119,7 @@ describe('Config', () => {
   });
 
   describe('resolveConfig', () => {
-    it('should apply defaults to minimal config', () => {
+    it('should apply defaults to minimal config', async () => {
       const config = {
         output: 'openapi.json',
         files: {
@@ -134,7 +134,7 @@ describe('Config', () => {
         },
       };
 
-      const resolved = resolveConfig(config as any);
+      const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.entry).toEqual(['src/app.module.ts']);
       expect(resolved.include).toEqual([]);
@@ -155,7 +155,7 @@ describe('Config', () => {
       expect(resolved.tags).toEqual([]);
     });
 
-    it('should convert single entry to array', () => {
+    it('should convert single entry to array', async () => {
       const config = {
         output: 'openapi.json',
         files: {
@@ -167,12 +167,12 @@ describe('Config', () => {
         },
       };
 
-      const resolved = resolveConfig(config as any);
+      const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.entry).toEqual(['src/app.module.ts']);
     });
 
-    it('should preserve array entry', () => {
+    it('should preserve array entry', async () => {
       const config = {
         output: 'openapi.json',
         files: {
@@ -184,7 +184,7 @@ describe('Config', () => {
         },
       };
 
-      const resolved = resolveConfig(config as any);
+      const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.entry).toEqual([
         'src/app.module.ts',
@@ -192,7 +192,7 @@ describe('Config', () => {
       ]);
     });
 
-    it('should convert single dtoGlob to array', () => {
+    it('should convert single dtoGlob to array', async () => {
       const config = {
         output: 'openapi.json',
         files: {
@@ -205,12 +205,12 @@ describe('Config', () => {
         },
       };
 
-      const resolved = resolveConfig(config as any);
+      const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.dtoGlob).toEqual(['src/**/*.dto.ts']);
     });
 
-    it('should preserve array dtoGlob', () => {
+    it('should preserve array dtoGlob', async () => {
       const config = {
         output: 'openapi.json',
         files: {
@@ -223,7 +223,7 @@ describe('Config', () => {
         },
       };
 
-      const resolved = resolveConfig(config as any);
+      const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.dtoGlob).toEqual([
         'src/**/*.dto.ts',
@@ -231,7 +231,7 @@ describe('Config', () => {
       ]);
     });
 
-    it('should use provided values over defaults', () => {
+    it('should use provided values over defaults', async () => {
       const config = {
         output: 'openapi.yaml',
         format: 'yaml' as const,
@@ -254,7 +254,7 @@ describe('Config', () => {
         },
       };
 
-      const resolved = resolveConfig(config as any);
+      const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.include).toEqual(['src/**/*.ts']);
       expect(resolved.exclude).toEqual(['**/test/**']);

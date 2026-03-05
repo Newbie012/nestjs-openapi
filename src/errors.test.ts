@@ -5,7 +5,16 @@ import {
   ConfigNotFoundError,
   ConfigLoadError,
   ConfigValidationError,
+  DtoGlobResolutionError,
   InvalidMethodError,
+  MissingGenericSchemaTempFileCleanupError,
+  MissingGenericSchemaTempFileWriteError,
+  OutputDirectoryCreationError,
+  OutputSerializationError,
+  OutputWriteError,
+  PublicApiError,
+  SchemaGenerationError,
+  ValidationMappingError,
 } from './errors.js';
 
 describe('Error Classes', () => {
@@ -144,6 +153,176 @@ describe('Error Classes', () => {
       expect(error.message).toBe(
         'Invalid method UserController.getUser: Missing return type',
       );
+    });
+  });
+
+  describe('MissingGenericSchemaTempFileWriteError', () => {
+    it('should create temporary file write error', () => {
+      const cause = new Error('write failed');
+      const error = MissingGenericSchemaTempFileWriteError.create(
+        '/tmp/.openapi-temp.ts',
+        cause,
+      );
+
+      expect(error._tag).toBe('MissingGenericSchemaTempFileWriteError');
+      expect(error.filePath).toBe('/tmp/.openapi-temp.ts');
+      expect(error.message).toBe(
+        'Failed to write temporary schema file: /tmp/.openapi-temp.ts',
+      );
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('MissingGenericSchemaTempFileCleanupError', () => {
+    it('should create temporary file cleanup error', () => {
+      const cause = new Error('unlink failed');
+      const error = MissingGenericSchemaTempFileCleanupError.create(
+        '/tmp/.openapi-temp.ts',
+        cause,
+      );
+
+      expect(error._tag).toBe('MissingGenericSchemaTempFileCleanupError');
+      expect(error.filePath).toBe('/tmp/.openapi-temp.ts');
+      expect(error.message).toBe(
+        'Failed to remove temporary schema file: /tmp/.openapi-temp.ts',
+      );
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('DtoGlobResolutionError', () => {
+    it('should create dto glob resolution error', () => {
+      const cause = new Error('glob failed');
+      const error = DtoGlobResolutionError.create('src/**/*.dto.ts', cause);
+
+      expect(error._tag).toBe('DtoGlobResolutionError');
+      expect(error.pattern).toBe('src/**/*.dto.ts');
+      expect(error.message).toBe(
+        'Failed to resolve DTO glob pattern: src/**/*.dto.ts',
+      );
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('SchemaGenerationError', () => {
+    it('should create schema generation error from unknown cause', () => {
+      const cause = new Error('schema parser failed');
+      const error = SchemaGenerationError.fromError(
+        cause,
+        'pattern: src/**/*.dto.ts',
+      );
+
+      expect(error._tag).toBe('SchemaGenerationError');
+      expect(error.message).toContain('schema parser failed');
+      expect(error.message).toContain('pattern: src/**/*.dto.ts');
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('ValidationMappingError', () => {
+    it('should create validation mapping error with class context', () => {
+      const cause = new Error('AST traversal failed');
+      const error = ValidationMappingError.create(
+        'CreateUserDto',
+        '/src/user.dto.ts',
+        cause,
+      );
+
+      expect(error._tag).toBe('ValidationMappingError');
+      expect(error.className).toBe('CreateUserDto');
+      expect(error.filePath).toBe('/src/user.dto.ts');
+      expect(error.message).toContain('CreateUserDto');
+      expect(error.message).toContain('/src/user.dto.ts');
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('OutputDirectoryCreationError', () => {
+    it('should create output directory creation error', () => {
+      const cause = new Error('permission denied');
+      const error = OutputDirectoryCreationError.create('/tmp/output', cause);
+
+      expect(error._tag).toBe('OutputDirectoryCreationError');
+      expect(error.outputDir).toBe('/tmp/output');
+      expect(error.message).toBe(
+        'Failed to create output directory: /tmp/output',
+      );
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('OutputSerializationError', () => {
+    it('should create json serialization error', () => {
+      const cause = new Error('circular structure');
+      const error = OutputSerializationError.json('/tmp/openapi.json', cause);
+
+      expect(error._tag).toBe('OutputSerializationError');
+      expect(error.outputPath).toBe('/tmp/openapi.json');
+      expect(error.format).toBe('json');
+      expect(error.message).toBe(
+        'Failed to serialize OpenAPI spec to JSON for /tmp/openapi.json',
+      );
+      expect(error.cause).toBe(cause);
+    });
+
+    it('should create yaml serialization error', () => {
+      const cause = new Error('dump failed');
+      const error = OutputSerializationError.yaml('/tmp/openapi.yaml', cause);
+
+      expect(error._tag).toBe('OutputSerializationError');
+      expect(error.outputPath).toBe('/tmp/openapi.yaml');
+      expect(error.format).toBe('yaml');
+      expect(error.message).toBe(
+        'Failed to serialize OpenAPI spec to YAML for /tmp/openapi.yaml',
+      );
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('OutputWriteError', () => {
+    it('should create json write error', () => {
+      const cause = new Error('write failed');
+      const error = OutputWriteError.json('/tmp/openapi.json', cause);
+
+      expect(error._tag).toBe('OutputWriteError');
+      expect(error.outputPath).toBe('/tmp/openapi.json');
+      expect(error.format).toBe('json');
+      expect(error.message).toBe(
+        'Failed to write JSON output to /tmp/openapi.json',
+      );
+      expect(error.cause).toBe(cause);
+    });
+
+    it('should create yaml write error', () => {
+      const cause = new Error('write failed');
+      const error = OutputWriteError.yaml('/tmp/openapi.yaml', cause);
+
+      expect(error._tag).toBe('OutputWriteError');
+      expect(error.outputPath).toBe('/tmp/openapi.yaml');
+      expect(error.format).toBe('yaml');
+      expect(error.message).toBe(
+        'Failed to write YAML output to /tmp/openapi.yaml',
+      );
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe('PublicApiError', () => {
+    it('should map message from unknown error-like causes', () => {
+      const cause = { message: 'Readable failure message' };
+      const error = PublicApiError.fromUnknown(cause);
+
+      expect(error._tag).toBe('PublicApiError');
+      expect(error.message).toBe('Readable failure message');
+      expect(error.cause).toBe(cause);
+    });
+
+    it('should use default message when cause is not error-like', () => {
+      const error = PublicApiError.fromUnknown(undefined);
+
+      expect(error._tag).toBe('PublicApiError');
+      expect(error.message).toBe('OpenAPI generation failed');
+      expect(error.cause).toBeUndefined();
     });
   });
 });

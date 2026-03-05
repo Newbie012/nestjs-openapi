@@ -165,6 +165,53 @@ describe('getMethodInfo', () => {
       expect(Option.isNone(info!.parameters[0].description)).toBe(true);
       expect(info?.parameters[0].required).toBe(true);
     });
+
+    it('should treat query unions with undefined as optional', () => {
+      const code = `
+        @Controller('/cves')
+        class CveController {
+          @Get(':code')
+          getByCode(
+            @Param('code') code: string,
+            @Query('requestedLibraryId') requestedLibraryId: string | undefined,
+          ) {
+            return { code, requestedLibraryId };
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+      expect(info?.parameters).toHaveLength(2);
+
+      const requestedLibraryIdParam = info?.parameters.find(
+        (p) => p.name === 'requestedLibraryId',
+      );
+      expect(requestedLibraryIdParam).toBeDefined();
+      expect(requestedLibraryIdParam?.location).toBe('query');
+      expect(requestedLibraryIdParam?.required).toBe(false);
+    });
+
+    it('should ignore unnamed @Headers() parameters and keep named headers', () => {
+      const code = `
+        @Controller('/policies')
+        class PoliciesController {
+          @Get()
+          list(
+            @Headers() headers: Record<string, string>,
+            @Headers('x-request-id') requestId?: string,
+          ) {
+            return { headers, requestId };
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+      expect(info?.parameters).toHaveLength(1);
+
+      expect(info?.parameters[0].name).toBe('x-request-id');
+      expect(info?.parameters[0].location).toBe('header');
+      expect(info?.parameters[0].required).toBe(false);
+    });
   });
 
   describe('Controller tags extraction', () => {
@@ -814,6 +861,95 @@ describe('getMethodInfo', () => {
         Option.getOrNull(adminInfo.returnType.type),
       );
     });
+
+    it('should resolve external namespace return types to a node_modules file path', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      const controllerFile = project.createSourceFile(
+        'controllers/jira.controller.ts',
+        `
+        import * as JiraApi from 'jira-client';
+
+        @Controller('/jira')
+        class JiraController {
+          @Get()
+          getProjects(): Promise<JiraApi.JsonResponse> {
+            return {} as unknown as Promise<JiraApi.JsonResponse>;
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      expect(Option.getOrNull(info.returnType.type)).toBe('JsonResponse');
+      expect(Option.getOrNull(info.returnType.filePath)).toContain(
+        '/node_modules/jira-client/',
+      );
+    });
+
+    it('should prefer local alias declaration path over lib declarations for aliased array return types', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/library.dto.ts',
+        `
+        export class LibraryVersionDto {
+          id: string;
+        }
+
+        export type GetAllLibraryVersionsResponse = LibraryVersionDto[];
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/library.controller.ts',
+        `
+        import { GetAllLibraryVersionsResponse } from '../dto/library.dto';
+
+        @Controller('/libs')
+        class LibraryController {
+          @Get(':id/versions')
+          getVersions(): Promise<GetAllLibraryVersionsResponse> {
+            return [] as unknown as Promise<GetAllLibraryVersionsResponse>;
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      expect(Option.getOrNull(info.returnType.type)).toBe(
+        'GetAllLibraryVersionsResponse',
+      );
+      expect(Option.getOrNull(info.returnType.filePath)).toContain(
+        '/dto/library.dto.ts',
+      );
+    });
   });
 
   describe('Query DTO inlining', () => {
@@ -977,6 +1113,59 @@ describe('getMethodInfo', () => {
       expect(info.parameters[0].location).toBe('query');
     });
 
+    it('should not reuse cached params across different query styles', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/pagination.dto.ts',
+        `
+        export class PaginationDto {
+          page?: number;
+          limit?: number;
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { PaginationDto } from '../dto/pagination.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(@Query() pagination: PaginationDto) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+
+      const inlineResult = getMethodInfo(controller, method);
+      expect(Option.isSome(inlineResult)).toBe(true);
+      const inlineInfo = Option.getOrThrow(inlineResult);
+      expect(inlineInfo.parameters).toHaveLength(2);
+
+      const refResult = getMethodInfo(controller, method, {
+        query: { style: 'ref' },
+      });
+      expect(Option.isSome(refResult)).toBe(true);
+      const refInfo = Option.getOrThrow(refResult);
+      expect(refInfo.parameters).toHaveLength(1);
+      expect(refInfo.parameters[0].name).toBe('pagination');
+      expect(refInfo.parameters[0].tsType).toBe('PaginationDto');
+    });
+
     it('should NOT expand primitive types', () => {
       const code = `
         @Controller('/search')
@@ -1050,6 +1239,56 @@ describe('getMethodInfo', () => {
 
       const orderParam = info.parameters.find((p) => p.name === 'order');
       expect(orderParam?.required).toBe(false);
+    });
+
+    it('should treat inline object query DTO properties as optional', () => {
+      const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+      project.createSourceFile(
+        'dto/query.dto.ts',
+        `
+        export class QueryDto {
+          page?: number;
+          sort: { field: string; order: 'asc' | 'desc' };
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/items.controller.ts',
+        `
+        import { QueryDto } from '../dto/query.dto';
+
+        @Controller('/items')
+        class ItemsController {
+          @Get()
+          findAll(@Query() query: QueryDto) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const result = getMethodInfo(controller, method);
+
+      expect(Option.isSome(result)).toBe(true);
+      const info = Option.getOrThrow(result);
+
+      expect(info.parameters).toHaveLength(2);
+
+      const sortParam = info.parameters.find((p) => p.name === 'sort');
+      expect(sortParam).toBeDefined();
+      expect(sortParam?.location).toBe('query');
+      expect(sortParam?.required).toBe(false);
     });
 
     it('should handle mixed @Query() DTO and @Query("name") params', () => {

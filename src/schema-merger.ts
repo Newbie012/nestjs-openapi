@@ -7,6 +7,7 @@
 
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 import type { OpenApiPaths, OpenApiSchema } from './types.js';
+import { Effect } from 'effect';
 
 /**
  * Result of schema merging
@@ -158,11 +159,11 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   }
   if (schema.format) result['format'] = schema.format;
   if (schema.$ref) {
-    // Convert #/definitions/ to #/components/schemas/
-    result['$ref'] = schema.$ref.replace(
-      '#/definitions/',
-      '#/components/schemas/',
-    );
+    // OpenAPI 3.0 tooling may ignore sibling fields on $ref objects.
+    // Keep ref schemas as $ref-only for compatibility.
+    return {
+      $ref: schema.$ref.replace('#/definitions/', '#/components/schemas/'),
+    };
   }
   if (schema.description) result['description'] = schema.description;
   if (schema.enum) result['enum'] = schema.enum;
@@ -181,13 +182,26 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
     result['exclusiveMinimum'] = schema.exclusiveMinimum;
   if (schema.exclusiveMaximum !== undefined)
     result['exclusiveMaximum'] = schema.exclusiveMaximum;
+  if (schema.multipleOf !== undefined) result['multipleOf'] = schema.multipleOf;
 
   // Validation constraints - array
   if (schema.minItems !== undefined) result['minItems'] = schema.minItems;
   if (schema.maxItems !== undefined) result['maxItems'] = schema.maxItems;
+  if (schema.uniqueItems !== undefined)
+    result['uniqueItems'] = schema.uniqueItems;
 
   // Default value
   if (schema.default !== undefined) result['default'] = schema.default;
+
+  // Schema metadata (from @ApiProperty)
+  if (schema.title) result['title'] = schema.title;
+  if (schema.example !== undefined) result['example'] = schema.example;
+  if (schema.deprecated === true) result['deprecated'] = true;
+  if (schema.readOnly === true) result['readOnly'] = true;
+  if (schema.writeOnly === true) result['writeOnly'] = true;
+  // Explicit nullable from @ApiProperty (not from type-array normalization above)
+  if (schema.nullable === true && !result['nullable'])
+    result['nullable'] = true;
 
   if (schema.items) {
     result['items'] = convertToOpenApiSchema(schema.items);
@@ -245,7 +259,7 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
  * 2. Includes only the schemas that are actually referenced
  * 3. Recursively includes nested schema references
  */
-export const mergeSchemas = (
+const mergeSchemasInternal = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
 ): MergedResult => {
@@ -287,10 +301,21 @@ export const mergeSchemas = (
   return { paths, schemas };
 };
 
+export const mergeSchemas = (
+  paths: OpenApiPaths,
+  generatedSchemas: GeneratedSchemas,
+): MergedResult => mergeSchemasInternal(paths, generatedSchemas);
+
+export const mergeSchemasEffect = Effect.fn('SchemaMerger.mergeSchemas')(
+  function* (paths: OpenApiPaths, generatedSchemas: GeneratedSchemas) {
+    return yield* Effect.succeed(mergeSchemasInternal(paths, generatedSchemas));
+  },
+);
+
 /**
  * Merge multiple GeneratedSchemas objects into one
  */
-export const mergeGeneratedSchemas = (
+const mergeGeneratedSchemasInternal = (
   ...schemas: GeneratedSchemas[]
 ): GeneratedSchemas => {
   const definitions: Record<string, JsonSchema> = {};
@@ -302,10 +327,20 @@ export const mergeGeneratedSchemas = (
   return { definitions };
 };
 
+export const mergeGeneratedSchemas = (
+  ...schemas: GeneratedSchemas[]
+): GeneratedSchemas => mergeGeneratedSchemasInternal(...schemas);
+
+export const mergeGeneratedSchemasEffect = Effect.fn(
+  'SchemaMerger.mergeGeneratedSchemas',
+)(function* (...schemas: GeneratedSchemas[]) {
+  return yield* Effect.succeed(mergeGeneratedSchemasInternal(...schemas));
+});
+
 /**
  * Filter schemas to only include those matching certain patterns
  */
-export const filterSchemas = (
+const filterSchemasInternal = (
   schemas: GeneratedSchemas,
   include?: readonly string[],
   exclude?: readonly string[],
@@ -342,3 +377,21 @@ export const filterSchemas = (
 
   return { definitions };
 };
+
+export const filterSchemas = (
+  schemas: GeneratedSchemas,
+  include?: readonly string[],
+  exclude?: readonly string[],
+): GeneratedSchemas => filterSchemasInternal(schemas, include, exclude);
+
+export const filterSchemasEffect = Effect.fn('SchemaMerger.filterSchemas')(
+  function* (
+    schemas: GeneratedSchemas,
+    include?: readonly string[],
+    exclude?: readonly string[],
+  ) {
+    return yield* Effect.succeed(
+      filterSchemasInternal(schemas, include, exclude),
+    );
+  },
+);
