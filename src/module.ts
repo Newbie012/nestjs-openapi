@@ -18,6 +18,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { fail as assertFail } from 'node:assert';
 import { resolve } from 'node:path';
 import {
   Module,
@@ -25,6 +26,12 @@ import {
   type Provider,
   type Type,
 } from '@nestjs/common';
+import { Cause, Effect, Exit, Option } from 'effect';
+import {
+  SpecFileNotFoundError,
+  SpecFileParseError,
+  SpecFileReadError,
+} from './errors.js';
 import type { OpenApiSpec } from './types.js';
 
 // NestJS metadata constants (from @nestjs/common/constants)
@@ -172,23 +179,39 @@ export function generateSwaggerUiHtml(title: string, jsonPath: string): string {
 /**
  * Load the OpenAPI spec file from disk
  */
-export function loadSpecFile(filePath: string): OpenApiSpec {
-  try {
+export const loadSpecFileEffect = Effect.fn('OpenApiModule.loadSpecFile')(
+  function* (filePath: string) {
     const resolvedPath = resolve(process.cwd(), filePath);
-    const content = readFileSync(resolvedPath, 'utf-8');
-    return JSON.parse(content) as OpenApiSpec;
-  } catch (error) {
-    if (error instanceof Error) {
-      if ('code' in error && error.code === 'ENOENT') {
-        throw new Error(
-          `OpenAPI spec file not found: ${filePath}. ` +
-            `Make sure to run 'nestjs-openapi generate' first.`,
-        );
-      }
-      throw new Error(`Failed to load OpenAPI spec: ${error.message}`);
-    }
-    throw error;
+    const content = yield* Effect.try({
+      try: () => readFileSync(resolvedPath, 'utf-8'),
+      catch: (cause) =>
+        cause &&
+        typeof cause === 'object' &&
+        'code' in cause &&
+        cause.code === 'ENOENT'
+          ? SpecFileNotFoundError.create(filePath)
+          : SpecFileReadError.create(filePath, cause),
+    });
+
+    return yield* Effect.try({
+      try: () => JSON.parse(content) as OpenApiSpec,
+      catch: (cause) => SpecFileParseError.create(filePath, cause),
+    });
+  },
+);
+
+export function loadSpecFile(filePath: string): OpenApiSpec {
+  const exit = Effect.runSyncExit(loadSpecFileEffect(filePath));
+  if (Exit.isSuccess(exit)) {
+    return exit.value;
   }
+
+  const failure = Cause.failureOption(exit.cause);
+  if (Option.isSome(failure)) {
+    assertFail(failure.value);
+  }
+
+  assertFail(Cause.pretty(exit.cause));
 }
 
 /**
