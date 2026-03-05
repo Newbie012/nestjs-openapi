@@ -1,5 +1,14 @@
 # nestjs-openapi
 
+## 0.2.0
+
+### Minor Changes
+
+- [#26](https://github.com/Newbie012/nestjs-openapi/pull/26) [`69b7eb9`](https://github.com/Newbie012/nestjs-openapi/commit/69b7eb9cb686e2820f57bd7863669c9784514715) Thanks [@Newbie012](https://github.com/Newbie012)! - - Improved generation performance via schema generation pipeline/batching updates.
+  - Improved OpenAPI parity for decorator/config handling and schema extraction (including additional `@ApiProperty` enum coverage).
+  - Improved runtime module error behavior: `loadSpecFile` now surfaces plain tagged errors instead of Effect wrapper failures.
+  - Added/expanded public generation APIs (`generatePaths*`, `generateFromConfig*`, and related service exports).
+
 ## 0.1.4
 
 ### Patch Changes
