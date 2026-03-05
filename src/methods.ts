@@ -1,4 +1,4 @@
-import { Option } from 'effect';
+import { Effect, Option } from 'effect';
 import type {
   MethodDeclaration,
   ClassDeclaration,
@@ -31,6 +31,29 @@ import {
 } from './security-decorators.js';
 import { extractPropertyValidationInfo } from './validation-mapper.js';
 
+// Caches for expensive operations to avoid repeated AST traversal
+const methodInfoCache = new WeakMap<
+  MethodDeclaration,
+  Map<string, Option.Option<MethodInfo>>
+>();
+const returnTypeInfoCache = new WeakMap<MethodDeclaration, ReturnTypeInfo>();
+const parametersCache = new WeakMap<
+  MethodDeclaration,
+  Map<string, readonly ResolvedParameter[]>
+>();
+const operationMetadataCache = new WeakMap<
+  MethodDeclaration,
+  OperationMetadata
+>();
+const apiResponsesCache = new WeakMap<
+  MethodDeclaration,
+  readonly ResponseMetadata[]
+>();
+const httpCodeCache = new WeakMap<MethodDeclaration, Option.Option<number>>();
+const apiConsumesCache = new WeakMap<MethodDeclaration, readonly string[]>();
+const apiProducesCache = new WeakMap<MethodDeclaration, readonly string[]>();
+const decoratorNamesCache = new WeakMap<MethodDeclaration, readonly string[]>();
+
 const HTTP_METHOD_MAP: Record<string, HttpMethod> = {
   Get: 'GET',
   Post: 'POST',
@@ -57,6 +80,22 @@ export interface ExtractParametersOptions {
     readonly style?: 'inline' | 'ref';
   };
 }
+
+const getExtractParametersOptionsCacheKey = (
+  options: ExtractParametersOptions = {},
+): string => (options.query?.style === 'ref' ? 'query:ref' : 'query:inline');
+
+const getOrCreateMethodOptionsCacheBucket = <T>(
+  cache: WeakMap<MethodDeclaration, Map<string, T>>,
+  method: MethodDeclaration,
+): Map<string, T> => {
+  const existing = cache.get(method);
+  if (existing) return existing;
+
+  const created = new Map<string, T>();
+  cache.set(method, created);
+  return created;
+};
 
 /** Primitive types that should not be expanded */
 const PRIMITIVE_TYPES = new Set([
@@ -129,11 +168,16 @@ const hasAliasedImportCollision = (
 };
 
 const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
+  // Check cache first
+  const cached = returnTypeInfoCache.get(method);
+  if (cached !== undefined) return cached;
+
   const returnType = method.getReturnType();
   const awaited =
     (
       returnType as { getAwaitedType?: () => typeof returnType }
     ).getAwaitedType?.() ?? returnType;
+  const rawTypeText = awaited.getText(method);
 
   const symbol = awaited.getSymbol?.();
 
@@ -149,12 +193,17 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
     return null;
   };
 
-  let text = getOriginalTypeName() ?? awaited.getText(method);
+  let text = getOriginalTypeName() ?? rawTypeText;
 
   // For aliased generic types (e.g. ApiResponse as ApiResponseType),
   // prefer the original exported symbol name so refs match generated schemas.
   const compilerType = awaited.compilerType as {
-    aliasSymbol?: { escapedName?: string | number | symbol };
+    aliasSymbol?: {
+      escapedName?: string | number | symbol;
+      declarations?: ReadonlyArray<{
+        getSourceFile: () => { fileName?: string };
+      }>;
+    };
   };
   const aliasName = compilerType.aliasSymbol?.escapedName?.toString();
   if (aliasName && !aliasName.startsWith('__')) {
@@ -193,42 +242,96 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   // Clean import(...).TypeName to just TypeName
   text = text.replace(/\bimport\([^)]*\)\./g, '');
 
+  const resolveExternalImportFilePath = (): Option.Option<string> => {
+    const importTypeMatch = rawTypeText.match(
+      /import\(["']([^"']+)["']\)\.[A-Za-z_$][A-Za-z0-9_$]*/,
+    );
+    if (importTypeMatch) {
+      const moduleSpecifier = importTypeMatch[1]!;
+      if (!moduleSpecifier.startsWith('.') && !moduleSpecifier.startsWith('/')) {
+        return Option.some(`/node_modules/${moduleSpecifier}/index.d.ts`);
+      }
+    }
+
+    const namespaceMatch = rawTypeText.match(
+      /^([A-Za-z_$][A-Za-z0-9_$]*)\.[A-Za-z_$][A-Za-z0-9_$]*(?:<.*>)?$/,
+    );
+    if (!namespaceMatch) return Option.none();
+
+    const namespace = namespaceMatch[1]!;
+    for (const importDecl of method.getSourceFile().getImportDeclarations()) {
+      const namespaceImport = importDecl.getNamespaceImport();
+      const defaultImport = importDecl.getDefaultImport();
+      const matchesImportAlias =
+        namespaceImport?.getText() === namespace ||
+        defaultImport?.getText() === namespace;
+      if (!matchesImportAlias) {
+        continue;
+      }
+
+      const moduleSpecifier = importDecl.getModuleSpecifierValue();
+      if (moduleSpecifier.startsWith('.') || moduleSpecifier.startsWith('/')) {
+        return Option.none();
+      }
+
+      return Option.some(`/node_modules/${moduleSpecifier}/index.d.ts`);
+    }
+
+    return Option.none();
+  };
+
   const resolveFilePath = (): Option.Option<string> => {
+    const aliasDeclFile =
+      compilerType.aliasSymbol?.declarations?.[0]?.getSourceFile?.().fileName;
+    if (typeof aliasDeclFile === 'string' && aliasDeclFile.length > 0) {
+      return Option.some(aliasDeclFile);
+    }
+
     if (symbol) {
       const decls = symbol.getDeclarations();
       if (decls && decls.length > 0) {
         return Option.some(decls[0].getSourceFile().getFilePath());
       }
     }
+    const externalImportPath = resolveExternalImportFilePath();
+    if (Option.isSome(externalImportPath)) {
+      return externalImportPath;
+    }
     return Option.none();
   };
 
+  let result: ReturnTypeInfo;
   if (text.endsWith('[]')) {
     const baseType = text.slice(0, -2);
     const base = parseTypeText(baseType);
-    return {
+    result = {
       ...base,
       container: Option.some('array' as const),
       filePath: Option.isSome(base.type) ? resolveFilePath() : Option.none(),
     };
+  } else {
+    const arrayMatch = text.match(/^(?:Readonly)?Array<(.+)>$/);
+    if (arrayMatch) {
+      const base = parseTypeText(arrayMatch[1]);
+      result = {
+        ...base,
+        container: Option.some('array' as const),
+        filePath: Option.isSome(base.type) ? resolveFilePath() : Option.none(),
+      };
+    } else {
+      const parsed = parseTypeText(text);
+      result = {
+        ...parsed,
+        container: Option.none(),
+        filePath: Option.isSome(parsed.type)
+          ? resolveFilePath()
+          : Option.none(),
+      };
+    }
   }
 
-  const arrayMatch = text.match(/^(?:Readonly)?Array<(.+)>$/);
-  if (arrayMatch) {
-    const base = parseTypeText(arrayMatch[1]);
-    return {
-      ...base,
-      container: Option.some('array' as const),
-      filePath: Option.isSome(base.type) ? resolveFilePath() : Option.none(),
-    };
-  }
-
-  const parsed = parseTypeText(text);
-  return {
-    ...parsed,
-    container: Option.none(),
-    filePath: Option.isSome(parsed.type) ? resolveFilePath() : Option.none(),
-  };
+  returnTypeInfoCache.set(method, result);
+  return result;
 };
 
 const extractDescriptionFromDecorator = (
@@ -382,6 +485,14 @@ const tsTypeToString = (typeText: string): string => {
   return trimmed;
 };
 
+const hasUndefinedTypeMember = (typeText: string): boolean =>
+  typeText.split('|').some((member) => member.trim() === 'undefined');
+
+const isInlineObjectTypeText = (typeText: string): boolean => {
+  const trimmed = typeText.trim();
+  return trimmed.startsWith('{') && trimmed.endsWith('}');
+};
+
 /** Extract class properties as individual query parameters */
 const expandQueryDtoProperties = (
   method: MethodDeclaration,
@@ -410,7 +521,14 @@ const expandQueryDtoProperties = (
       const propSig = decl.asKind?.(ts.SyntaxKind.PropertySignature);
 
       if (propDecl) {
-        propTypeText = tsTypeToString(propDecl.getType().getText(propDecl));
+        const rawPropTypeText = propDecl.getType().getText(propDecl);
+        const declaredPropTypeText =
+          propDecl.getTypeNode()?.getText() ?? rawPropTypeText;
+        propTypeText = tsTypeToString(rawPropTypeText);
+        const hasUndefinedUnion = hasUndefinedTypeMember(declaredPropTypeText);
+        const isInlineObjectType =
+          propDecl.getTypeNode()?.getKind() === ts.SyntaxKind.TypeLiteral ||
+          isInlineObjectTypeText(declaredPropTypeText);
 
         // Extract optionality and constraints in a single pass for performance
         const validationInfo = extractPropertyValidationInfo(propDecl);
@@ -419,15 +537,25 @@ const expandQueryDtoProperties = (
         isOptional =
           propDecl.hasQuestionToken() ||
           propDecl.hasInitializer?.() ||
-          validationInfo.isOptional;
+          validationInfo.isOptional ||
+          hasUndefinedUnion ||
+          isInlineObjectType;
 
         // Use extracted validation constraints
         if (Object.keys(validationInfo.constraints).length > 0) {
           constraints = validationInfo.constraints;
         }
       } else if (propSig) {
-        propTypeText = tsTypeToString(propSig.getType().getText(propSig));
-        isOptional = propSig.hasQuestionToken();
+        const rawPropTypeText = propSig.getType().getText(propSig);
+        const declaredPropTypeText =
+          propSig.getTypeNode()?.getText() ?? rawPropTypeText;
+        propTypeText = tsTypeToString(rawPropTypeText);
+        const hasUndefinedUnion = hasUndefinedTypeMember(declaredPropTypeText);
+        const isInlineObjectType =
+          propSig.getTypeNode()?.getKind() === ts.SyntaxKind.TypeLiteral ||
+          isInlineObjectTypeText(declaredPropTypeText);
+        isOptional =
+          propSig.hasQuestionToken() || hasUndefinedUnion || isInlineObjectType;
         // Interface properties don't have decorators, so no constraints to extract
       }
     }
@@ -455,92 +583,126 @@ const expandQueryDtoProperties = (
 const extractParameters = (
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
-): readonly ResolvedParameter[] =>
-  method.getParameters().reduce<ResolvedParameter[]>((params, param) => {
-    const relevantDecorator = param
-      .getDecorators()
-      .find((d) => d.getName() in PARAMETER_DECORATOR_MAP);
+): readonly ResolvedParameter[] => {
+  // Cache by extraction options, since query style changes output shape.
+  const optionsKey = getExtractParametersOptionsCacheKey(options);
+  const cached = parametersCache.get(method)?.get(optionsKey);
+  if (cached !== undefined) return cached;
 
-    if (!relevantDecorator) return params;
+  const result = method
+    .getParameters()
+    .reduce<ResolvedParameter[]>((params, param) => {
+      const relevantDecorator = param
+        .getDecorators()
+        .find((d) => d.getName() in PARAMETER_DECORATOR_MAP);
 
-    const decoratorName = relevantDecorator.getName();
-    const args = relevantDecorator.getArguments();
+      if (!relevantDecorator) return params;
 
-    let paramName = param.getName();
-    let hasExplicitName = false;
-    for (const arg of args) {
-      const stringLit = arg.asKind?.(ts.SyntaxKind.StringLiteral);
-      if (stringLit) {
-        paramName = stringLit.getLiteralValue();
-        hasExplicitName = true;
-        break;
+      const decoratorName = relevantDecorator.getName();
+      const args = relevantDecorator.getArguments();
+
+      let paramName = param.getName();
+      let hasExplicitName = false;
+      for (const arg of args) {
+        const stringLit = arg.asKind?.(ts.SyntaxKind.StringLiteral);
+        if (stringLit) {
+          paramName = stringLit.getLiteralValue();
+          hasExplicitName = true;
+          break;
+        }
       }
-    }
 
-    const location = PARAMETER_DECORATOR_MAP[decoratorName] ?? 'query';
-    const paramType = param.getType();
+      const location = PARAMETER_DECORATOR_MAP[decoratorName] ?? 'query';
+      if (decoratorName === 'Headers' && !hasExplicitName) return params;
+      const paramType = param.getType();
 
-    // Get type name, preferring symbol name for correct resolution of aliased imports
-    // When someone writes "import { Foo as Bar }", getText() returns "Bar" but
-    // symbol.getName() returns "Foo" (the original export name)
-    let tsType = paramType.getText(param);
-    const symbol = paramType.getSymbol?.();
-    if (symbol) {
-      const symbolName = symbol.getName();
-      // Use symbol name if it's a valid identifier (not __type etc.)
-      // But skip built-in types like Array, Promise, etc. - those should use getText()
-      // to preserve the full generic signature like "Array<string>"
+      // Get type name, preferring symbol name for correct resolution of aliased imports
+      // When someone writes "import { Foo as Bar }", getText() returns "Bar" but
+      // symbol.getName() returns "Foo" (the original export name)
+      const rawTsType = paramType.getText(param);
+      const declaredTsType = param.getTypeNode()?.getText() ?? rawTsType;
+      let tsType = rawTsType;
+      const symbol = paramType.getSymbol?.();
+      if (symbol) {
+        const symbolName = symbol.getName();
+        // Use symbol name if it's a valid identifier (not __type etc.)
+        // But skip built-in types like Array, Promise, etc. - those should use getText()
+        // to preserve the full generic signature like "Array<string>"
+        if (
+          symbolName &&
+          !symbolName.startsWith('__') &&
+          !BUILT_IN_TYPES.has(symbolName)
+        ) {
+          tsType = symbolName;
+        }
+      }
+
+      // Clean import(...).TypeName to just TypeName (for cases where getText returns full path)
+      tsType = tsType.replace(/\bimport\([^)]*\)\./g, '');
+
+      // Check if we should expand query DTO to individual parameters
+      // Conditions: @Query() without explicit name, type is a class, style is not "ref"
       if (
-        symbolName &&
-        !symbolName.startsWith('__') &&
-        !BUILT_IN_TYPES.has(symbolName)
+        decoratorName === 'Query' &&
+        !hasExplicitName &&
+        options.query?.style !== 'ref' &&
+        isExpandableType(tsType)
       ) {
-        tsType = symbolName;
+        // Expand DTO properties to individual query parameters
+        const expandedParams = expandQueryDtoProperties(
+          method,
+          param,
+          paramType,
+        );
+        if (expandedParams.length > 0) {
+          params.push(...expandedParams);
+          return params;
+        }
+        // If expansion failed (no properties found), fall through to default behavior
       }
-    }
 
-    // Clean import(...).TypeName to just TypeName (for cases where getText returns full path)
-    tsType = tsType.replace(/\bimport\([^)]*\)\./g, '');
+      const isOptional =
+        location !== 'path' &&
+        (param.hasQuestionToken() ||
+          param.hasInitializer() ||
+          hasUndefinedTypeMember(declaredTsType));
+      const description = extractParameterDescription(
+        method,
+        param,
+        paramName,
+        location,
+      );
 
-    // Check if we should expand query DTO to individual parameters
-    // Conditions: @Query() without explicit name, type is a class, style is not "ref"
-    if (
-      decoratorName === 'Query' &&
-      !hasExplicitName &&
-      options.query?.style !== 'ref' &&
-      isExpandableType(tsType)
-    ) {
-      // Expand DTO properties to individual query parameters
-      const expandedParams = expandQueryDtoProperties(method, param, paramType);
-      if (expandedParams.length > 0) {
-        params.push(...expandedParams);
-        return params;
-      }
-      // If expansion failed (no properties found), fall through to default behavior
-    }
+      params.push({
+        name: paramName,
+        location,
+        tsType,
+        required: !isOptional,
+        description,
+      });
 
-    const isOptional = param.hasQuestionToken() || param.hasInitializer();
-    const description = extractParameterDescription(
-      method,
-      param,
-      paramName,
-      location,
-    );
+      return params;
+    }, []);
 
-    params.push({
-      name: paramName,
-      location,
-      tsType,
-      required: !isOptional,
-      description,
-    });
-
-    return params;
-  }, []);
+  getOrCreateMethodOptionsCacheBucket(parametersCache, method).set(
+    optionsKey,
+    result,
+  );
+  return result;
+};
 
 /** Extracts all decorator names from a method */
-const extractDecoratorNames = (method: MethodDeclaration): readonly string[] =>
-  method.getDecorators().map((d) => getDecoratorName(d));
+const extractDecoratorNames = (
+  method: MethodDeclaration,
+): readonly string[] => {
+  // Check cache first
+  const cached = decoratorNamesCache.get(method);
+  if (cached !== undefined) return cached;
+
+  const result = method.getDecorators().map((d) => getDecoratorName(d));
+  decoratorNamesCache.set(method, result);
+  return result;
+};
 
 /** Extracts string arguments from a decorator (e.g., @ApiConsumes('application/json', 'multipart/form-data')) */
 const extractStringArguments = (decorator: Decorator): readonly string[] => {
@@ -557,23 +719,37 @@ const extractStringArguments = (decorator: Decorator): readonly string[] => {
 
 /** Extracts content types from @ApiConsumes decorator */
 const extractApiConsumes = (method: MethodDeclaration): readonly string[] => {
+  // Check cache first
+  const cached = apiConsumesCache.get(method);
+  if (cached !== undefined) return cached;
+
   for (const decorator of method.getDecorators()) {
     const decoratorName = getDecoratorName(decorator);
     if (decoratorName === 'ApiConsumes') {
-      return extractStringArguments(decorator);
+      const result = extractStringArguments(decorator);
+      apiConsumesCache.set(method, result);
+      return result;
     }
   }
+  apiConsumesCache.set(method, []);
   return [];
 };
 
 /** Extracts content types from @ApiProduces decorator */
 const extractApiProduces = (method: MethodDeclaration): readonly string[] => {
+  // Check cache first
+  const cached = apiProducesCache.get(method);
+  if (cached !== undefined) return cached;
+
   for (const decorator of method.getDecorators()) {
     const decoratorName = getDecoratorName(decorator);
     if (decoratorName === 'ApiProduces') {
-      return extractStringArguments(decorator);
+      const result = extractStringArguments(decorator);
+      apiProducesCache.set(method, result);
+      return result;
     }
   }
+  apiProducesCache.set(method, []);
   return [];
 };
 
@@ -716,6 +892,10 @@ const extractNumberPropertyFromDecorator = (
 
 /** Extracts @HttpCode decorator value */
 const extractHttpCode = (method: MethodDeclaration): Option.Option<number> => {
+  // Check cache first
+  const cached = httpCodeCache.get(method);
+  if (cached !== undefined) return cached;
+
   for (const decorator of method.getDecorators()) {
     const decoratorName = getDecoratorName(decorator);
     if (decoratorName === 'HttpCode') {
@@ -725,7 +905,9 @@ const extractHttpCode = (method: MethodDeclaration): Option.Option<number> => {
       // Handle numeric literal: @HttpCode(201)
       const numLit = arg.asKind?.(ts.SyntaxKind.NumericLiteral);
       if (numLit) {
-        return Option.some(Number(numLit.getLiteralValue()));
+        const result = Option.some(Number(numLit.getLiteralValue()));
+        httpCodeCache.set(method, result);
+        return result;
       }
 
       // Handle HttpStatus.XXX: @HttpCode(HttpStatus.CREATED)
@@ -733,11 +915,14 @@ const extractHttpCode = (method: MethodDeclaration): Option.Option<number> => {
       if (propAccess) {
         const statusName = propAccess.getName();
         if (statusName && HTTP_STATUS_MAP[statusName] !== undefined) {
-          return Option.some(HTTP_STATUS_MAP[statusName]);
+          const result = Option.some(HTTP_STATUS_MAP[statusName]);
+          httpCodeCache.set(method, result);
+          return result;
         }
       }
     }
   }
+  httpCodeCache.set(method, Option.none());
   return Option.none();
 };
 
@@ -787,6 +972,10 @@ const extractResponseType = (
 const extractApiResponses = (
   method: MethodDeclaration,
 ): readonly ResponseMetadata[] => {
+  // Check cache first
+  const cached = apiResponsesCache.get(method);
+  if (cached !== undefined) return cached;
+
   const responses: ResponseMetadata[] = [];
 
   for (const decorator of method.getDecorators()) {
@@ -813,6 +1002,7 @@ const extractApiResponses = (
     }
   }
 
+  apiResponsesCache.set(method, responses);
   return responses;
 };
 
@@ -820,10 +1010,14 @@ const extractApiResponses = (
 const extractApiOperationMetadata = (
   method: MethodDeclaration,
 ): OperationMetadata => {
+  // Check cache first
+  const cached = operationMetadataCache.get(method);
+  if (cached !== undefined) return cached;
+
   for (const decorator of method.getDecorators()) {
     const decoratorName = getDecoratorName(decorator);
     if (decoratorName === 'ApiOperation') {
-      return {
+      const result = {
         summary: extractStringPropertyFromObjectLiteral(decorator, 'summary'),
         description: extractStringPropertyFromObjectLiteral(
           decorator,
@@ -838,29 +1032,50 @@ const extractApiOperationMetadata = (
           'deprecated',
         ),
       };
+      operationMetadataCache.set(method, result);
+      return result;
     }
   }
   // Return empty metadata if no @ApiOperation found
-  return {
+  const result = {
     summary: Option.none(),
     description: Option.none(),
     operationId: Option.none(),
     deprecated: Option.none(),
   };
+  operationMetadataCache.set(method, result);
+  return result;
 };
 
 /** Returns None if the method has no HTTP decorator */
-export const getMethodInfo = (
+const getMethodInfoInternal = (
   controller: ClassDeclaration,
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
 ): Option.Option<MethodInfo> => {
+  // Cache by extraction options, since query style can change parameter output.
+  const optionsKey = getExtractParametersOptionsCacheKey(options);
+  const cached = methodInfoCache.get(method)?.get(optionsKey);
+  if (cached !== undefined) return cached;
+
   const httpDecorator = getHttpDecorator(method);
-  if (!httpDecorator) return Option.none();
+  if (!httpDecorator) {
+    getOrCreateMethodOptionsCacheBucket(methodInfoCache, method).set(
+      optionsKey,
+      Option.none(),
+    );
+    return Option.none();
+  }
 
   const decoratorName = httpDecorator.getName();
   const httpMethod = HTTP_METHOD_MAP[decoratorName];
-  if (!httpMethod) return Option.none();
+  if (!httpMethod) {
+    getOrCreateMethodOptionsCacheBucket(methodInfoCache, method).set(
+      optionsKey,
+      Option.none(),
+    );
+    return Option.none();
+  }
 
   const controllerPrefix = getControllerPrefix(controller);
   const methodPath = getRoutePath(httpDecorator);
@@ -876,7 +1091,7 @@ export const getMethodInfo = (
     hasMethodSecurity,
   );
 
-  return Option.some({
+  const result = Option.some({
     httpMethod,
     path: fullPath,
     methodName: method.getName(),
@@ -892,7 +1107,32 @@ export const getMethodInfo = (
     produces: [...extractApiProduces(method)],
     security: [...security],
   });
+
+  getOrCreateMethodOptionsCacheBucket(methodInfoCache, method).set(
+    optionsKey,
+    result,
+  );
+  return result;
 };
+
+export const getMethodInfo = (
+  controller: ClassDeclaration,
+  method: MethodDeclaration,
+  options: ExtractParametersOptions = {},
+): Option.Option<MethodInfo> =>
+  getMethodInfoInternal(controller, method, options);
+
+export const getMethodInfoEffect = Effect.fn('Methods.getMethodInfo')(
+  function* (
+    controller: ClassDeclaration,
+    method: MethodDeclaration,
+    options: ExtractParametersOptions = {},
+  ) {
+    return yield* Effect.succeed(
+      getMethodInfoInternal(controller, method, options),
+    );
+  },
+);
 
 export const getControllerMethodInfos = (
   controller: ClassDeclaration,
@@ -900,6 +1140,51 @@ export const getControllerMethodInfos = (
 ): readonly MethodInfo[] =>
   controller
     .getMethods()
-    .map((method) => getMethodInfo(controller, method, options))
+    .map((method) => getMethodInfoInternal(controller, method, options))
     .filter(Option.isSome)
     .map((opt) => opt.value);
+
+export const getControllerMethodInfosEffect = Effect.fn(
+  'Methods.getControllerMethodInfos',
+)(function* (
+  controller: ClassDeclaration,
+  options: ExtractParametersOptions = {},
+) {
+  const methodInfos = yield* Effect.forEach(
+    controller.getMethods(),
+    (method) => getMethodInfoEffect(controller, method, options),
+    { concurrency: 'unbounded' },
+  );
+
+  return methodInfos.filter(Option.isSome).map((opt) => opt.value);
+});
+
+const serviceGetMethodInfo = Effect.fn('MethodExtractionService.getMethodInfo')(
+  function* (
+    controller: ClassDeclaration,
+    method: MethodDeclaration,
+    options: ExtractParametersOptions = {},
+  ) {
+    return yield* getMethodInfoEffect(controller, method, options);
+  },
+);
+
+const serviceGetControllerMethodInfos = Effect.fn(
+  'MethodExtractionService.getControllerMethodInfos',
+)(function* (
+  controller: ClassDeclaration,
+  options: ExtractParametersOptions = {},
+) {
+  return yield* getControllerMethodInfosEffect(controller, options);
+});
+
+export class MethodExtractionService extends Effect.Service<MethodExtractionService>()(
+  'MethodExtractionService',
+  {
+    accessors: true,
+    effect: Effect.succeed({
+      getMethodInfo: serviceGetMethodInfo,
+      getControllerMethodInfos: serviceGetControllerMethodInfos,
+    }),
+  },
+) {}

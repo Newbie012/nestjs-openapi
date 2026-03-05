@@ -21,7 +21,32 @@ export default tseslint.config(
       ],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': ['error', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ThrowStatement',
+          message:
+            'Do not throw in source modules. Use Effect.fail(...) with a Schema.TaggedError.',
+        },
+        {
+          selector: "NewExpression[callee.name='Error']",
+          message:
+            'Do not use generic Error in source modules. Use a Schema.TaggedError type.',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='Effect'][callee.property.name='catchAll']",
+          message:
+            'Prefer Effect.catchTag/Effect.catchTags for typed, specific error handling.',
+        },
+      ],
     },
   },
   {

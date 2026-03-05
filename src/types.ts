@@ -431,6 +431,43 @@ export interface GenerateOverrides {
    * Enable debug mode for verbose logging and full stack traces.
    */
   readonly debug?: boolean;
+
+  /**
+   * Optional OpenTelemetry tracing for profiling generation performance.
+   */
+  readonly telemetry?: TelemetryConfig;
+}
+
+/**
+ * OpenTelemetry tracing options.
+ */
+export interface TelemetryConfig {
+  /**
+   * Enable OpenTelemetry tracing.
+   * @default false
+   */
+  readonly enabled?: boolean;
+
+  /**
+   * Span exporter backend.
+   * - "console": writes spans to stdout
+   * - "otlp": sends spans to OTLP HTTP collector
+   * @default "console"
+   */
+  readonly exporter?: 'console' | 'otlp';
+
+  /**
+   * OTLP HTTP endpoint.
+   * Used only when exporter is "otlp".
+   * @default "http://localhost:4318/v1/traces"
+   */
+  readonly otlpEndpoint?: string;
+
+  /**
+   * Service name attached to emitted traces.
+   * @default "nestjs-openapi"
+   */
+  readonly serviceName?: string;
 }
 
 /**

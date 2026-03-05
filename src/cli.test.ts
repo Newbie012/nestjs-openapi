@@ -1,9 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const TEST_DIR = resolve(process.cwd(), '.test-cli-regression');
+
+const runCli = (
+  args: readonly string[],
+): Promise<{ readonly status: number | null; readonly stdout: string; readonly stderr: string }> =>
+  new Promise((resolveRun, rejectRun) => {
+    const child = spawn('pnpm', ['-s', 'tsx', 'src/cli.ts', ...args], {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', rejectRun);
+    child.on('close', (status) => {
+      resolveRun({ status, stdout, stderr });
+    });
+  });
 
 describe('cli regressions', () => {
   beforeEach(() => {
@@ -16,7 +41,7 @@ describe('cli regressions', () => {
     }
   });
 
-  it('should exit non-zero when generated spec has broken refs', () => {
+  it('should exit non-zero when generated spec has broken refs', async () => {
     const appDir = join(TEST_DIR, 'app');
     const srcDir = join(appDir, 'src');
 
@@ -93,19 +118,12 @@ export default defineConfig({
       'utf-8',
     );
 
-    const cliResult = spawnSync(
-      'pnpm',
-      ['-s', 'tsx', 'src/cli.ts', 'generate', '-c', configPath],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf-8',
-      },
-    );
+    const cliResult = await runCli(['generate', '-c', configPath]);
 
     expect(cliResult.status).toBe(1);
-  });
+  }, 60_000);
 
-  it('should exit non-zero when generated spec has unresolved generic refs', () => {
+  it('should exit non-zero when generated spec has unresolved generic refs', async () => {
     const appDir = join(TEST_DIR, 'generic-app');
     const srcDir = join(appDir, 'src');
 
@@ -182,15 +200,22 @@ export default defineConfig({
       'utf-8',
     );
 
-    const cliResult = spawnSync(
-      'pnpm',
-      ['-s', 'tsx', 'src/cli.ts', 'generate', '-c', configPath],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf-8',
-      },
-    );
+    const cliResult = await runCli(['generate', '-c', configPath]);
 
     expect(cliResult.status).toBe(1);
+  }, 60_000);
+
+  it('should fail fast on invalid --otel-exporter value', async () => {
+    const cliResult = await runCli([
+      'generate',
+      '-c',
+      'openapi.config.ts',
+      '--otel',
+      '--otel-exporter',
+      'invalid-exporter',
+    ]);
+
+    expect(cliResult.status).toBe(1);
+    expect(cliResult.stderr).toContain('Invalid --otel-exporter');
   });
 });

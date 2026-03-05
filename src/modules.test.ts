@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Effect } from 'effect';
 import { Project } from 'ts-morph';
-import { getModules, getAllControllers } from './modules.js';
+import {
+  getModules,
+  getAllControllers,
+  ModuleTraversalService,
+} from './modules.js';
 
 describe('Modules', () => {
   const createProject = () =>
@@ -222,6 +226,35 @@ describe('Modules', () => {
       const result = await Effect.runPromise(getAllControllers(classDecl));
 
       expect(result).toEqual([]);
+    });
+
+    it('provides service accessors via ModuleTraversalService.Default', async () => {
+      const project = createProject();
+      const sourceFile = project.createSourceFile(
+        'service-test.ts',
+        `
+          function Module(options: any): ClassDecorator { return () => {}; }
+          function Controller(path?: string): ClassDecorator { return () => {}; }
+
+          @Controller('/users')
+          class UserController {}
+
+          @Module({
+            controllers: [UserController]
+          })
+          class AppModule {}
+        `,
+      );
+
+      const appModule = sourceFile.getClass('AppModule')!;
+      const result = await Effect.runPromise(
+        ModuleTraversalService.getAllControllers(appModule).pipe(
+          Effect.provide(ModuleTraversalService.Default),
+        ),
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].getName()).toBe('UserController');
     });
   });
 });

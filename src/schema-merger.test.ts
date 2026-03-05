@@ -185,6 +185,51 @@ describe('schema-merger', () => {
 
       expect(result.schemas['UserFilter']).toBeDefined();
     });
+
+    it('should keep $ref properties as ref-only schemas', () => {
+      const paths: OpenApiPaths = {
+        '/users': {
+          get: {
+            operationId: 'getUsers',
+            responses: {
+              '200': {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: {
+              role: {
+                $ref: '#/definitions/Role',
+                description: 'User role',
+                enum: ['admin', 'user', 'guest'],
+              },
+            },
+          },
+          Role: {
+            type: 'string',
+            enum: ['admin', 'user', 'guest'],
+          },
+        },
+      };
+
+      const result = mergeSchemas(paths, schemas);
+
+      expect(result.schemas['User'].properties?.role).toEqual({
+        $ref: '#/components/schemas/Role',
+      });
+    });
   });
 
   describe('nullable normalization (type array to nullable: true)', () => {

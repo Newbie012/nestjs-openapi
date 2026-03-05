@@ -1,18 +1,24 @@
 /**
- * Internal Effect-based API
+ * Internal Effect-based APIs.
  *
- * This module exposes the Effect-based implementation for users who want
- * to integrate with Effect-TS. For most users, the Promise-based API
- * in the main module is recommended.
+ * This module keeps low-level Effect entry points for advanced usage.
  */
 
 import { Effect } from 'effect';
-import { Project } from 'ts-morph';
-import { EntryNotFoundError, type ProjectError } from './errors.js';
-import { getModules } from './modules.js';
-import { getControllerMethodInfos } from './methods.js';
-import { transformMethods } from './transformer.js';
 import type { OpenApiPaths } from './domain.js';
+import { type GeneratorError, type ProjectError } from './errors.js';
+import { generateEffect, type GenerateResult } from './generate.js';
+import { MethodExtractionService } from './methods.js';
+import { ModuleTraversalService } from './modules.js';
+import { ProjectService } from './project.js';
+import {
+  runGeneratorApiPromise,
+  runProjectApiPromise,
+} from './public-api.js';
+import { runtimeLayerFor } from './runtime-layer.js';
+import { generatorServicesLayer } from './service-layer.js';
+import { transformMethodsEffect } from './transformer.js';
+import type { GenerateOverrides } from './types.js';
 
 export interface GenerateOptions {
   readonly tsconfig: string;
@@ -20,81 +26,81 @@ export interface GenerateOptions {
 }
 
 /**
- * Generate OpenAPI paths using Effect
- *
- * @example
- * ```typescript
- * import { Effect } from 'effect';
- * import { generate } from 'nestjs-openapi/internal';
- *
- * const program = generate({
- *   tsconfig: './tsconfig.json',
- *   entry: './src/app.module.ts'
- * });
- *
- * const paths = await Effect.runPromise(program);
- * ```
+ * Low-level path-only Effect API from entry + tsconfig.
  */
-export const generate = (
-  options: GenerateOptions,
-): Effect.Effect<OpenApiPaths, ProjectError> =>
-  Effect.gen(function* () {
+export const generatePathsEffect = Effect.fn('Internal.generatePathsEffect')(
+  function* (options: GenerateOptions) {
     yield* Effect.logInfo('Starting OpenAPI generation').pipe(
       Effect.annotateLogs({ entry: options.entry }),
     );
 
-    const project = new Project({
-      tsConfigFilePath: options.tsconfig,
-      skipAddingFilesFromTsConfig: true,
-    });
+    const { entryClass } = yield* ProjectService.makeProjectContext(options);
+    const modules = yield* ModuleTraversalService.getModules(entryClass);
 
-    project.addSourceFilesAtPaths(options.entry);
-    project.resolveSourceFileDependencies();
-
-    const entrySourceFile = project.getSourceFile(options.entry);
-    if (!entrySourceFile) {
-      return yield* EntryNotFoundError.fileNotFound(options.entry);
-    }
-
-    const entryClass = entrySourceFile.getClass('AppModule');
-    if (!entryClass) {
-      return yield* EntryNotFoundError.classNotFound(
-        options.entry,
-        'AppModule',
-      );
-    }
-
-    const modules = yield* getModules(entryClass);
-
-    const methodInfos = modules.flatMap((mod) =>
-      mod.controllers.flatMap((controller) =>
-        getControllerMethodInfos(controller),
-      ),
+    const methodInfos = yield* Effect.forEach(
+      modules.flatMap((mod) => mod.controllers),
+      (controller) => MethodExtractionService.getControllerMethodInfos(controller),
+      { concurrency: 'unbounded' },
     );
+    const flatMethodInfos = methodInfos.flat();
 
     yield* Effect.logInfo('Collected method infos').pipe(
       Effect.annotateLogs({
         modules: modules.length,
-        methods: methodInfos.length,
+        methods: flatMethodInfos.length,
       }),
     );
 
-    const paths = transformMethods(methodInfos);
+    const paths = yield* transformMethodsEffect(flatMethodInfos);
 
     yield* Effect.logInfo('OpenAPI generation complete').pipe(
-      Effect.annotateLogs({
-        paths: Object.keys(paths).length,
-      }),
+      Effect.annotateLogs({ paths: Object.keys(paths).length }),
     );
 
     return paths;
-  });
+  },
+);
 
-export const generateAsync = async (
+/**
+ * Canonical config-file based Effect API.
+ */
+export const generateFromConfigEffect = generateEffect;
+
+/**
+ * Promise wrapper for path-only API.
+ */
+export const generatePathsAsync = async (
   options: GenerateOptions,
 ): Promise<OpenApiPaths> => {
-  const program = generate(options).pipe(
-    Effect.mapError((error) => new Error(error.message)),
-  );
-  return Effect.runPromise(program);
+  const program = generatePathsEffect(options) as Effect.Effect<
+    OpenApiPaths,
+    ProjectError,
+    never
+  >;
+  return runProjectApiPromise(program.pipe(Effect.provide(generatorServicesLayer)));
 };
+
+/**
+ * Promise wrapper for canonical config-file API.
+ */
+export const generateFromConfigAsync = async (
+  configPath: string,
+  overrides?: GenerateOverrides,
+): Promise<GenerateResult> => {
+  const program = generateFromConfigEffect(configPath, overrides).pipe(
+    Effect.provide(generatorServicesLayer),
+    Effect.provide(
+      runtimeLayerFor(
+        overrides?.debug ?? false,
+        overrides?.telemetry,
+      ),
+    ),
+  ) as Effect.Effect<GenerateResult, GeneratorError, never>;
+  return runGeneratorApiPromise(program);
+};
+
+/**
+ * Backward-compatible aliases.
+ */
+export const generate = generatePathsEffect;
+export const generateAsync = generatePathsAsync;

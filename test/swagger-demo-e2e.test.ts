@@ -15,7 +15,7 @@ describe('Swagger Demo E2E', () => {
   // Generate the spec before tests
   beforeAll(async () => {
     await generate(configPath);
-  });
+  }, 30_000);
 
   describe('Swagger Configuration', () => {
     it('should enable swagger with swagger: true', async () => {

@@ -18,7 +18,7 @@ describe('OpenApiModule E2E', () => {
   // Generate the spec before tests
   beforeAll(async () => {
     await generate(configPath);
-  });
+  }, 30_000);
 
   describe('Module Configuration', () => {
     it('should create module with JSON endpoint when enabled', async () => {

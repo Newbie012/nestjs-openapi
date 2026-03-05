@@ -1,19 +1,43 @@
 import { Option } from 'effect';
 import type {
   ClassDeclaration,
+  Decorator,
   Expression,
   ObjectLiteralExpression,
 } from 'ts-morph';
 import { ts } from 'ts-morph';
-import { resolveClassFromSymbol, getArrayInitializer } from './ast.js';
+import {
+  resolveClassFromSymbol,
+  getArrayInitializer,
+  getSymbolFromIdentifier,
+} from './ast.js';
 
-export const isModuleClass = (cls: ClassDeclaration | undefined): boolean =>
-  cls?.getDecorators().some((d) => d.getName() === 'Module') ?? false;
+const moduleDecoratorCache = new WeakMap<ClassDeclaration, Decorator | null>();
+const moduleMetadataCache = new WeakMap<ClassDeclaration, ModuleMetadata>();
+const classFromExpressionCache = new WeakMap<Expression, ClassDeclaration | null>();
+
+const getModuleDecorator = (
+  cls: ClassDeclaration,
+): Decorator | undefined => {
+  if (moduleDecoratorCache.has(cls)) {
+    const cached = moduleDecoratorCache.get(cls);
+    return cached === null ? undefined : cached;
+  }
+
+  const decorator = cls.getDecorators().find((d) => d.getName() === 'Module');
+  moduleDecoratorCache.set(cls, decorator ?? null);
+  return decorator;
+};
+
+export const isModuleClass = (cls: ClassDeclaration | undefined): boolean => {
+  if (!cls) return false;
+  return getModuleDecorator(cls) !== undefined;
+};
 
 export const getModuleDecoratorArg = (
   cls: ClassDeclaration,
 ): Option.Option<ObjectLiteralExpression> => {
-  const decorator = cls.getDecorators().find((d) => d.getName() === 'Module');
+  const decorator = getModuleDecorator(cls);
   const arg = decorator
     ?.getArguments()?.[0]
     ?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
@@ -26,10 +50,21 @@ export const resolveClassFromExpression = (
 ): Option.Option<ClassDeclaration> => {
   if (!expr) return Option.none();
 
+  const cached = classFromExpressionCache.get(expr);
+  if (cached !== undefined) {
+    return Option.fromNullable(cached);
+  }
+
   // Try direct identifier
-  const id = expr.asKind?.(ts.SyntaxKind.Identifier);
-  const symbol = id?.getSymbol() ?? id?.getDefinitionNodes()[0]?.getSymbol();
-  if (symbol) return resolveClassFromSymbol(symbol);
+  const symbol = Option.getOrUndefined(getSymbolFromIdentifier(expr));
+  if (symbol) {
+    const resolved = resolveClassFromSymbol(symbol);
+    classFromExpressionCache.set(
+      expr,
+      Option.isSome(resolved) ? resolved.value : null,
+    );
+    return resolved;
+  }
 
   // Try forwardRef(() => SomeClass)
   const call = expr.asKind?.(ts.SyntaxKind.CallExpression);
@@ -42,7 +77,14 @@ export const resolveClassFromExpression = (
 
     const body = arrow.getBody();
     const bodyId = body.asKind?.(ts.SyntaxKind.Identifier);
-    if (bodyId) return resolveClassFromExpression(bodyId);
+    if (bodyId) {
+      const resolved = resolveClassFromExpression(bodyId);
+      classFromExpressionCache.set(
+        expr,
+        Option.isSome(resolved) ? resolved.value : null,
+      );
+      return resolved;
+    }
 
     const block = body.asKind?.(ts.SyntaxKind.Block);
     const retExpr = block
@@ -50,13 +92,26 @@ export const resolveClassFromExpression = (
       .find((s) => s.getKind() === ts.SyntaxKind.ReturnStatement)
       ?.asKind(ts.SyntaxKind.ReturnStatement)
       ?.getExpression();
-    return resolveClassFromExpression(retExpr);
+    const resolved = resolveClassFromExpression(retExpr);
+    classFromExpressionCache.set(
+      expr,
+      Option.isSome(resolved) ? resolved.value : null,
+    );
+    return resolved;
   }
 
   // Try property access expression
   const pae = expr.asKind?.(ts.SyntaxKind.PropertyAccessExpression);
-  if (pae) return resolveClassFromExpression(pae.getNameNode());
+  if (pae) {
+    const resolved = resolveClassFromExpression(pae.getNameNode());
+    classFromExpressionCache.set(
+      expr,
+      Option.isSome(resolved) ? resolved.value : null,
+    );
+    return resolved;
+  }
 
+  classFromExpressionCache.set(expr, null);
   return Option.none();
 };
 
@@ -82,9 +137,16 @@ export interface ModuleMetadata {
 }
 
 export const getModuleMetadata = (mod: ClassDeclaration): ModuleMetadata => {
+  const cached = moduleMetadataCache.get(mod);
+  if (cached) {
+    return cached;
+  }
+
   const modArgOpt = getModuleDecoratorArg(mod);
   if (Option.isNone(modArgOpt)) {
-    return { controllers: [], imports: [] };
+    const empty = { controllers: [], imports: [] } as const;
+    moduleMetadataCache.set(mod, empty);
+    return empty;
   }
 
   const obj = modArgOpt.value;
@@ -101,7 +163,11 @@ export const getModuleMetadata = (mod: ClassDeclaration): ModuleMetadata => {
     (cls) => cls.getName() !== undefined,
   );
 
-  const imports = resolveArrayOfClasses(importsInit).filter(isModuleClass);
+  // Do not eagerly check @Module here; callers can handle non-module classes.
+  // This avoids duplicate decorator scans during traversal.
+  const imports = resolveArrayOfClasses(importsInit);
 
-  return { controllers, imports };
+  const metadata = { controllers, imports };
+  moduleMetadataCache.set(mod, metadata);
+  return metadata;
 };
