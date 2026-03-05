@@ -2,9 +2,12 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { Effect } from 'effect';
+import { SpecFileNotFoundError, SpecFileParseError } from './errors.js';
 import {
   OpenApiModule,
   loadSpecFile,
+  loadSpecFileEffect,
   generateSwaggerUiHtml,
   resolveOptions,
   OPENAPI_MODULE_OPTIONS,
@@ -146,6 +149,27 @@ describe('loadSpecFile', () => {
     expect(() => loadSpecFile('.test-temp/invalid.json')).toThrow(
       'Failed to load OpenAPI spec',
     );
+  });
+
+  it('should fail with SpecFileNotFoundError in Effect API', async () => {
+    const error = await Effect.runPromise(
+      loadSpecFileEffect('non-existent.json').pipe(Effect.flip),
+    );
+
+    expect(error).toBeInstanceOf(SpecFileNotFoundError);
+    expect(error.message).toContain('OpenAPI spec file not found');
+  });
+
+  it('should fail with SpecFileParseError in Effect API', async () => {
+    const invalidPath = join(tempDir, 'invalid-effect.json');
+    writeFileSync(invalidPath, '{ invalid json }');
+
+    const error = await Effect.runPromise(
+      loadSpecFileEffect('.test-temp/invalid-effect.json').pipe(Effect.flip),
+    );
+
+    expect(error).toBeInstanceOf(SpecFileParseError);
+    expect(error.message).toContain('Failed to load OpenAPI spec');
   });
 });
 
