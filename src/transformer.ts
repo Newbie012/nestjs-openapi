@@ -264,10 +264,9 @@ const transformParameter = (param: ResolvedParameter): OpenApiParameter => {
   return {
     name: param.name,
     in: getParameterLocation(param.location),
-    description: Option.getOrElse(
-      param.description,
-      () => `${param.location} parameter: ${param.name}`,
-    ),
+    ...(Option.isSome(param.description)
+      ? { description: param.description.value }
+      : {}),
     required: param.location === 'path' ? true : param.required,
     schema,
   };
@@ -470,7 +469,6 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
   const requestBody =
     bodyParams.length > 0
       ? {
-          description: `Request body parameter: ${bodyParams[0].name}`,
           required:
             bodyParams[0].required &&
             !isInlineOptionalBodyType(bodyParams[0].tsType),

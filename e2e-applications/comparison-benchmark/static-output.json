@@ -40,7 +40,6 @@
               }
             }
           },
-          "description": "Request body parameter: dto",
           "required": true
         },
         "responses": {
@@ -72,7 +71,6 @@
               }
             }
           },
-          "description": "Request body parameter: dto",
           "required": true
         },
         "responses": {
@@ -97,7 +95,6 @@
         "operationId": "AppController_getUserProfile",
         "parameters": [
           {
-            "description": "path parameter: id",
             "in": "path",
             "name": "id",
             "required": true,
@@ -128,7 +125,6 @@
         "operationId": "AppController_search",
         "parameters": [
           {
-            "description": "query parameter: q",
             "in": "query",
             "name": "q",
             "required": true,
@@ -137,7 +133,6 @@
             }
           },
           {
-            "description": "query parameter: page",
             "in": "query",
             "name": "page",
             "required": true,
@@ -146,7 +141,6 @@
             }
           },
           {
-            "description": "query parameter: limit",
             "in": "query",
             "name": "limit",
             "required": true,
@@ -155,7 +149,6 @@
             }
           },
           {
-            "description": "query parameter: active",
             "in": "query",
             "name": "active",
             "required": true,
@@ -189,7 +182,6 @@
         "operationId": "AppController_getUsers",
         "parameters": [
           {
-            "description": "query parameter: page",
             "in": "query",
             "name": "page",
             "required": true,
@@ -198,7 +190,6 @@
             }
           },
           {
-            "description": "query parameter: limit",
             "in": "query",
             "name": "limit",
             "required": true,
@@ -234,7 +225,6 @@
               }
             }
           },
-          "description": "Request body parameter: dto",
           "required": true
         },
         "responses": {
@@ -259,7 +249,6 @@
         "operationId": "AppController_getUser",
         "parameters": [
           {
-            "description": "path parameter: id",
             "in": "path",
             "name": "id",
             "required": true,
@@ -288,7 +277,6 @@
         "operationId": "AppController_updateUser",
         "parameters": [
           {
-            "description": "path parameter: id",
             "in": "path",
             "name": "id",
             "required": true,
@@ -305,7 +293,6 @@
               }
             }
           },
-          "description": "Request body parameter: dto",
           "required": true
         },
         "responses": {
@@ -330,7 +317,6 @@
         "operationId": "AppController_getUserResponse",
         "parameters": [
           {
-            "description": "path parameter: id",
             "in": "path",
             "name": "id",
             "required": true,

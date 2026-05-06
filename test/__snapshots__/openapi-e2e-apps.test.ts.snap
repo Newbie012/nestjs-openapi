@@ -195,7 +195,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
             },
           },
         },
-        "description": "Request body parameter: _dto",
         "required": true,
       },
       "responses": {
@@ -297,7 +296,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
             },
           },
         },
-        "description": "Request body parameter: _dto",
         "required": true,
       },
       "responses": {
@@ -397,7 +395,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
             },
           },
         },
-        "description": "Request body parameter: _ids",
         "required": true,
       },
       "responses": {
@@ -431,7 +428,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
             },
           },
         },
-        "description": "Request body parameter: _articles",
         "required": true,
       },
       "responses": {
@@ -548,7 +544,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
             },
           },
         },
-        "description": "Request body parameter: _rules",
         "required": true,
       },
       "responses": {
@@ -751,7 +746,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for comp
             },
           },
         },
-        "description": "Request body parameter: _settings",
         "required": true,
       },
       "responses": {
@@ -822,7 +816,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
             },
           },
         },
-        "description": "Request body parameter: createUserDto",
         "required": true,
       },
       "responses": {
@@ -942,7 +935,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
             },
           },
         },
-        "description": "Request body parameter: createTodoDto",
         "required": true,
       },
       "responses": {
@@ -1044,7 +1036,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
             },
           },
         },
-        "description": "Request body parameter: updateTodoDto",
         "required": true,
       },
       "responses": {
@@ -1138,7 +1129,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
             },
           },
         },
-        "description": "Request body parameter: createNotificationDto",
         "required": true,
       },
       "responses": {
@@ -1289,7 +1279,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
             },
           },
         },
-        "description": "Request body parameter: createUserDto",
         "required": true,
       },
       "responses": {
@@ -1397,7 +1386,6 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
             },
           },
         },
-        "description": "Request body parameter: updateUserDto",
         "required": true,
       },
       "responses": {
