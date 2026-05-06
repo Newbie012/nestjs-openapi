@@ -1,5 +1,11 @@
 # nestjs-openapi
 
+## 0.2.1
+
+### Patch Changes
+
+- [#28](https://github.com/Newbie012/nestjs-openapi/pull/28) [`14d6ee9`](https://github.com/Newbie012/nestjs-openapi/commit/14d6ee9268aeb453cb1c663ef6bd33d6d8d715df) Thanks [@Newbie012](https://github.com/Newbie012)! - Fix `excludeDecorators` so controller-level decorators exclude all endpoints on the decorated controller.
+
 ## 0.2.0
 
 ### Minor Changes
