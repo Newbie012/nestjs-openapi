@@ -19,7 +19,7 @@ export default defineConfig({
   options: {
     // Exclude endpoints marked with @Internal decorator
     // (ApiExcludeEndpoint is already excluded by default)
-    excludeDecorators: ['Internal', 'ApiExcludeEndpoint'],
+    excludeDecorators: ['Internal', 'InternalPort', 'ApiExcludeEndpoint'],
     // Exclude versioned paths like /v2/legacy/*
     // The regex matches paths that should be INCLUDED (those NOT starting with /v followed by digit)
     pathFilter: /^(?!\/v\d+\/).*/,

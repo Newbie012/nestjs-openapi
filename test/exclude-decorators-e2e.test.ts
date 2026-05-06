@@ -87,6 +87,16 @@ describe('Exclude Decorators E2E', () => {
     });
   });
 
+  describe('controller-level decorator filtering', () => {
+    it('should exclude all endpoints from controllers with excluded decorators', async () => {
+      await generate(configPath);
+
+      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+
+      expect(spec.paths['/internal-port/secret']).toBeUndefined();
+    });
+  });
+
   describe('@ApiExcludeEndpoint decorator filtering', () => {
     it('should exclude endpoints with @ApiExcludeEndpoint', async () => {
       await generate(configPath);

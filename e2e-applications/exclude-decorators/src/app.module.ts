@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import {
   ItemsController,
   AdminController,
+  InternalPortController,
   LegacyController,
   PublicApiController,
 } from './mixed.controller';
@@ -11,6 +12,7 @@ import {
   controllers: [
     ItemsController,
     AdminController,
+    InternalPortController,
     LegacyController,
     PublicApiController,
   ],
