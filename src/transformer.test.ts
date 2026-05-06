@@ -357,7 +357,7 @@ describe('transformMethod', () => {
       });
     });
 
-    it('should use fallback descriptions for parameters without descriptions', () => {
+    it('should omit descriptions for parameters without descriptions', () => {
       const parameters: ResolvedParameter[] = [
         {
           name: 'sort',
@@ -401,10 +401,10 @@ describe('transformMethod', () => {
       expect(operation.parameters?.[0]).toMatchObject({
         name: 'sort',
         in: 'query',
-        description: 'query parameter: sort',
         required: false,
         schema: { type: 'string' },
       });
+      expect(operation.parameters?.[0]).not.toHaveProperty('description');
     });
 
     it('should transform body parameters', () => {
@@ -450,7 +450,6 @@ describe('transformMethod', () => {
 
       expect(operation.parameters).toEqual([]);
       expect(operation.requestBody).toMatchObject({
-        description: 'Request body parameter: createUserDto',
         required: true,
         content: {
           'application/json': {
@@ -460,6 +459,7 @@ describe('transformMethod', () => {
           },
         },
       });
+      expect(operation.requestBody).not.toHaveProperty('description');
     });
 
     it('should mark inline all-optional body objects as optional request bodies', () => {
