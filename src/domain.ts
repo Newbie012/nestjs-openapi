@@ -121,7 +121,7 @@ export const MethodInfo = Schema.Struct({
   controllerTags: Schema.Array(Schema.String),
   returnType: ReturnTypeInfo,
   parameters: Schema.Array(ResolvedParameter),
-  /** All decorator names on the method (for filtering) */
+  /** All decorator names on the controller and method (for filtering) */
   decorators: Schema.Array(Schema.String),
   /** Metadata from @ApiOperation decorator */
   operation: OperationMetadata,

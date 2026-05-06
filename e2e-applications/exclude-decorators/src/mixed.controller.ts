@@ -13,6 +13,12 @@ export function Internal(): ClassDecorator & MethodDecorator {
   };
 }
 
+export function InternalPort(): ClassDecorator {
+  return () => {
+    // This is a marker decorator - the filtering happens at AST level
+  };
+}
+
 // DTO classes
 export class ItemDto {
   id: string;
@@ -101,6 +107,17 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Configuration' })
   getConfig(): Record<string, string> {
     return {};
+  }
+}
+
+@ApiTags('InternalPort')
+@InternalPort()
+@Controller('internal-port')
+export class InternalPortController {
+  @Get('secret')
+  @ApiOperation({ summary: 'Internal port endpoint' })
+  getSecret(): { secret: boolean } {
+    return { secret: true };
   }
 }
 

@@ -691,15 +691,19 @@ const extractParameters = (
   return result;
 };
 
-/** Extracts all decorator names from a method */
+/** Extracts all decorator names from a controller and method */
 const extractDecoratorNames = (
+  controller: ClassDeclaration,
   method: MethodDeclaration,
 ): readonly string[] => {
   // Check cache first
   const cached = decoratorNamesCache.get(method);
   if (cached !== undefined) return cached;
 
-  const result = method.getDecorators().map((d) => getDecoratorName(d));
+  const result = [
+    ...controller.getDecorators().map((d) => getDecoratorName(d)),
+    ...method.getDecorators().map((d) => getDecoratorName(d)),
+  ];
   decoratorNamesCache.set(method, result);
   return result;
 };
@@ -1099,7 +1103,7 @@ const getMethodInfoInternal = (
     controllerTags: [...getControllerTags(controller)],
     returnType: getReturnTypeInfo(method),
     parameters: extractParameters(method, options),
-    decorators: [...extractDecoratorNames(method)],
+    decorators: [...extractDecoratorNames(controller, method)],
     operation: extractApiOperationMetadata(method),
     responses: [...extractApiResponses(method)],
     httpCode: extractHttpCode(method),

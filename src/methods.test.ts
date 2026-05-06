@@ -87,6 +87,31 @@ describe('getMethodInfo', () => {
     });
   });
 
+  describe('Decorator extraction', () => {
+    it('should include controller-level decorators for filtering', () => {
+      const code = `
+        function InternalPort(): ClassDecorator {
+          return () => {};
+        }
+
+        @InternalPort()
+        @Controller('/internal')
+        class InternalController {
+          @Get('secret')
+          getSecret() {
+            return {};
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.decorators).toEqual(
+        expect.arrayContaining(['InternalPort', 'Controller', 'Get']),
+      );
+    });
+  });
+
   describe('Parameter extraction with descriptions', () => {
     it('should extract query parameters with @ApiQuery descriptions', () => {
       const code = `
