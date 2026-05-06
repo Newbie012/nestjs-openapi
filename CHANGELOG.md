@@ -1,5 +1,11 @@
 # nestjs-openapi
 
+## 0.2.2
+
+### Patch Changes
+
+- [#30](https://github.com/Newbie012/nestjs-openapi/pull/30) [`259f11d`](https://github.com/Newbie012/nestjs-openapi/commit/259f11d19fa8856bb775a6f5d906b2437092aa82) Thanks [@Newbie012](https://github.com/Newbie012)! - Stop generating placeholder descriptions for parameters and request bodies that do not have explicit descriptions.
+
 ## 0.2.1
 
 ### Patch Changes
