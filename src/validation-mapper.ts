@@ -10,6 +10,7 @@ import type {
   ClassDeclaration,
   Decorator,
   EnumDeclaration,
+  EnumMember,
   Identifier,
   ObjectLiteralExpression,
   PropertyDeclaration,
@@ -90,6 +91,8 @@ type EnumExtractionState = {
   readonly values: readonly EnumValue[];
   readonly nextValue: number;
 };
+
+type EnumInitializer = NonNullable<ReturnType<EnumMember['getInitializer']>>;
 
 /**
  * Get the name of a decorator
@@ -199,79 +202,99 @@ const resolveEnumMemberValue = (
     : { value: numericValue, nextValue: numericValue + 1 };
 };
 
-const extractEnumValues = (enumDecl: EnumDeclaration): readonly EnumValue[] =>
-  enumDecl.getMembers().reduce<EnumExtractionState>(
-    (state, member) => {
-      const initializer = member.getInitializer();
+const appendEnumValue = (
+  state: EnumExtractionState,
+  value: EnumValue,
+  nextValue: number,
+): EnumExtractionState => ({
+  values: [...state.values, value],
+  nextValue,
+});
 
-      if (!initializer) {
-        return {
-          values: [...state.values, state.nextValue],
-          nextValue: state.nextValue + 1,
-        };
-      }
-
-      const stringLiteral = initializer.asKind?.(ts.SyntaxKind.StringLiteral);
-      if (stringLiteral) {
-        return {
-          values: [...state.values, stringLiteral.getLiteralValue()],
-          nextValue: state.nextValue,
-        };
-      }
-
-      const numericLiteral = initializer.asKind?.(ts.SyntaxKind.NumericLiteral);
-      if (numericLiteral) {
-        const numericValue = numericLiteral.getLiteralValue();
-        return {
-          values: [...state.values, numericValue],
-          nextValue: numericValue + 1,
-        };
-      }
-
-      const resolved = resolveEnumMemberValue(
-        initializer.getText(),
-        state.nextValue,
-      );
-
-      return {
-        values: [...state.values, resolved.value],
-        nextValue: resolved.nextValue,
-      };
-    },
-    {
-      values: [],
-      nextValue: 0,
-    },
-  ).values;
-
-/**
- * Resolve an enum declaration from an identifier
- */
-const resolveEnumFromIdentifier = (
-  identifier: Identifier,
-): readonly EnumValue[] | undefined => {
-  const symbol = identifier.getSymbol();
-  if (!symbol) return undefined;
-
-  const declarations = symbol.getDeclarations();
-  if (!declarations || declarations.length === 0) return undefined;
-
-  const directEnumDecl = declarations.find((decl): decl is EnumDeclaration =>
-    Node.isEnumDeclaration(decl),
-  );
-  if (directEnumDecl) {
-    return extractEnumValues(directEnumDecl);
+const resolveEnumInitializerValue = (
+  initializer: EnumInitializer,
+  nextValue: number,
+): { readonly value: EnumValue; readonly nextValue: number } => {
+  const stringLiteral = initializer.asKind?.(ts.SyntaxKind.StringLiteral);
+  if (stringLiteral) {
+    return { value: stringLiteral.getLiteralValue(), nextValue };
   }
 
-  const importedEnumDecl = declarations
+  const numericLiteral = initializer.asKind?.(ts.SyntaxKind.NumericLiteral);
+  if (numericLiteral) {
+    const value = numericLiteral.getLiteralValue();
+    return { value, nextValue: value + 1 };
+  }
+
+  return resolveEnumMemberValue(initializer.getText(), nextValue);
+};
+
+const resolveEnumMember = (
+  state: EnumExtractionState,
+  member: EnumMember,
+): EnumExtractionState =>
+  Option.fromNullable(member.getInitializer()).pipe(
+    Option.match({
+      onNone: () =>
+        appendEnumValue(state, state.nextValue, state.nextValue + 1),
+      onSome: (initializer) => {
+        const resolved = resolveEnumInitializerValue(
+          initializer,
+          state.nextValue,
+        );
+        return appendEnumValue(state, resolved.value, resolved.nextValue);
+      },
+    }),
+  );
+
+const extractEnumValues = (enumDecl: EnumDeclaration): readonly EnumValue[] =>
+  enumDecl.getMembers().reduce<EnumExtractionState>(resolveEnumMember, {
+    values: [],
+    nextValue: 0,
+  }).values;
+
+type SymbolDeclaration = ReturnType<
+  NonNullable<ReturnType<Identifier['getSymbol']>>['getDeclarations']
+>[number];
+
+const findDirectEnumDeclaration = (
+  declarations: readonly SymbolDeclaration[],
+): EnumDeclaration | undefined =>
+  declarations.find((decl): decl is EnumDeclaration =>
+    Node.isEnumDeclaration(decl),
+  );
+
+const findImportedEnumSpecifierDeclaration = (
+  declarations: readonly SymbolDeclaration[],
+): EnumDeclaration | undefined =>
+  declarations
     .filter(Node.isImportSpecifier)
     .flatMap(
       (decl) => decl.getSymbol()?.getAliasedSymbol()?.getDeclarations() ?? [],
     )
     .find((decl): decl is EnumDeclaration => Node.isEnumDeclaration(decl));
 
-  return importedEnumDecl ? extractEnumValues(importedEnumDecl) : undefined;
-};
+const findEnumDeclaration = (
+  declarations: readonly SymbolDeclaration[],
+): EnumDeclaration | undefined =>
+  findDirectEnumDeclaration(declarations) ??
+  findImportedEnumSpecifierDeclaration(declarations);
+
+/**
+ * Resolve an enum declaration from an identifier
+ */
+const resolveEnumFromIdentifier = (
+  identifier: Identifier,
+): readonly EnumValue[] | undefined =>
+  Option.fromNullable(identifier.getSymbol()).pipe(
+    Option.map((symbol) => symbol.getDeclarations()),
+    Option.filter((declarations) => declarations.length > 0),
+    Option.flatMap((declarations) =>
+      Option.fromNullable(findEnumDeclaration(declarations)),
+    ),
+    Option.map(extractEnumValues),
+    Option.getOrUndefined,
+  );
 
 /**
  * Resolve an enum from a decorator argument like @IsEnum(MyEnum)
@@ -295,6 +318,10 @@ const getPropertyInitializer = (
     ?.asKind?.(ts.SyntaxKind.PropertyAssignment)
     ?.getInitializer();
 
+type PropertyInitializer = NonNullable<
+  ReturnType<typeof getPropertyInitializer>
+>;
+
 /** Read a string literal value from a property assignment */
 const getStringProp = (
   objLit: ObjectLiteralExpression,
@@ -305,18 +332,25 @@ const getStringProp = (
     ?.getLiteralValue();
 
 /** Read a numeric literal value from a property assignment */
+const readNumericInitializer = (
+  initializer: PropertyInitializer,
+): number | undefined => {
+  const numericLiteral = initializer.asKind?.(ts.SyntaxKind.NumericLiteral);
+  if (numericLiteral) {
+    return numericLiteral.getLiteralValue();
+  }
+
+  return Node.isPrefixUnaryExpression(initializer)
+    ? parseNumber(initializer.getText())
+    : undefined;
+};
+
 const getNumericProp = (
   objLit: ObjectLiteralExpression,
   name: string,
 ): number | undefined => {
   const initializer = getPropertyInitializer(objLit, name);
-
-  const numericLiteral = initializer?.asKind?.(ts.SyntaxKind.NumericLiteral);
-  if (numericLiteral) return numericLiteral.getLiteralValue();
-
-  return initializer && Node.isPrefixUnaryExpression(initializer)
-    ? parseNumber(initializer.getText())
-    : undefined;
+  return initializer ? readNumericInitializer(initializer) : undefined;
 };
 
 /** Read a boolean literal value from a property assignment */
@@ -329,24 +363,28 @@ const getBooleanProp = (
 };
 
 /** Read a primitive value (string, number, boolean, null) from an initializer */
+const PRIMITIVE_LITERAL_VALUES: Record<string, boolean | null | undefined> = {
+  true: true,
+  false: false,
+  null: null,
+};
+
+const readPrimitiveInitializer = (
+  initializer: PropertyInitializer,
+): unknown => {
+  if (Node.isStringLiteral(initializer) || Node.isNumericLiteral(initializer)) {
+    return initializer.getLiteralValue();
+  }
+
+  return PRIMITIVE_LITERAL_VALUES[initializer.getText()];
+};
+
 const getPrimitiveValue = (
   objLit: ObjectLiteralExpression,
   name: string,
 ): unknown => {
   const initializer = getPropertyInitializer(objLit, name);
-  if (!initializer) return undefined;
-
-  if (Node.isStringLiteral(initializer) || Node.isNumericLiteral(initializer)) {
-    return initializer.getLiteralValue();
-  }
-
-  const primitiveLiterals: Record<string, boolean | null> = {
-    true: true,
-    false: false,
-    null: null,
-  };
-
-  return primitiveLiterals[initializer.getText()];
+  return initializer ? readPrimitiveInitializer(initializer) : undefined;
 };
 
 const API_STRING_KEYS = ['description', 'title', 'format', 'pattern'] as const;
@@ -394,6 +432,41 @@ const buildConstraintsFromKeys = <K extends keyof ValidationConstraints>(
     }),
   ) as Partial<ValidationConstraints>;
 
+const readEnumArrayElement = (element: Node): EnumValue | undefined => {
+  if (Node.isStringLiteral(element) || Node.isNumericLiteral(element)) {
+    return element.getLiteralValue();
+  }
+
+  return Node.isPrefixUnaryExpression(element)
+    ? parseNumber(element.getText())
+    : undefined;
+};
+
+const readEnumArrayLiteral = (
+  initializer: PropertyInitializer,
+): readonly EnumValue[] | undefined => {
+  const arrayLiteral = initializer.asKind?.(
+    ts.SyntaxKind.ArrayLiteralExpression,
+  );
+  if (!arrayLiteral) {
+    return undefined;
+  }
+
+  const values = arrayLiteral
+    .getElements()
+    .map(readEnumArrayElement)
+    .filter((value): value is EnumValue => value !== undefined);
+
+  return values.length > 0 ? values : undefined;
+};
+
+const readEnumIdentifier = (
+  initializer: PropertyInitializer,
+): readonly EnumValue[] | undefined =>
+  Node.isIdentifier(initializer)
+    ? resolveEnumFromIdentifier(initializer)
+    : undefined;
+
 /**
  * Extract enum values from @ApiProperty({ enum: ... })
  */
@@ -401,34 +474,32 @@ const extractApiPropertyEnum = (
   objLit: ObjectLiteralExpression,
 ): readonly EnumValue[] | undefined => {
   const initializer = getPropertyInitializer(objLit, 'enum');
-  if (!initializer) return undefined;
-
-  const arrayLiteral = initializer.asKind?.(
-    ts.SyntaxKind.ArrayLiteralExpression,
-  );
-  if (arrayLiteral) {
-    const values = arrayLiteral
-      .getElements()
-      .reduce<readonly EnumValue[]>((acc, element) => {
-        if (Node.isStringLiteral(element)) {
-          return [...acc, element.getLiteralValue()];
-        }
-        if (Node.isNumericLiteral(element)) {
-          return [...acc, element.getLiteralValue()];
-        }
-        if (Node.isPrefixUnaryExpression(element)) {
-          const numericValue = parseNumber(element.getText());
-          return numericValue === undefined ? acc : [...acc, numericValue];
-        }
-        return acc;
-      }, []);
-
-    return values.length > 0 ? values : undefined;
+  if (!initializer) {
+    return undefined;
   }
 
-  return Node.isIdentifier(initializer)
-    ? resolveEnumFromIdentifier(initializer)
+  return readEnumArrayLiteral(initializer) ?? readEnumIdentifier(initializer);
+};
+
+const readApiTypeIdentifier = (
+  initializer: PropertyInitializer,
+): Partial<ValidationConstraints> | undefined =>
+  Node.isIdentifier(initializer)
+    ? API_TYPE_IDENTIFIERS[initializer.getText()]
     : undefined;
+
+const readApiTypeArrayElement = (
+  initializer: PropertyInitializer,
+): Partial<ValidationConstraints> | undefined => {
+  const firstArrayElement = initializer
+    .asKind?.(ts.SyntaxKind.ArrayLiteralExpression)
+    ?.getElements()[0];
+  if (!firstArrayElement || !Node.isIdentifier(firstArrayElement)) {
+    return undefined;
+  }
+
+  const itemType = API_TYPE_IDENTIFIERS[firstArrayElement.getText()];
+  return itemType ? { ...itemType, isArray: true } : undefined;
 };
 
 /**
@@ -438,22 +509,13 @@ const extractApiPropertyType = (
   objLit: ObjectLiteralExpression,
 ): Partial<ValidationConstraints> | undefined => {
   const initializer = getPropertyInitializer(objLit, 'type');
-  if (!initializer) return undefined;
-
-  if (Node.isIdentifier(initializer)) {
-    return API_TYPE_IDENTIFIERS[initializer.getText()];
+  if (!initializer) {
+    return undefined;
   }
 
-  const arrayLiteral = initializer.asKind?.(
-    ts.SyntaxKind.ArrayLiteralExpression,
+  return (
+    readApiTypeIdentifier(initializer) ?? readApiTypeArrayElement(initializer)
   );
-  const firstArrayElement = arrayLiteral?.getElements()[0];
-  if (firstArrayElement && Node.isIdentifier(firstArrayElement)) {
-    const itemType = API_TYPE_IDENTIFIERS[firstArrayElement.getText()];
-    return itemType ? { ...itemType, isArray: true } : undefined;
-  }
-
-  return undefined;
 };
 
 /**
@@ -461,36 +523,45 @@ const extractApiPropertyType = (
  */
 const extractApiPropertyConstraints = (
   decorator: Decorator,
-): Partial<ValidationConstraints> | undefined => {
-  const objectLiteral = decorator
-    .getCallExpression()
-    ?.getArguments()[0]
-    ?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
+): Partial<ValidationConstraints> | undefined =>
+  Option.fromNullable(
+    decorator
+      .getCallExpression()
+      ?.getArguments()[0]
+      ?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression),
+  ).pipe(
+    Option.map((objectLiteral) => {
+      const enumValues = extractApiPropertyEnum(objectLiteral);
+      const typeConstraints = extractApiPropertyType(objectLiteral);
 
-  if (!objectLiteral) return undefined;
-
-  const enumValues = extractApiPropertyEnum(objectLiteral);
-  const typeConstraints = extractApiPropertyType(objectLiteral);
-
-  const result: Partial<ValidationConstraints> = {
-    ...(enumValues ? { enum: enumValues } : {}),
-    ...(typeConstraints ?? {}),
-    ...buildConstraintsFromKeys(objectLiteral, API_STRING_KEYS, (obj, key) =>
-      getStringProp(obj, key),
-    ),
-    ...buildConstraintsFromKeys(objectLiteral, API_NUMBER_KEYS, (obj, key) =>
-      getNumericProp(obj, key),
-    ),
-    ...buildConstraintsFromKeys(objectLiteral, API_BOOLEAN_KEYS, (obj, key) =>
-      getBooleanProp(obj, key),
-    ),
-    ...buildConstraintsFromKeys(objectLiteral, API_PRIMITIVE_KEYS, (obj, key) =>
-      getPrimitiveValue(obj, key),
-    ),
-  };
-
-  return Object.keys(result).length > 0 ? result : undefined;
-};
+      return {
+        ...(enumValues ? { enum: enumValues } : {}),
+        ...(typeConstraints ?? {}),
+        ...buildConstraintsFromKeys(
+          objectLiteral,
+          API_STRING_KEYS,
+          (obj, key) => getStringProp(obj, key),
+        ),
+        ...buildConstraintsFromKeys(
+          objectLiteral,
+          API_NUMBER_KEYS,
+          (obj, key) => getNumericProp(obj, key),
+        ),
+        ...buildConstraintsFromKeys(
+          objectLiteral,
+          API_BOOLEAN_KEYS,
+          (obj, key) => getBooleanProp(obj, key),
+        ),
+        ...buildConstraintsFromKeys(
+          objectLiteral,
+          API_PRIMITIVE_KEYS,
+          (obj, key) => getPrimitiveValue(obj, key),
+        ),
+      };
+    }),
+    Option.filter((result) => Object.keys(result).length > 0),
+    Option.getOrUndefined,
+  );
 
 const compactConstraints = (
   constraints: Partial<ValidationConstraints>,
@@ -674,48 +745,156 @@ const collectHiddenProperties = (
     ),
   );
 
+type CleanPropertyConstraints = Omit<
+  ValidationConstraints,
+  'hidden' | 'isArray'
+>;
+
+const cleanPropertyConstraints = (
+  constraints: ValidationConstraints,
+): CleanPropertyConstraints => {
+  const {
+    hidden: _hidden,
+    isArray: _isArray,
+    ...cleanConstraints
+  } = constraints;
+  return cleanConstraints;
+};
+
+const hasNullableArraySchema = (schema: JsonSchema): boolean =>
+  schema.anyOf?.some((member) => member.type === 'array') === true;
+
+const isItemTypeOverride = (typeOverride: string | undefined): boolean =>
+  typeof typeOverride === 'string' && typeOverride !== 'array';
+
+const shouldApplyNullableArrayItemConstraints = (
+  propertySchema: JsonSchema,
+  isArray: boolean | undefined,
+  typeOverride: string | undefined,
+  enumValues: readonly unknown[] | undefined,
+): boolean =>
+  hasNullableArraySchema(propertySchema) &&
+  ((isArray === true && isItemTypeOverride(typeOverride)) ||
+    enumValues !== undefined);
+
+const applyNullableArrayItemConstraints = (
+  propertySchema: JsonSchema,
+  isArray: boolean | undefined,
+  typeOverride: string | undefined,
+  enumValues: readonly unknown[] | undefined,
+  restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
+): JsonSchema => {
+  const hasItemTypeOverride =
+    isArray === true && isItemTypeOverride(typeOverride);
+  const itemConstraints = {
+    ...(hasItemTypeOverride ? { type: typeOverride } : {}),
+    ...(enumValues ? { enum: enumValues } : {}),
+  };
+
+  return {
+    ...propertySchema,
+    ...restConstraints,
+    anyOf: propertySchema.anyOf?.map((member) =>
+      member.type === 'array'
+        ? ({
+            ...member,
+            items: {
+              ...(hasItemTypeOverride ? {} : member.items),
+              ...itemConstraints,
+            },
+          } as JsonSchema)
+        : member,
+    ),
+  } as JsonSchema;
+};
+
+const shouldApplyArrayItemConstraints = (
+  propertySchema: JsonSchema,
+  typeOverride: string | undefined,
+  enumValues: readonly unknown[] | undefined,
+): boolean =>
+  propertySchema.type === 'array' &&
+  (isItemTypeOverride(typeOverride) || enumValues !== undefined);
+
+const applyArrayItemConstraints = (
+  propertySchema: JsonSchema,
+  typeOverride: string | undefined,
+  enumValues: readonly unknown[] | undefined,
+  restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
+): JsonSchema => {
+  const hasItemTypeOverride = isItemTypeOverride(typeOverride);
+
+  return {
+    ...propertySchema,
+    ...restConstraints,
+    items: {
+      ...(hasItemTypeOverride ? {} : propertySchema.items),
+      ...(hasItemTypeOverride ? { type: typeOverride } : {}),
+      ...(enumValues ? { enum: enumValues } : {}),
+    },
+  } as JsonSchema;
+};
+
+const applyDirectPropertyConstraints = (
+  propertySchema: JsonSchema,
+  typeOverride: string | undefined,
+  enumValues: readonly unknown[] | undefined,
+  restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
+): JsonSchema =>
+  ({
+    ...propertySchema,
+    ...(typeOverride === undefined ? {} : { type: typeOverride }),
+    ...restConstraints,
+    ...(enumValues === undefined ? {} : { enum: enumValues }),
+  }) as JsonSchema;
+
 const applyPropertyConstraintsToSchema = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints | undefined,
 ): JsonSchema =>
   Option.fromNullable(constraints).pipe(
     Option.map((propertyConstraints) => {
-      const { hidden: _hidden, isArray: _isArray, ...cleanConstraints } =
-        propertyConstraints;
+      const isArray = propertyConstraints.isArray;
       const {
         type: typeOverride,
         enum: enumValues,
         ...restConstraints
-      } = cleanConstraints;
-      const hasItemTypeOverride =
-        propertySchema.type === 'array' &&
-        typeof typeOverride === 'string' &&
-        typeOverride !== 'array';
+      } = cleanPropertyConstraints(propertyConstraints);
 
       if (
-        propertySchema.type === 'array' &&
-        (hasItemTypeOverride || enumValues)
+        shouldApplyNullableArrayItemConstraints(
+          propertySchema,
+          isArray,
+          typeOverride,
+          enumValues,
+        )
       ) {
-        const itemConstraints = {
-          ...(hasItemTypeOverride ? { type: typeOverride } : {}),
-          ...(enumValues ? { enum: enumValues } : {}),
-        };
-        return {
-          ...propertySchema,
-          ...restConstraints,
-          items: {
-            ...(hasItemTypeOverride ? {} : propertySchema.items),
-            ...itemConstraints,
-          },
-        } as JsonSchema;
+        return applyNullableArrayItemConstraints(
+          propertySchema,
+          isArray,
+          typeOverride,
+          enumValues,
+          restConstraints,
+        );
       }
 
-      return {
-        ...propertySchema,
-        ...(typeOverride === undefined ? {} : { type: typeOverride }),
-        ...restConstraints,
-        ...(enumValues === undefined ? {} : { enum: enumValues }),
-      } as JsonSchema;
+      return shouldApplyArrayItemConstraints(
+        propertySchema,
+        typeOverride,
+        enumValues,
+      )
+        ? applyArrayItemConstraints(
+            propertySchema,
+            typeOverride,
+            enumValues,
+            restConstraints,
+          )
+        : applyDirectPropertyConstraints(
+            propertySchema,
+            typeOverride,
+            enumValues,
+            restConstraints,
+          );
     }),
     Option.getOrElse(() => propertySchema),
   );
@@ -823,11 +1002,8 @@ export const mergeValidationConstraints = (
   return { definitions };
 };
 
-/**
- * Effect-native wrapper with trace annotations for class validation extraction.
- */
-export const extractClassValidationInfoEffect = Effect.fn(
-  'ValidationMapper.extractClassValidationInfo',
+const serviceExtractClassValidationInfo = Effect.fn(
+  'ValidationMapperService.extractClassValidationInfo',
 )(function* (classDecl: ClassDeclaration) {
   const className = classDecl.getName() ?? '<anonymous>';
   const filePath = classDecl.getSourceFile().getFilePath();
@@ -850,11 +1026,8 @@ export const extractClassValidationInfoEffect = Effect.fn(
   return info;
 });
 
-/**
- * Effect-native wrapper with trace annotations for schema merge.
- */
-export const mergeValidationConstraintsEffect = Effect.fn(
-  'ValidationMapper.mergeValidationConstraints',
+const serviceMergeValidationConstraints = Effect.fn(
+  'ValidationMapperService.mergeValidationConstraints',
 )(function* (
   schemas: GeneratedSchemas,
   classConstraints: Map<string, Record<string, ValidationConstraints>>,
@@ -882,3 +1055,25 @@ export const mergeValidationConstraintsEffect = Effect.fn(
 
   return merged;
 });
+
+export class ValidationMapperService extends Effect.Service<ValidationMapperService>()(
+  'ValidationMapperService',
+  {
+    effect: Effect.succeed({
+      extractClassValidationInfo: serviceExtractClassValidationInfo,
+      mergeValidationConstraints: serviceMergeValidationConstraints,
+    }),
+  },
+) {}
+
+/**
+ * Effect-native wrapper with trace annotations for class validation extraction.
+ */
+export const extractClassValidationInfoEffect =
+  serviceExtractClassValidationInfo;
+
+/**
+ * Effect-native wrapper with trace annotations for schema merge.
+ */
+export const mergeValidationConstraintsEffect =
+  serviceMergeValidationConstraints;

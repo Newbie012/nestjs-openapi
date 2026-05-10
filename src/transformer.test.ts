@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Option } from 'effect';
-import { transformMethod } from './transformer.js';
+import { Effect, Option } from 'effect';
+import { TransformerService, transformMethod } from './transformer.js';
 import type { MethodInfo, ResolvedParameter } from './domain.js';
 
 // Test helper to create method info with defaults
@@ -33,6 +33,27 @@ function createMethodInfo(overrides: Partial<MethodInfo> = {}): MethodInfo {
     ...overrides,
   };
 }
+
+describe('TransformerService', () => {
+  it('transforms method infos through the service layer', async () => {
+    const methodInfo = createMethodInfo({
+      path: '/users/:id',
+      methodName: 'getUser',
+      controllerName: 'UsersController',
+      controllerTags: ['users'],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const transformer = yield* TransformerService;
+        return yield* transformer.transformMethods([methodInfo]);
+      }).pipe(Effect.provide(TransformerService.Default)),
+    );
+
+    expect(result['/users/{id}']).toBeDefined();
+    expect(result['/users/{id}'].get).toBeDefined();
+  });
+});
 
 describe('transformMethod', () => {
   describe('Path transformation', () => {
@@ -304,6 +325,42 @@ describe('transformMethod', () => {
         required: true,
         schema: { type: 'string' },
       });
+    });
+
+    it('should apply query array primitive overrides to array item schemas', () => {
+      const parameters: ResolvedParameter[] = [
+        {
+          name: 'entries',
+          location: 'query',
+          tsType: 'EntryDto[]',
+          required: false,
+          description: Option.none(),
+          constraints: {
+            description: 'Entry filters',
+            isArray: true,
+            type: 'string',
+          },
+        },
+      ];
+
+      const methodInfo = createMethodInfo({
+        path: '/items',
+        parameters,
+      });
+
+      const result = transformMethod(methodInfo);
+      const parameter = result['/items'].get.parameters?.find(
+        (param) => param.name === 'entries',
+      );
+
+      expect(parameter?.schema).toEqual({
+        description: 'Entry filters',
+        items: {
+          type: 'string',
+        },
+        type: 'array',
+      });
+      expect(parameter?.schema).not.toHaveProperty('isArray');
     });
 
     it('should transform path parameters', () => {

@@ -30,6 +30,8 @@ export interface ParameterConstraints {
   readonly enum?: readonly unknown[];
   // Type override
   readonly type?: string;
+  readonly description?: string;
+  readonly isArray?: boolean;
 }
 
 export const ResolvedParameter = Schema.Struct({
