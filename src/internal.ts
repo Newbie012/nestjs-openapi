@@ -17,7 +17,7 @@ import {
 } from './public-api.js';
 import { runtimeLayerFor } from './runtime-layer.js';
 import { generatorServicesLayer } from './service-layer.js';
-import { transformMethodsEffect } from './transformer.js';
+import { TransformerService } from './transformer.js';
 import type { GenerateOverrides } from './types.js';
 
 export interface GenerateOptions {
@@ -51,7 +51,8 @@ export const generatePathsEffect = Effect.fn('Internal.generatePathsEffect')(
       }),
     );
 
-    const paths = yield* transformMethodsEffect(flatMethodInfos);
+    const transformer = yield* TransformerService;
+    const paths = yield* transformer.transformMethods(flatMethodInfos);
 
     yield* Effect.logInfo('OpenAPI generation complete').pipe(
       Effect.annotateLogs({ paths: Object.keys(paths).length }),

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { Effect } from 'effect';
 import { Project } from 'ts-morph';
 import {
+  ValidationMapperService,
   extractPropertyConstraints,
   extractClassConstraints,
   isPropertyOptional,
@@ -21,6 +23,36 @@ function createProjectWithCode(code: string) {
 }
 
 describe('validation-mapper', () => {
+  describe('ValidationMapperService', () => {
+    it('extracts class validation info through the service layer', async () => {
+      const sourceFile = createProjectWithCode(`
+        import { IsEmail, IsOptional, MinLength } from 'class-validator';
+        class UserDto {
+          @MinLength(2)
+          name: string;
+
+          @IsEmail()
+          email: string;
+
+          @IsOptional()
+          nickname?: string;
+        }
+      `);
+      const classDecl = sourceFile.getClass('UserDto')!;
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const mapper = yield* ValidationMapperService;
+          return yield* mapper.extractClassValidationInfo(classDecl);
+        }).pipe(Effect.provide(ValidationMapperService.Default)),
+      );
+
+      expect(result.constraints.name).toEqual({ minLength: 2 });
+      expect(result.constraints.email).toEqual({ format: 'email' });
+      expect(result.required).toEqual(['name', 'email']);
+    });
+  });
+
   describe('extractPropertyConstraints', () => {
     describe('string validators', () => {
       it('should extract MinLength constraint', () => {
@@ -131,6 +163,25 @@ describe('validation-mapper', () => {
           type: 'string',
           isArray: true,
         });
+      });
+
+      it('should preserve null ApiProperty primitive metadata', () => {
+        const sourceFile = createProjectWithCode(`
+          import { ApiProperty } from '@nestjs/swagger';
+
+          class QueryDto {
+            @ApiProperty({ example: null, default: null })
+            deletedAt?: string | null;
+          }
+        `);
+        const property = sourceFile
+          .getClass('QueryDto')!
+          .getProperty('deletedAt')!;
+
+        const constraints = extractPropertyConstraints(property);
+
+        expect(constraints.example).toBeNull();
+        expect(constraints.default).toBeNull();
       });
     });
 

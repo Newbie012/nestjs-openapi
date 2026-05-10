@@ -32,7 +32,7 @@ import {
   MethodExtractionService,
   type ExtractParametersOptions,
 } from './methods.js';
-import { transformMethodsEffect } from './transformer.js';
+import { TransformerService } from './transformer.js';
 import type { GeneratedSchemas } from './schema-generator.js';
 import { normalizeStructureRefsEffect } from './schema-normalizer.js';
 import { collapseAliasRefs } from './schema-alias-collapser.js';
@@ -47,11 +47,13 @@ import {
   resolveTypeLocations,
   resolveTypeLocationsFast,
 } from './type-resolver.js';
-import type { ValidationConstraints } from './validation-mapper.js';
+import {
+  ValidationMapperService,
+  type ValidationConstraints,
+} from './validation-mapper.js';
 import { runtimeLayerFor } from './runtime-layer.js';
 import { generatorServicesLayer } from './service-layer.js';
 import { SchemaService } from './schema-service.js';
-import { ValidationService } from './validation-service.js';
 import { OutputService } from './output-service.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
@@ -476,6 +478,8 @@ const extractValidationConstraintsEffect = Effect.fn(
     return schemas;
   }
 
+  const validation = yield* ValidationMapperService;
+
   // Create ts-morph project with optimized compiler options
   const project = new Project({
     tsConfigFilePath: tsconfig,
@@ -512,7 +516,7 @@ const extractValidationConstraintsEffect = Effect.fn(
 
       // Process all classes in DTO files
       const { constraints, required } =
-        yield* ValidationService.extractClassValidationInfo(classDecl);
+        yield* validation.extractClassValidationInfo(classDecl);
 
       if (Object.keys(constraints).length > 0) {
         classConstraints.set(className, constraints);
@@ -533,7 +537,7 @@ const extractValidationConstraintsEffect = Effect.fn(
   );
 
   // Merge constraints into schemas
-  return yield* ValidationService.mergeValidationConstraints(
+  return yield* validation.mergeValidationConstraints(
     schemas,
     classConstraints,
     classRequired,
@@ -801,7 +805,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(function* (
     filteredMethodInfos.length,
   );
 
-  let paths = yield* transformMethodsEffect(filteredMethodInfos);
+  const transformer = yield* TransformerService;
+  let paths = yield* transformer.transformMethods(filteredMethodInfos);
   yield* Effect.annotateCurrentSpan('initialPathCount', Object.keys(paths).length);
 
   if (options.basePath) {

@@ -5,7 +5,8 @@ import { ModuleTraversalService } from './modules.js';
 import { OutputService } from './output-service.js';
 import { ProjectService } from './project.js';
 import { SchemaService } from './schema-service.js';
-import { ValidationService } from './validation-service.js';
+import { TransformerService } from './transformer.js';
+import { ValidationMapperService } from './validation-mapper.js';
 
 /**
  * Shared service dependency graph for generation pipelines.
@@ -16,6 +17,7 @@ export const generatorServicesLayer = Layer.mergeAll(
   ModuleTraversalService.Default,
   MethodExtractionService.Default,
   SchemaService.Default,
-  ValidationService.Default,
+  TransformerService.Default,
+  ValidationMapperService.Default,
   OutputService.Default,
 );

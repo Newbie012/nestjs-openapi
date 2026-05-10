@@ -183,6 +183,7 @@ export {
 
 // Transformation
 export {
+  TransformerService,
   transformMethod,
   transformMethodEffect,
   transformMethods,
@@ -227,6 +228,7 @@ export { SchemaService } from './schema-service.js';
 
 // Validation mapping
 export {
+  ValidationMapperService,
   extractPropertyConstraints,
   isPropertyOptional,
   extractPropertyValidationInfo,

@@ -23,18 +23,14 @@ import type { SecurityRequirement } from './types.js';
  */
 const buildSecurityRequirements = (
   requirements: readonly MethodSecurityRequirement[],
-): readonly SecurityRequirement[] | undefined => {
-  if (requirements.length === 0) return undefined;
-
-  // Each MethodSecurityRequirement becomes an entry in a single SecurityRequirement object
-  // This represents AND logic - all schemes are required together
-  const combined: SecurityRequirement = {};
-  for (const req of requirements) {
-    combined[req.schemeName] = [...req.scopes];
-  }
-
-  return [combined];
-};
+): readonly SecurityRequirement[] | undefined =>
+  requirements.length === 0
+    ? undefined
+    : [
+        Object.fromEntries(
+          requirements.map((req) => [req.schemeName, [...req.scopes]]),
+        ) as SecurityRequirement,
+      ];
 
 /** Gets request body content types from @ApiConsumes, defaults to 'application/json' */
 const getRequestContentTypes = (methodInfo: MethodInfo): readonly string[] =>
@@ -51,179 +47,220 @@ const buildContentObject = (
 ): Record<string, { schema: OpenApiSchema }> =>
   Object.fromEntries(contentTypes.map((type) => [type, { schema }]));
 
-/**
- * Parse an inline object type string like "{ name: string; age?: number }"
- * Returns the properties and required fields, or null if not a valid inline type
- */
-const parseInlineObjectType = (
-  typeStr: string,
-): {
-  properties: Record<string, OpenApiSchema>;
-  required: string[];
-} | null => {
-  const trimmed = typeStr.trim();
+type InlineObjectType = {
+  readonly properties: Record<string, OpenApiSchema>;
+  readonly required: readonly string[];
+};
 
-  // Must start with { and end with }
-  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-    return null;
+type InlineProperty = {
+  readonly name: string;
+  readonly type: string;
+  readonly isOptional: boolean;
+};
+
+const INLINE_OBJECT_BOUNDARY_PATTERN = /^\s*\{[\s\S]*\}\s*$/;
+const INLINE_OBJECT_SEPARATORS = new Set([';', ',']);
+const BRACE_DEPTH_CHANGE: Record<string, number | undefined> = {
+  '{': 1,
+  '}': -1,
+};
+
+const pushInlinePart = (parts: string[], part: string): void => {
+  const trimmed = part.trim();
+  if (trimmed) {
+    parts.push(trimmed);
   }
+};
 
-  // Extract content between braces
-  const content = trimmed.slice(1, -1).trim();
-
-  if (!content) {
-    // Empty object: {}
-    return { properties: {}, required: [] };
-  }
-
-  const properties: Record<string, OpenApiSchema> = {};
-  const required: string[] = [];
-
-  // Split by ; or , handling nested braces
+const splitInlineObjectParts = (content: string): readonly string[] => {
   const parts: string[] = [];
   let current = '';
   let braceDepth = 0;
 
   for (const char of content) {
-    if (char === '{') {
-      braceDepth++;
-      current += char;
-    } else if (char === '}') {
-      braceDepth--;
-      current += char;
-    } else if ((char === ';' || char === ',') && braceDepth === 0) {
-      if (current.trim()) {
-        parts.push(current.trim());
-      }
+    if (INLINE_OBJECT_SEPARATORS.has(char) && braceDepth === 0) {
+      pushInlinePart(parts, current);
       current = '';
-    } else {
-      current += char;
-    }
-  }
-  if (current.trim()) {
-    parts.push(current.trim());
-  }
-
-  for (const part of parts) {
-    // Parse "name: type" or "name?: type"
-    const colonIndex = part.indexOf(':');
-    if (colonIndex === -1) continue;
-
-    let propName = part.slice(0, colonIndex).trim();
-    const propType = part.slice(colonIndex + 1).trim();
-
-    // Check for optional marker
-    const isOptional = propName.endsWith('?');
-    if (isOptional) {
-      propName = propName.slice(0, -1).trim();
+      continue;
     }
 
-    if (!propName || !propType) continue;
-
-    // Recursively convert the property type
-    properties[propName] = tsTypeToOpenApiSchema(propType);
-
-    if (!isOptional) {
-      required.push(propName);
-    }
+    current += char;
+    braceDepth += BRACE_DEPTH_CHANGE[char] ?? 0;
   }
 
-  return { properties, required };
+  pushInlinePart(parts, current);
+  return parts;
 };
+
+const parseInlineProperty = (part: string): InlineProperty | undefined => {
+  const colonIndex = part.indexOf(':');
+  const rawName = colonIndex === -1 ? '' : part.slice(0, colonIndex).trim();
+  const type = colonIndex === -1 ? '' : part.slice(colonIndex + 1).trim();
+  const isOptional = rawName.endsWith('?');
+  const name = (isOptional ? rawName.slice(0, -1) : rawName).trim();
+
+  return name && type ? { name, type, isOptional } : undefined;
+};
+
+/**
+ * Parse an inline object type string like "{ name: string; age?: number }"
+ * Returns the properties and required fields, or null if not a valid inline type
+ */
+const parseInlineObjectType = (typeStr: string): InlineObjectType | null => {
+  const trimmed = typeStr.trim();
+
+  if (!INLINE_OBJECT_BOUNDARY_PATTERN.test(trimmed)) {
+    return null;
+  }
+
+  const content = trimmed.slice(1, -1).trim();
+  const properties = splitInlineObjectParts(content)
+    .map(parseInlineProperty)
+    .filter((property): property is InlineProperty => property !== undefined);
+
+  return {
+    properties: Object.fromEntries(
+      properties.map((property) => [
+        property.name,
+        tsTypeToOpenApiSchema(property.type),
+      ]),
+    ),
+    required: properties.flatMap((property) =>
+      property.isOptional ? [] : [property.name],
+    ),
+  };
+};
+
+type TypeSchemaResolver = (tsType: string) => OpenApiSchema | undefined;
+
+const OBJECT_SCHEMA: OpenApiSchema = { type: 'object' };
+
+const PRIMITIVE_TYPE_SCHEMAS: Record<string, OpenApiSchema> = {
+  string: { type: 'string' },
+  number: { type: 'number' },
+  boolean: { type: 'boolean' },
+  date: { type: 'string', format: 'date-time' },
+  void: OBJECT_SCHEMA,
+  undefined: OBJECT_SCHEMA,
+  never: OBJECT_SCHEMA,
+  null: OBJECT_SCHEMA,
+  unknown: OBJECT_SCHEMA,
+  any: OBJECT_SCHEMA,
+  object: OBJECT_SCHEMA,
+};
+
+const BINARY_TYPE_NAMES = new Set([
+  'StreamableFile',
+  'Buffer',
+  'Readable',
+  'ReadableStream',
+]);
+
+const RECORD_TYPE_PATTERN = /^Record<string,\s*(.+)>$/;
+const TYPE_REFERENCE_PATTERN = /^[a-zA-Z_$][a-zA-Z0-9_$]*(<[^>]+>)?$/;
+
+const buildInlineObjectSchema = (parsed: InlineObjectType): OpenApiSchema => ({
+  type: 'object',
+  properties: parsed.properties,
+  ...(parsed.required.length > 0 ? { required: parsed.required } : {}),
+});
+
+const withNullable = (schema: OpenApiSchema): OpenApiSchema =>
+  schema.$ref
+    ? { allOf: [{ $ref: schema.$ref }], nullable: true }
+    : { ...schema, nullable: true };
+
+const resolveInlineObjectSchema: TypeSchemaResolver = (tsType) =>
+  Option.fromNullable(parseInlineObjectType(tsType)).pipe(
+    Option.map(buildInlineObjectSchema),
+    Option.getOrUndefined,
+  );
+
+type UnionType = {
+  readonly types: readonly string[];
+  readonly hasNull: boolean;
+};
+
+const parseUnionType = (tsType: string): UnionType | undefined => {
+  if (!tsType.includes(' | ')) {
+    return undefined;
+  }
+
+  const members = tsType.split(' | ').map((member) => member.trim());
+  return {
+    hasNull: members.includes('null'),
+    types: members.filter(
+      (member) => member !== 'undefined' && member !== 'null',
+    ),
+  };
+};
+
+const buildUnionSchema = (types: readonly string[]): OpenApiSchema => {
+  if (types.length === 0) {
+    return { type: 'object' };
+  }
+
+  if (types.length === 1) {
+    return tsTypeToOpenApiSchema(types[0]);
+  }
+
+  return { oneOf: types.map((type) => tsTypeToOpenApiSchema(type)) };
+};
+
+const resolveUnionSchema: TypeSchemaResolver = (tsType) =>
+  Option.fromNullable(parseUnionType(tsType)).pipe(
+    Option.map(({ types, hasNull }) => {
+      const schema = buildUnionSchema(types);
+      return hasNull && types.length > 0 ? withNullable(schema) : schema;
+    }),
+    Option.getOrUndefined,
+  );
+
+const resolvePrimitiveSchema: TypeSchemaResolver = (tsType) =>
+  Option.fromNullable(PRIMITIVE_TYPE_SCHEMAS[tsType.toLowerCase()]).pipe(
+    Option.map((schema) => ({ ...schema })),
+    Option.getOrUndefined,
+  );
+
+const resolveBinarySchema: TypeSchemaResolver = (tsType) =>
+  BINARY_TYPE_NAMES.has(tsType)
+    ? { type: 'string', format: 'binary' }
+    : undefined;
+
+const resolveArraySchema: TypeSchemaResolver = (tsType) =>
+  tsType.endsWith('[]')
+    ? {
+        type: 'array',
+        items: tsTypeToOpenApiSchema(tsType.slice(0, -2)),
+      }
+    : undefined;
+
+const resolveRecordSchema: TypeSchemaResolver = (tsType) =>
+  RECORD_TYPE_PATTERN.test(tsType) ? { type: 'object' } : undefined;
+
+const resolveReferenceSchema: TypeSchemaResolver = (tsType) =>
+  TYPE_REFERENCE_PATTERN.test(tsType)
+    ? { $ref: `#/components/schemas/${tsType}` }
+    : undefined;
+
+const TYPE_SCHEMA_RESOLVERS: readonly TypeSchemaResolver[] = [
+  resolveInlineObjectSchema,
+  resolveUnionSchema,
+  resolvePrimitiveSchema,
+  resolveBinarySchema,
+  resolveArraySchema,
+  resolveRecordSchema,
+  resolveReferenceSchema,
+];
 
 const tsTypeToOpenApiSchema = (tsType: string): OpenApiSchema => {
   const trimmed = tsType.trim();
-
-  // Check for inline object type first
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    const parsed = parseInlineObjectType(trimmed);
-    if (parsed) {
-      const schema: OpenApiSchema = {
-        type: 'object',
-        properties: parsed.properties,
-      };
-      if (parsed.required.length > 0) {
-        return { ...schema, required: parsed.required };
-      }
+  for (const resolver of TYPE_SCHEMA_RESOLVERS) {
+    const schema = resolver(trimmed);
+    if (schema !== undefined) {
       return schema;
     }
   }
-
-  if (trimmed.includes(' | ')) {
-    const allMembers = trimmed.split(' | ').map((t) => t.trim());
-    const hasNull = allMembers.includes('null');
-    const types = allMembers.filter((t) => t !== 'undefined' && t !== 'null');
-
-    if (types.length === 0) return { type: 'object' };
-
-    const schema =
-      types.length === 1
-        ? tsTypeToOpenApiSchema(types[0])
-        : { oneOf: types.map((type) => tsTypeToOpenApiSchema(type)) };
-
-    if (!hasNull) return schema;
-
-    // $ref can't have siblings in 3.0, wrap in allOf
-    if (schema.$ref) {
-      return { allOf: [{ $ref: schema.$ref }], nullable: true };
-    }
-
-    return { ...schema, nullable: true };
-  }
-
-  switch (trimmed.toLowerCase()) {
-    case 'string':
-      return { type: 'string' };
-    case 'number':
-      return { type: 'number' };
-    case 'boolean':
-      return { type: 'boolean' };
-    case 'date':
-      return { type: 'string', format: 'date-time' };
-    case 'void':
-    case 'undefined':
-    case 'never':
-    case 'null':
-      // These types indicate no content - return empty object as placeholder
-      // The caller should handle this appropriately (e.g., no response body)
-      return { type: 'object' };
-    case 'unknown':
-    case 'any':
-    case 'object':
-      return { type: 'object' };
-  }
-
-  // Handle binary/stream response types - return binary format
-  if (
-    trimmed === 'StreamableFile' ||
-    trimmed === 'Buffer' ||
-    trimmed === 'Readable' ||
-    trimmed === 'ReadableStream'
-  ) {
-    return { type: 'string', format: 'binary' };
-  }
-
-  if (trimmed.endsWith('[]')) {
-    const itemType = trimmed.slice(0, -2);
-    return {
-      type: 'array',
-      items: tsTypeToOpenApiSchema(itemType),
-    };
-  }
-
-  // Handle Record<string, T> as object with additionalProperties
-  const recordMatch = trimmed.match(/^Record<string,\s*(.+)>$/);
-  if (recordMatch) {
-    return {
-      type: 'object',
-    };
-  }
-
-  // Any remaining identifier is a class/interface/type alias — generate a $ref
-  if (trimmed.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*(<[^>]+>)?$/)) {
-    return { $ref: `#/components/schemas/${trimmed}` };
-  }
-
   return { type: 'object' };
 };
 
@@ -240,20 +277,20 @@ const responseSchemaOrObjectFallback = (
   schema: OpenApiSchema,
 ): OpenApiSchema => (schema.$ref ? { type: 'object' } : schema);
 
+const PARAMETER_LOCATION_MAP: Record<
+  ResolvedParameter['location'],
+  OpenApiParameter['in']
+> = {
+  path: 'path',
+  query: 'query',
+  header: 'header',
+  cookie: 'cookie',
+  body: 'query',
+};
+
 const getParameterLocation = (
   location: ResolvedParameter['location'],
-): OpenApiParameter['in'] => {
-  switch (location) {
-    case 'path':
-      return 'path';
-    case 'header':
-      return 'header';
-    case 'cookie':
-      return 'cookie';
-    default:
-      return 'query';
-  }
-};
+): OpenApiParameter['in'] => PARAMETER_LOCATION_MAP[location];
 
 const applyParameterConstraints = (
   baseSchema: OpenApiSchema,
@@ -319,44 +356,15 @@ const isInlineOptionalBodyType = (tsType: string): boolean => {
   return parsed !== null && parsed.required.length === 0;
 };
 
-const buildResponseSchema = (
+const buildScalarReturnSchema = (
   returnType: MethodInfo['returnType'],
+  shouldFallback: boolean,
 ): OpenApiSchema => {
-  const shouldFallback =
-    Option.isNone(returnType.container) &&
-    shouldFallbackExternalReturnRef(returnType);
-
-  if (
-    Option.isSome(returnType.container) &&
-    returnType.container.value === 'array'
-  ) {
-    // Handle array of inline type
-    if (Option.isSome(returnType.inline)) {
-      return {
-        type: 'array',
-        items: tsTypeToOpenApiSchema(returnType.inline.value),
-      };
-    }
-    // Use tsTypeToOpenApiSchema to properly handle primitives, unions, etc.
-    const itemSchema = Option.isSome(returnType.type)
-      ? tsTypeToOpenApiSchema(returnType.type.value)
-      : { type: 'object' };
-
-    return {
-      type: 'array',
-      items: shouldFallback
-        ? responseSchemaOrObjectFallback(itemSchema)
-        : itemSchema,
-    };
-  }
-
-  // Use tsTypeToOpenApiSchema to properly handle primitives, unions, and refs
   if (Option.isSome(returnType.type)) {
     const schema = tsTypeToOpenApiSchema(returnType.type.value);
     return shouldFallback ? responseSchemaOrObjectFallback(schema) : schema;
   }
 
-  // Handle inline object type - parse and extract properties
   if (Option.isSome(returnType.inline)) {
     return tsTypeToOpenApiSchema(returnType.inline.value);
   }
@@ -364,51 +372,62 @@ const buildResponseSchema = (
   return { type: 'string' };
 };
 
+const buildArrayReturnSchema = (
+  returnType: MethodInfo['returnType'],
+): OpenApiSchema => ({
+  type: 'array',
+  items: Option.isSome(returnType.inline)
+    ? tsTypeToOpenApiSchema(returnType.inline.value)
+    : Option.match(returnType.type, {
+        onNone: () => ({ type: 'object' }) as OpenApiSchema,
+        onSome: (typeName) => tsTypeToOpenApiSchema(typeName),
+      }),
+});
+
+const buildResponseSchema = (
+  returnType: MethodInfo['returnType'],
+): OpenApiSchema => {
+  const shouldFallback =
+    Option.isNone(returnType.container) &&
+    shouldFallbackExternalReturnRef(returnType);
+
+  return returnType.container.pipe(
+    Option.match({
+      onNone: () => buildScalarReturnSchema(returnType, shouldFallback),
+      onSome: () => buildArrayReturnSchema(returnType),
+    }),
+  );
+};
+
 /** Builds schema from @ApiResponse type property */
 const buildResponseSchemaFromMetadata = (
   response: ResponseMetadata,
-): OpenApiSchema | undefined => {
-  if (Option.isNone(response.type)) return undefined;
-
-  const typeName = response.type.value;
-
-  if (response.isArray) {
-    return {
-      type: 'array',
-      items: tsTypeToOpenApiSchema(typeName),
-    };
-  }
-
-  // Use tsTypeToOpenApiSchema to properly handle primitives, unions, and refs
-  return tsTypeToOpenApiSchema(typeName);
-};
+): OpenApiSchema | undefined =>
+  response.type.pipe(
+    Option.map((typeName) => {
+      const schema = tsTypeToOpenApiSchema(typeName);
+      return response.isArray ? { type: 'array', items: schema } : schema;
+    }),
+    Option.getOrUndefined,
+  );
 
 /** Determines the default success status code based on HTTP method and @HttpCode */
-const getDefaultSuccessCode = (methodInfo: MethodInfo): number => {
-  // Use @HttpCode if present
-  if (Option.isSome(methodInfo.httpCode)) {
-    return methodInfo.httpCode.value;
-  }
-
-  // Default: POST returns 201, others return 200
-  return methodInfo.httpMethod === 'POST' ? 201 : 200;
-};
+const getDefaultSuccessCode = (methodInfo: MethodInfo): number =>
+  Option.getOrElse(methodInfo.httpCode, () =>
+    methodInfo.httpMethod === 'POST' ? 201 : 200,
+  );
 
 /** Check if return type is meaningful (not void, undefined, etc.) */
 const hasMeaningfulReturnType = (
   returnType: MethodInfo['returnType'],
-): boolean => {
-  if (Option.isSome(returnType.type)) {
-    const typeName = returnType.type.value.toLowerCase();
-    // Don't treat void, undefined, never as meaningful return types
-    // any IS meaningful - it means "any JSON value" which maps to { type: 'object' }
-    if (['void', 'undefined', 'never'].includes(typeName)) {
-      return false;
-    }
-    return true;
-  }
-  return Option.isSome(returnType.inline);
-};
+): boolean =>
+  returnType.type.pipe(
+    Option.match({
+      onNone: () => Option.isSome(returnType.inline),
+      onSome: (typeName) =>
+        !['void', 'undefined', 'never'].includes(typeName.toLowerCase()),
+    }),
+  );
 
 type ResponseObject = {
   description: string;
@@ -434,9 +453,33 @@ const buildResponseEntry = (
 
   const description = Option.getOrElse(response.description, () => '');
 
-  if (!schema) return { description };
-  return { description, content: buildContentObject(contentTypes, schema) };
+  return schema
+    ? { description, content: buildContentObject(contentTypes, schema) }
+    : { description };
 };
+
+const buildDefaultResponseEntry = (
+  returnType: MethodInfo['returnType'],
+  hasReturnType: boolean,
+  contentTypes: readonly string[],
+): ResponseObject => ({
+  description: '',
+  ...(hasReturnType
+    ? {
+        content: buildContentObject(
+          contentTypes,
+          buildResponseSchema(returnType),
+        ),
+      }
+    : {}),
+});
+
+const hasDeclaredSuccessResponse = (
+  responses: readonly ResponseMetadata[],
+): boolean =>
+  responses.some(
+    (response) => response.statusCode >= 200 && response.statusCode < 300,
+  );
 
 const buildResponses = (
   methodInfo: MethodInfo,
@@ -445,51 +488,26 @@ const buildResponses = (
   const returnType = methodInfo.returnType;
   const hasReturnType = hasMeaningfulReturnType(returnType);
   const statusCode = getDefaultSuccessCode(methodInfo);
-
-  // No @ApiResponse decorators - use return type
-  if (methodInfo.responses.length === 0) {
-    if (!hasReturnType) {
-      return { [statusCode.toString()]: { description: '' } };
-    }
-    return {
-      [statusCode.toString()]: {
-        description: '',
-        content: buildContentObject(
-          contentTypes,
-          buildResponseSchema(returnType),
-        ),
-      },
-    };
-  }
-
-  // Build responses from @ApiResponse decorators
-  const result: Record<string, ResponseObject> = {};
-
-  const hasSuccessResponse = methodInfo.responses.some(
-    (r) => r.statusCode >= 200 && r.statusCode < 300,
+  const defaultSuccessEntry = buildDefaultResponseEntry(
+    returnType,
+    hasReturnType,
+    contentTypes,
   );
 
-  // Add default success response if no 2xx response is declared
-  if (!hasSuccessResponse && hasReturnType) {
-    result[statusCode.toString()] = {
-      description: '',
-      content: buildContentObject(
-        contentTypes,
-        buildResponseSchema(returnType),
-      ),
-    };
-  }
+  const declaredResponses = Object.fromEntries(
+    methodInfo.responses.map((response) => [
+      response.statusCode.toString(),
+      buildResponseEntry(response, returnType, hasReturnType, contentTypes),
+    ]),
+  );
 
-  for (const response of methodInfo.responses) {
-    result[response.statusCode.toString()] = buildResponseEntry(
-      response,
-      returnType,
-      hasReturnType,
-      contentTypes,
-    );
-  }
-
-  return result;
+  return {
+    ...(methodInfo.responses.length === 0 ||
+    (!hasDeclaredSuccessResponse(methodInfo.responses) && hasReturnType)
+      ? { [statusCode.toString()]: defaultSuccessEntry }
+      : {}),
+    ...declaredResponses,
+  };
 };
 
 /** Transforms :param to {param} syntax */
@@ -561,46 +579,64 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
 export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths =>
   transformMethodInternal(methodInfo);
 
-export const transformMethodEffect = Effect.fn('Transformer.transformMethod')(
-  function* (methodInfo: MethodInfo) {
-    return yield* Effect.succeed(transformMethodInternal(methodInfo));
-  },
-);
-
 type MutableOpenApiPaths = {
   [path: string]: {
     [method: string]: OpenApiOperation;
   };
 };
 
-export const transformMethods = (
-  methodInfos: readonly MethodInfo[],
-): OpenApiPaths =>
-  methodInfos.reduce<MutableOpenApiPaths>((acc, methodInfo) => {
-    const endpoint = transformMethodInternal(methodInfo);
+const mergeOpenApiPaths = (endpoints: readonly OpenApiPaths[]): OpenApiPaths =>
+  endpoints.reduce<MutableOpenApiPaths>((acc, endpoint) => {
     for (const path in endpoint) {
-      if (!acc[path]) acc[path] = {};
-      Object.assign(acc[path], endpoint[path]);
+      acc[path] = { ...(acc[path] ?? {}), ...endpoint[path] };
     }
     return acc;
   }, {});
 
-export const transformMethodsEffect = Effect.fn('Transformer.transformMethods')(
-  function* (methodInfos: readonly MethodInfo[]) {
-    const endpoints = yield* Effect.forEach(
-      methodInfos,
-      transformMethodEffect,
-      {
-        concurrency: 'unbounded',
-      },
-    );
+export const transformMethods = (
+  methodInfos: readonly MethodInfo[],
+): OpenApiPaths => mergeOpenApiPaths(methodInfos.map(transformMethodInternal));
 
-    return endpoints.reduce<MutableOpenApiPaths>((acc, endpoint) => {
-      for (const path in endpoint) {
-        if (!acc[path]) acc[path] = {};
-        Object.assign(acc[path], endpoint[path]);
-      }
-      return acc;
-    }, {});
+const serviceTransformMethod = Effect.fn('TransformerService.transformMethod')(
+  function* (methodInfo: MethodInfo) {
+    const paths = yield* Effect.sync(() => transformMethodInternal(methodInfo));
+
+    yield* Effect.annotateCurrentSpan(
+      'controllerName',
+      methodInfo.controllerName,
+    );
+    yield* Effect.annotateCurrentSpan('methodName', methodInfo.methodName);
+    yield* Effect.annotateCurrentSpan('httpMethod', methodInfo.httpMethod);
+    yield* Effect.annotateCurrentSpan('path', methodInfo.path);
+
+    return paths;
   },
 );
+
+const serviceTransformMethods = Effect.fn(
+  'TransformerService.transformMethods',
+)(function* (methodInfos: readonly MethodInfo[]) {
+  const endpoints = yield* Effect.forEach(methodInfos, serviceTransformMethod, {
+    concurrency: 'unbounded',
+  });
+  const paths = mergeOpenApiPaths(endpoints);
+
+  yield* Effect.annotateCurrentSpan('methodCount', methodInfos.length);
+  yield* Effect.annotateCurrentSpan('pathCount', Object.keys(paths).length);
+
+  return paths;
+});
+
+export class TransformerService extends Effect.Service<TransformerService>()(
+  'TransformerService',
+  {
+    effect: Effect.succeed({
+      transformMethod: serviceTransformMethod,
+      transformMethods: serviceTransformMethods,
+    }),
+  },
+) {}
+
+export const transformMethodEffect = serviceTransformMethod;
+
+export const transformMethodsEffect = serviceTransformMethods;
