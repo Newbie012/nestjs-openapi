@@ -1,5 +1,13 @@
 # nestjs-openapi
 
+## 0.3.0
+
+### Minor Changes
+
+- [#32](https://github.com/Newbie012/nestjs-openapi/pull/32) [`c910289`](https://github.com/Newbie012/nestjs-openapi/commit/c91028957bafed4b14059841005fb2c3d89632cb) Thanks [@Newbie012](https://github.com/Newbie012)! - Add `OpenApiModule.setup()` for serving a generated OpenAPI spec from `main.ts`.
+
+  This lets apps register the docs and JSON routes after reading runtime config, without duplicating the file loading and Swagger UI route handlers. File-based setup can also try fallback spec paths, such as the matching `dist` path used after compilation.
+
 ## 0.2.2
 
 ### Patch Changes
