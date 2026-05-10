@@ -370,6 +370,14 @@ const API_BOOLEAN_KEYS = [
   'isArray',
 ] as const;
 const API_PRIMITIVE_KEYS = ['example', 'default'] as const;
+const API_TYPE_IDENTIFIERS: Record<string, Partial<ValidationConstraints>> = {
+  String: { type: 'string' },
+  Number: { type: 'number' },
+  Boolean: { type: 'boolean' },
+  Object: { type: 'object' },
+  Array: { type: 'array' },
+  Date: { type: 'string', format: 'date-time' },
+};
 
 const buildConstraintsFromKeys = <K extends keyof ValidationConstraints>(
   objectLiteral: ObjectLiteralExpression,
@@ -424,6 +432,31 @@ const extractApiPropertyEnum = (
 };
 
 /**
+ * Extract primitive type overrides from @ApiProperty({ type: String }).
+ */
+const extractApiPropertyType = (
+  objLit: ObjectLiteralExpression,
+): Partial<ValidationConstraints> | undefined => {
+  const initializer = getPropertyInitializer(objLit, 'type');
+  if (!initializer) return undefined;
+
+  if (Node.isIdentifier(initializer)) {
+    return API_TYPE_IDENTIFIERS[initializer.getText()];
+  }
+
+  const arrayLiteral = initializer.asKind?.(
+    ts.SyntaxKind.ArrayLiteralExpression,
+  );
+  const firstArrayElement = arrayLiteral?.getElements()[0];
+  if (firstArrayElement && Node.isIdentifier(firstArrayElement)) {
+    const itemType = API_TYPE_IDENTIFIERS[firstArrayElement.getText()];
+    return itemType ? { ...itemType, isArray: true } : undefined;
+  }
+
+  return undefined;
+};
+
+/**
  * Extract all supported options from @ApiProperty / @ApiPropertyOptional.
  */
 const extractApiPropertyConstraints = (
@@ -437,9 +470,11 @@ const extractApiPropertyConstraints = (
   if (!objectLiteral) return undefined;
 
   const enumValues = extractApiPropertyEnum(objectLiteral);
+  const typeConstraints = extractApiPropertyType(objectLiteral);
 
   const result: Partial<ValidationConstraints> = {
     ...(enumValues ? { enum: enumValues } : {}),
+    ...(typeConstraints ?? {}),
     ...buildConstraintsFromKeys(objectLiteral, API_STRING_KEYS, (obj, key) =>
       getStringProp(obj, key),
     ),
@@ -645,20 +680,41 @@ const applyPropertyConstraintsToSchema = (
 ): JsonSchema =>
   Option.fromNullable(constraints).pipe(
     Option.map((propertyConstraints) => {
-      const { hidden: _hidden, ...cleanConstraints } = propertyConstraints;
+      const { hidden: _hidden, isArray: _isArray, ...cleanConstraints } =
+        propertyConstraints;
+      const {
+        type: typeOverride,
+        enum: enumValues,
+        ...restConstraints
+      } = cleanConstraints;
+      const hasItemTypeOverride =
+        propertySchema.type === 'array' &&
+        typeof typeOverride === 'string' &&
+        typeOverride !== 'array';
 
-      if (propertySchema.type === 'array' && cleanConstraints.enum) {
-        const { enum: enumValues, ...restConstraints } = cleanConstraints;
+      if (
+        propertySchema.type === 'array' &&
+        (hasItemTypeOverride || enumValues)
+      ) {
+        const itemConstraints = {
+          ...(hasItemTypeOverride ? { type: typeOverride } : {}),
+          ...(enumValues ? { enum: enumValues } : {}),
+        };
         return {
           ...propertySchema,
           ...restConstraints,
-          items: { ...propertySchema.items, enum: enumValues },
+          items: {
+            ...(hasItemTypeOverride ? {} : propertySchema.items),
+            ...itemConstraints,
+          },
         } as JsonSchema;
       }
 
       return {
         ...propertySchema,
-        ...cleanConstraints,
+        ...(typeOverride === undefined ? {} : { type: typeOverride }),
+        ...restConstraints,
+        ...(enumValues === undefined ? {} : { enum: enumValues }),
       } as JsonSchema;
     }),
     Option.getOrElse(() => propertySchema),
