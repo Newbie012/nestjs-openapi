@@ -326,6 +326,33 @@ describe('validation-mapper', () => {
       expect(isPropertyOptional(property)).toBe(true);
     });
 
+    it('should return true for property with TypeScript optional marker', () => {
+      const sourceFile = createProjectWithCode(`
+        class TestDto {
+          optionalFlag?: boolean;
+        }
+      `);
+      const property = sourceFile
+        .getClass('TestDto')!
+        .getProperty('optionalFlag')!;
+
+      expect(isPropertyOptional(property)).toBe(true);
+    });
+
+    it('should return true for property with @ApiPropertyOptional()', () => {
+      const sourceFile = createProjectWithCode(`
+        import { ApiPropertyOptional } from '@nestjs/swagger';
+
+        class TestDto {
+          @ApiPropertyOptional()
+          label: string;
+        }
+      `);
+      const property = sourceFile.getClass('TestDto')!.getProperty('label')!;
+
+      expect(isPropertyOptional(property)).toBe(true);
+    });
+
     it('should return false for property without @IsOptional()', () => {
       const sourceFile = createProjectWithCode(`
         class TestDto {
@@ -385,6 +412,21 @@ describe('validation-mapper', () => {
       const required = getRequiredProperties(classDecl);
 
       expect(required).toEqual(['name', 'email']);
+    });
+
+    it('should not require properties with TypeScript optional marker', () => {
+      const sourceFile = createProjectWithCode(`
+        class UpdateExampleDto {
+          id: string;
+          optionalFlag?: boolean;
+          tags: string[];
+        }
+      `);
+      const classDecl = sourceFile.getClass('UpdateExampleDto')!;
+
+      const required = getRequiredProperties(classDecl);
+
+      expect(required).toEqual(['id', 'tags']);
     });
   });
 
