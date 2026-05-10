@@ -1,5 +1,11 @@
 # nestjs-openapi
 
+## 0.3.2
+
+### Patch Changes
+
+- [#36](https://github.com/Newbie012/nestjs-openapi/pull/36) [`d14cdf1`](https://github.com/Newbie012/nestjs-openapi/commit/d14cdf1b110623ac564e76a846350be64b6c3ae7) Thanks [@Newbie012](https://github.com/Newbie012)! - Fix generated schemas for Swagger primitive array type overrides.
+
 ## 0.3.1
 
 ### Patch Changes
