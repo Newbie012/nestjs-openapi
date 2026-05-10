@@ -1,5 +1,11 @@
 # nestjs-openapi
 
+## 0.3.1
+
+### Patch Changes
+
+- [#34](https://github.com/Newbie012/nestjs-openapi/pull/34) [`669ea54`](https://github.com/Newbie012/nestjs-openapi/commit/669ea546af2d3991bf637ef623415f21f9456d90) Thanks [@Newbie012](https://github.com/Newbie012)! - Fix generated schemas for TypeScript optional properties.
+
 ## 0.3.0
 
 ### Minor Changes
