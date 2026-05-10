@@ -106,6 +106,32 @@ describe('validation-mapper', () => {
       });
     });
 
+    describe('Swagger decorators', () => {
+      it('should extract array primitive type override from ApiPropertyOptional', () => {
+        const sourceFile = createProjectWithCode(`
+          import { ApiPropertyOptional } from '@nestjs/swagger';
+
+          class NestedItemDto {
+            key: string;
+            value: string;
+          }
+
+          class QueryDto {
+            @ApiPropertyOptional({ type: String, isArray: true })
+            entries?: NestedItemDto[];
+          }
+        `);
+        const property = sourceFile.getClass('QueryDto')!.getProperty('entries')!;
+
+        const constraints = extractPropertyConstraints(property);
+
+        expect(constraints).toMatchObject({
+          type: 'string',
+          isArray: true,
+        });
+      });
+    });
+
     describe('format validators', () => {
       it('should extract IsEmail format', () => {
         const sourceFile = createProjectWithCode(`
@@ -450,6 +476,32 @@ describe('validation-mapper', () => {
         enum: ['active', 'inactive'],
       });
       expect(result.properties!.name).toEqual({ type: 'string' });
+    });
+
+    it('should apply ApiPropertyOptional array primitive override to nested array property', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          entries: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/NestedItemDto' },
+          },
+        },
+      };
+      const constraints = {
+        entries: {
+          type: 'string',
+          isArray: true,
+        },
+      };
+
+      const result = applyConstraintsToSchema(schema, constraints);
+
+      expect(result.properties!.entries).toEqual({
+        type: 'array',
+        items: { type: 'string' },
+      });
+      expect(result.properties!.entries).not.toHaveProperty('isArray');
     });
   });
 });
