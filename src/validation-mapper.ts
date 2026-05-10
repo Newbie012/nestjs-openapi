@@ -531,13 +531,16 @@ const decoratorHandlers: Record<string, DecoratorHandler> = {
       }),
     ),
   ApiProperty: apiPropertyDecoratorHandler,
-  ApiPropertyOptional: apiPropertyDecoratorHandler,
+  ApiPropertyOptional: (state, decorator) =>
+    apiPropertyDecoratorHandler({ ...state, isOptional: true }, decorator),
 };
 
-const INITIAL_PROPERTY_VALIDATION_INFO: PropertyValidationInfo = {
-  isOptional: false,
+const createInitialPropertyValidationInfo = (
+  property: PropertyDeclaration,
+): PropertyValidationInfo => ({
+  isOptional: property.hasQuestionToken(),
   constraints: {},
-};
+});
 
 const applyDecorator = (
   state: PropertyValidationInfo,
@@ -558,7 +561,7 @@ const extractPropertyState = (
     .getDecorators()
     .reduce<PropertyValidationInfo>(
       applyDecorator,
-      INITIAL_PROPERTY_VALIDATION_INFO,
+      createInitialPropertyValidationInfo(property),
     );
 
 const hasConstraints = (constraints: ValidationConstraints): boolean =>
@@ -572,7 +575,7 @@ export const extractPropertyConstraints = (
 ): ValidationConstraints => extractPropertyState(property).constraints;
 
 /**
- * Check if a property has @IsOptional() decorator
+ * Check if a property is optional.
  */
 export const isPropertyOptional = (property: PropertyDeclaration): boolean =>
   extractPropertyState(property).isOptional;
