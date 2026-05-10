@@ -36,6 +36,9 @@ OpenApiModule.forRoot({
   // Path to serve the JSON spec (default: '/openapi.json')
   jsonPath: '/openapi.json',
 
+  // Optional: try additional files when openapi.json is missing
+  fallbackSpecFiles: ['dist/openapi.json'],
+
   // Enable Swagger UI (default: false)
   swagger: true,
   // Or with custom options:
@@ -48,12 +51,13 @@ OpenApiModule.forRoot({
 
 ## Options Reference
 
-| Option     | Type                        | Default           | Description                                        |
-| ---------- | --------------------------- | ----------------- | -------------------------------------------------- |
-| `specFile` | `string`                    | -                 | Path to the generated OpenAPI JSON file (required) |
-| `enabled`  | `boolean`                   | `true`            | Whether the module is enabled                      |
-| `jsonPath` | `string`                    | `'/openapi.json'` | Path to serve the JSON spec                        |
-| `swagger`  | `boolean \| SwaggerOptions` | `false`           | Swagger UI configuration                           |
+| Option              | Type                        | Default           | Description                                                  |
+| ------------------- | --------------------------- | ----------------- | ------------------------------------------------------------ |
+| `specFile`          | `string`                    | -                 | Path to the generated OpenAPI JSON file (required)           |
+| `enabled`           | `boolean`                   | `true`            | Whether the module is enabled                                |
+| `jsonPath`          | `string`                    | `'/openapi.json'` | Path to serve the JSON spec                                  |
+| `swagger`           | `boolean \| SwaggerOptions` | `false`           | Swagger UI configuration                                     |
+| `fallbackSpecFiles` | `string[]`                  | `[]`              | Additional spec file paths to try when `specFile` is missing |
 
 ### SwaggerOptions
 
@@ -121,6 +125,40 @@ export class AppModule {}
 
 When `enabled` is `false`, no routes are registered and the module is essentially a no-op.
 
+## Bootstrap-Time Configuration
+
+If your OpenAPI routes depend on Nest providers that are only available during bootstrap, use `OpenApiModule.setup()` instead of a dynamic module:
+
+```typescript
+import { OpenApiModule } from 'nestjs-openapi';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService);
+
+  app.setGlobalPrefix(config.baseUrl);
+
+  OpenApiModule.setup(
+    '/docs',
+    app,
+    {
+      specFile: 'apps/api/src/openapi/openapi.generated.json',
+      fallbackSpecFiles: ['dist/apps/api/src/openapi/openapi.generated.json'],
+    },
+    {
+      enabled: config.swaggerUi,
+      useGlobalPrefix: true,
+      jsonDocumentUrl: '/openapi/platform',
+      customSiteTitle: 'Platform API',
+    },
+  );
+
+  await app.listen(3000);
+}
+```
+
+`useGlobalPrefix` matches `@nestjs/swagger`: it prefixes the docs and JSON routes with the value passed to `app.setGlobalPrefix()`.
+
 ## Custom Paths
 
 Configure custom paths for both endpoints:
@@ -153,6 +191,15 @@ specFile: 'src/openapi/spec.json';
 
 // Absolute path
 specFile: '/var/app/openapi.json';
+```
+
+For compiled apps that copy the generated spec under `dist/`, add an explicit fallback file:
+
+```typescript
+OpenApiModule.forRoot({
+  specFile: 'apps/api/src/openapi/openapi.generated.json',
+  fallbackSpecFiles: ['dist/apps/api/src/openapi/openapi.generated.json'],
+});
 ```
 
 <Callout type="warn">

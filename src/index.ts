@@ -82,7 +82,12 @@ export {
   resolveOptions,
 } from './module.js';
 export type {
+  LoadSpecFileOptions,
+  OpenApiDocumentFileSource,
+  OpenApiDocumentSource,
+  OpenApiHttpApplication,
   OpenApiModuleOptions,
+  OpenApiSetupOptions,
   ResolvedOpenApiModuleOptions,
   SwaggerOptions,
 } from './module.js';
