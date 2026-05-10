@@ -121,7 +121,9 @@ describe('validation-mapper', () => {
             entries?: NestedItemDto[];
           }
         `);
-        const property = sourceFile.getClass('QueryDto')!.getProperty('entries')!;
+        const property = sourceFile
+          .getClass('QueryDto')!
+          .getProperty('entries')!;
 
         const constraints = extractPropertyConstraints(property);
 
@@ -501,6 +503,47 @@ describe('validation-mapper', () => {
         type: 'array',
         items: { type: 'string' },
       });
+      expect(result.properties!.entries).not.toHaveProperty('isArray');
+    });
+
+    it('should apply ApiPropertyOptional array primitive override to nullable array property', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          entries: {
+            anyOf: [
+              {
+                items: { type: 'string' },
+                type: 'array',
+              },
+              {
+                type: 'null',
+              },
+            ],
+          },
+        },
+      };
+      const constraints = {
+        entries: {
+          type: 'string',
+          isArray: true,
+        },
+      };
+
+      const result = applyConstraintsToSchema(schema, constraints);
+
+      expect(result.properties!.entries).toEqual({
+        anyOf: [
+          {
+            items: { type: 'string' },
+            type: 'array',
+          },
+          {
+            type: 'null',
+          },
+        ],
+      });
+      expect(result.properties!.entries).not.toHaveProperty('type');
       expect(result.properties!.entries).not.toHaveProperty('isArray');
     });
   });

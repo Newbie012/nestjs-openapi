@@ -306,6 +306,42 @@ describe('transformMethod', () => {
       });
     });
 
+    it('should apply query array primitive overrides to array item schemas', () => {
+      const parameters: ResolvedParameter[] = [
+        {
+          name: 'entries',
+          location: 'query',
+          tsType: 'EntryDto[]',
+          required: false,
+          description: Option.none(),
+          constraints: {
+            description: 'Entry filters',
+            isArray: true,
+            type: 'string',
+          },
+        },
+      ];
+
+      const methodInfo = createMethodInfo({
+        path: '/items',
+        parameters,
+      });
+
+      const result = transformMethod(methodInfo);
+      const parameter = result['/items'].get.parameters?.find(
+        (param) => param.name === 'entries',
+      );
+
+      expect(parameter?.schema).toEqual({
+        description: 'Entry filters',
+        items: {
+          type: 'string',
+        },
+        type: 'array',
+      });
+      expect(parameter?.schema).not.toHaveProperty('isArray');
+    });
+
     it('should transform path parameters', () => {
       const parameters: ResolvedParameter[] = [
         {

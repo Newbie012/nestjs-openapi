@@ -6,6 +6,7 @@ import type {
   OpenApiParameter,
   OpenApiPaths,
   OpenApiSchema,
+  ParameterConstraints,
   ResolvedParameter,
   ResponseMetadata,
 } from './domain.js';
@@ -232,10 +233,12 @@ const isNodeModulesPath = (filePath: string): boolean =>
 const shouldFallbackExternalReturnRef = (
   returnType: MethodInfo['returnType'],
 ): boolean =>
-  Option.isSome(returnType.filePath) && isNodeModulesPath(returnType.filePath.value);
+  Option.isSome(returnType.filePath) &&
+  isNodeModulesPath(returnType.filePath.value);
 
-const responseSchemaOrObjectFallback = (schema: OpenApiSchema): OpenApiSchema =>
-  schema.$ref ? { type: 'object' } : schema;
+const responseSchemaOrObjectFallback = (
+  schema: OpenApiSchema,
+): OpenApiSchema => (schema.$ref ? { type: 'object' } : schema);
 
 const getParameterLocation = (
   location: ResolvedParameter['location'],
@@ -252,13 +255,52 @@ const getParameterLocation = (
   }
 };
 
+const applyParameterConstraints = (
+  baseSchema: OpenApiSchema,
+  constraints: ParameterConstraints,
+): OpenApiSchema => {
+  const {
+    isArray,
+    type: typeOverride,
+    enum: enumValues,
+    ...restConstraints
+  } = constraints;
+  const shouldApplyItemConstraints =
+    (isArray === true || baseSchema.type === 'array') &&
+    typeof typeOverride === 'string' &&
+    typeOverride !== 'array';
+
+  if (
+    shouldApplyItemConstraints ||
+    (baseSchema.type === 'array' && enumValues)
+  ) {
+    return {
+      ...baseSchema,
+      ...restConstraints,
+      type: 'array',
+      items: {
+        ...(shouldApplyItemConstraints ? {} : baseSchema.items),
+        ...(shouldApplyItemConstraints ? { type: typeOverride } : {}),
+        ...(enumValues ? { enum: enumValues } : {}),
+      },
+    };
+  }
+
+  return {
+    ...baseSchema,
+    ...restConstraints,
+    ...(typeOverride === undefined ? {} : { type: typeOverride }),
+    ...(enumValues === undefined ? {} : { enum: enumValues }),
+  };
+};
+
 const transformParameter = (param: ResolvedParameter): OpenApiParameter => {
   // Build base schema from TypeScript type
   const baseSchema = tsTypeToOpenApiSchema(param.tsType);
 
   // Merge validation constraints if present
   const schema = param.constraints
-    ? { ...baseSchema, ...param.constraints }
+    ? applyParameterConstraints(baseSchema, param.constraints)
     : baseSchema;
 
   return {
@@ -543,18 +585,22 @@ export const transformMethods = (
     return acc;
   }, {});
 
-export const transformMethodsEffect = Effect.fn(
-  'Transformer.transformMethods',
-)(function* (methodInfos: readonly MethodInfo[]) {
-  const endpoints = yield* Effect.forEach(methodInfos, transformMethodEffect, {
-    concurrency: 'unbounded',
-  });
+export const transformMethodsEffect = Effect.fn('Transformer.transformMethods')(
+  function* (methodInfos: readonly MethodInfo[]) {
+    const endpoints = yield* Effect.forEach(
+      methodInfos,
+      transformMethodEffect,
+      {
+        concurrency: 'unbounded',
+      },
+    );
 
-  return endpoints.reduce<MutableOpenApiPaths>((acc, endpoint) => {
-    for (const path in endpoint) {
-      if (!acc[path]) acc[path] = {};
-      Object.assign(acc[path], endpoint[path]);
-    }
-    return acc;
-  }, {});
-});
+    return endpoints.reduce<MutableOpenApiPaths>((acc, endpoint) => {
+      for (const path in endpoint) {
+        if (!acc[path]) acc[path] = {};
+        Object.assign(acc[path], endpoint[path]);
+      }
+      return acc;
+    }, {});
+  },
+);

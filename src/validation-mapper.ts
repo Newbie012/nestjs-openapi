@@ -680,8 +680,11 @@ const applyPropertyConstraintsToSchema = (
 ): JsonSchema =>
   Option.fromNullable(constraints).pipe(
     Option.map((propertyConstraints) => {
-      const { hidden: _hidden, isArray: _isArray, ...cleanConstraints } =
-        propertyConstraints;
+      const {
+        hidden: _hidden,
+        isArray,
+        ...cleanConstraints
+      } = propertyConstraints;
       const {
         type: typeOverride,
         enum: enumValues,
@@ -691,6 +694,39 @@ const applyPropertyConstraintsToSchema = (
         propertySchema.type === 'array' &&
         typeof typeOverride === 'string' &&
         typeOverride !== 'array';
+      const hasNullableArraySchema =
+        propertySchema.anyOf?.some((schema) => schema.type === 'array') ===
+        true;
+      const hasNullableArrayItemTypeOverride =
+        isArray === true &&
+        hasNullableArraySchema &&
+        typeof typeOverride === 'string' &&
+        typeOverride !== 'array';
+
+      if (
+        hasNullableArraySchema &&
+        (hasNullableArrayItemTypeOverride || enumValues)
+      ) {
+        const itemConstraints = {
+          ...(hasNullableArrayItemTypeOverride ? { type: typeOverride } : {}),
+          ...(enumValues ? { enum: enumValues } : {}),
+        };
+        return {
+          ...propertySchema,
+          ...restConstraints,
+          anyOf: propertySchema.anyOf?.map((schema) =>
+            schema.type === 'array'
+              ? ({
+                  ...schema,
+                  items: {
+                    ...(hasNullableArrayItemTypeOverride ? {} : schema.items),
+                    ...itemConstraints,
+                  },
+                } as JsonSchema)
+              : schema,
+          ),
+        } as JsonSchema;
+      }
 
       if (
         propertySchema.type === 'array' &&
