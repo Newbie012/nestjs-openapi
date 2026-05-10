@@ -1,5 +1,13 @@
 # nestjs-openapi
 
+## 0.4.0
+
+### Minor Changes
+
+- [#38](https://github.com/Newbie012/nestjs-openapi/pull/38) [`31f6d7f`](https://github.com/Newbie012/nestjs-openapi/commit/31f6d7f89af6bfe9da0572facffa3f8e3062ab0e) Thanks [@Newbie012](https://github.com/Newbie012)! - Fix Swagger primitive array overrides for nullable schemas and query parameters.
+  - Apply primitive `type` and `enum` overrides inside nullable `anyOf` array schemas.
+  - Preserve array item overrides for query parameters.
+
 ## 0.3.2
 
 ### Patch Changes
