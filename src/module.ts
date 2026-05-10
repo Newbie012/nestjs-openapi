@@ -26,7 +26,7 @@ import {
   type Provider,
   type Type,
 } from '@nestjs/common';
-import { Cause, Effect, Exit, Option } from 'effect';
+import { Cause, Effect, Either, Exit, Option } from 'effect';
 import {
   SpecFileNotFoundError,
   SpecFileParseError,
@@ -61,10 +61,30 @@ export interface SwaggerOptions {
   readonly title?: string;
 }
 
+export interface LoadSpecFileOptions {
+  /**
+   * Additional spec files to try when the primary file is missing.
+   */
+  readonly fallbackSpecFiles?: readonly string[];
+}
+
+export interface OpenApiDocumentFileSource extends LoadSpecFileOptions {
+  /**
+   * Path to the generated OpenAPI JSON file.
+   * Can be absolute or relative to the current working directory.
+   */
+  readonly specFile: string;
+}
+
+export type OpenApiDocumentSource =
+  | OpenApiSpec
+  | (() => OpenApiSpec)
+  | OpenApiDocumentFileSource;
+
 /**
  * Configuration options for the OpenAPI module
  */
-export interface OpenApiModuleOptions {
+export interface OpenApiModuleOptions extends LoadSpecFileOptions {
   /**
    * Path to the generated OpenAPI JSON file.
    * Can be absolute or relative to the current working directory.
@@ -99,6 +119,7 @@ export interface OpenApiModuleOptions {
  */
 export interface ResolvedOpenApiModuleOptions {
   readonly specFile: string;
+  readonly fallbackSpecFiles: readonly string[];
   readonly enabled: boolean;
   readonly jsonPath: string;
   readonly swagger: {
@@ -117,6 +138,68 @@ export const OPENAPI_MODULE_OPTIONS = Symbol('OPENAPI_MODULE_OPTIONS');
  * Injection token for the loaded OpenAPI specification
  */
 export const OPENAPI_SPEC = Symbol('OPENAPI_SPEC');
+
+interface OpenApiModuleState {
+  readonly options: ResolvedOpenApiModuleOptions;
+  readonly spec?: OpenApiSpec;
+}
+
+interface OpenApiRouteRegistrar {
+  readonly get: (
+    path: string,
+    handler: (request: unknown, response: unknown) => void,
+  ) => void;
+}
+
+export interface OpenApiHttpApplication {
+  readonly config?: {
+    readonly getGlobalPrefix?: () => string;
+  };
+  readonly getHttpAdapter: () => OpenApiRouteRegistrar;
+}
+
+export interface OpenApiSetupOptions {
+  /**
+   * Whether OpenAPI routes should be registered.
+   * @default true
+   */
+  readonly enabled?: boolean;
+
+  /**
+   * Prefix OpenAPI routes with the app's `setGlobalPrefix()` value.
+   * Matches @nestjs/swagger's `SwaggerCustomOptions.useGlobalPrefix`.
+   * @default false
+   */
+  readonly useGlobalPrefix?: boolean;
+
+  /**
+   * Raw OpenAPI JSON endpoint path.
+   * Matches @nestjs/swagger's `SwaggerCustomOptions.jsonDocumentUrl`.
+   * @default `${docsPath}-json`
+   */
+  readonly jsonDocumentUrl?: string;
+
+  /**
+   * Whether Swagger UI should be served.
+   * Matches @nestjs/swagger's `SwaggerCustomOptions.ui`.
+   * @default true
+   */
+  readonly ui?: boolean;
+
+  /**
+   * Whether raw OpenAPI definitions should be served.
+   * Only JSON is supported.
+   * @default true
+   */
+  readonly raw?: boolean | readonly 'json'[];
+
+  /**
+   * Browser title for Swagger UI.
+   * Matches @nestjs/swagger's `SwaggerCustomOptions.customSiteTitle`.
+   * Uses the spec's info.title if not provided.
+   */
+  readonly customSiteTitle?: string;
+}
 
 // =============================================================================
 // Helper Functions
@@ -176,32 +259,68 @@ export function generateSwaggerUiHtml(title: string, jsonPath: string): string {
 </html>`;
 }
 
+function isErrorWithCode(cause: unknown, code: string): boolean {
+  return (
+    cause !== null &&
+    typeof cause === 'object' &&
+    'code' in cause &&
+    cause.code === code
+  );
+}
+
+function getSpecFileCandidates(
+  filePath: string,
+  options: LoadSpecFileOptions = {},
+): readonly string[] {
+  const candidates = [filePath];
+
+  candidates.push(...(options.fallbackSpecFiles ?? []));
+
+  return [...new Set(candidates)];
+}
+
+const readSpecFileContentEffect = (filePath: string) =>
+  Effect.try({
+    try: () => readFileSync(resolve(process.cwd(), filePath), 'utf-8'),
+    catch: (cause) =>
+      isErrorWithCode(cause, 'ENOENT')
+        ? SpecFileNotFoundError.create(filePath)
+        : SpecFileReadError.create(filePath, cause),
+  });
+
 /**
  * Load the OpenAPI spec file from disk
  */
 export const loadSpecFileEffect = Effect.fn('OpenApiModule.loadSpecFile')(
-  function* (filePath: string) {
-    const resolvedPath = resolve(process.cwd(), filePath);
-    const content = yield* Effect.try({
-      try: () => readFileSync(resolvedPath, 'utf-8'),
-      catch: (cause) =>
-        cause &&
-        typeof cause === 'object' &&
-        'code' in cause &&
-        cause.code === 'ENOENT'
-          ? SpecFileNotFoundError.create(filePath)
-          : SpecFileReadError.create(filePath, cause),
-    });
+  function* (filePath: string, options: LoadSpecFileOptions = {}) {
+    for (const candidate of getSpecFileCandidates(filePath, options)) {
+      const contentResult = yield* readSpecFileContentEffect(candidate).pipe(
+        Effect.either,
+      );
 
-    return yield* Effect.try({
-      try: () => JSON.parse(content) as OpenApiSpec,
-      catch: (cause) => SpecFileParseError.create(filePath, cause),
-    });
+      if (Either.isLeft(contentResult)) {
+        if (contentResult.left instanceof SpecFileNotFoundError) {
+          continue;
+        }
+
+        return yield* Effect.fail(contentResult.left);
+      }
+
+      return yield* Effect.try({
+        try: () => JSON.parse(contentResult.right) as OpenApiSpec,
+        catch: (cause) => SpecFileParseError.create(candidate, cause),
+      });
+    }
+
+    return yield* Effect.fail(SpecFileNotFoundError.create(filePath));
   },
 );
 
-export function loadSpecFile(filePath: string): OpenApiSpec {
-  const exit = Effect.runSyncExit(loadSpecFileEffect(filePath));
+export function loadSpecFile(
+  filePath: string,
+  options: LoadSpecFileOptions = {},
+): OpenApiSpec {
+  const exit = Effect.runSyncExit(loadSpecFileEffect(filePath, options));
   if (Exit.isSuccess(exit)) {
     return exit.value;
   }
@@ -235,6 +354,7 @@ export function resolveOptions(
 
   return {
     specFile: options.specFile,
+    fallbackSpecFiles: options.fallbackSpecFiles ?? [],
     enabled: options.enabled ?? true,
     jsonPath: options.jsonPath ?? '/openapi.json',
     swagger: {
@@ -242,6 +362,36 @@ export function resolveOptions(
       path: swaggerPath,
       title: swaggerTitle,
     },
+  };
+}
+
+function resolveOptionsWithSpecTitle(
+  options: ResolvedOpenApiModuleOptions,
+  spec: OpenApiSpec,
+): ResolvedOpenApiModuleOptions {
+  return {
+    ...options,
+    swagger: {
+      ...options.swagger,
+      title: options.swagger.title || spec.info.title,
+    },
+  };
+}
+
+function createOpenApiModuleState(
+  options: OpenApiModuleOptions,
+): OpenApiModuleState {
+  const resolvedOptions = resolveOptions(options);
+
+  if (!resolvedOptions.enabled) {
+    return { options: resolvedOptions };
+  }
+
+  const spec = loadSpecFile(resolvedOptions.specFile, resolvedOptions);
+
+  return {
+    spec,
+    options: resolveOptionsWithSpecTitle(resolvedOptions, spec),
   };
 }
 
@@ -292,10 +442,10 @@ export class OpenApiModule {
    * @returns Dynamic module configuration
    */
   static forRoot(options: OpenApiModuleOptions): DynamicModule {
-    const resolvedOptions = resolveOptions(options);
+    const state = createOpenApiModuleState(options);
 
     // If disabled, return empty module
-    if (!resolvedOptions.enabled) {
+    if (!state.options.enabled || !state.spec) {
       return {
         module: OpenApiModule,
         providers: [],
@@ -304,31 +454,19 @@ export class OpenApiModule {
       };
     }
 
-    // Load the spec file
-    const spec = loadSpecFile(resolvedOptions.specFile);
-
-    // Set swagger title from spec if not provided
-    const finalOptions: ResolvedOpenApiModuleOptions = {
-      ...resolvedOptions,
-      swagger: {
-        ...resolvedOptions.swagger,
-        title: resolvedOptions.swagger.title || spec.info.title,
-      },
-    };
-
     const providers: Provider[] = [
       {
         provide: OPENAPI_MODULE_OPTIONS,
-        useValue: finalOptions,
+        useValue: state.options,
       },
       {
         provide: OPENAPI_SPEC,
-        useValue: spec,
+        useValue: state.spec,
       },
     ];
 
     // Create controllers dynamically using metadata
-    const controllers = createOpenApiControllers(finalOptions, spec);
+    const controllers = createOpenApiControllers(state.options, state.spec);
 
     return {
       module: OpenApiModule,
@@ -337,6 +475,151 @@ export class OpenApiModule {
       exports: [OPENAPI_MODULE_OPTIONS, OPENAPI_SPEC],
     };
   }
+
+  /**
+   * Register OpenAPI JSON and Swagger UI routes on an already-created Nest app.
+   *
+   * Use this when the route config depends on services that are only available
+   * during bootstrap. For module-level static config, prefer `forRoot()`.
+   */
+  static setup(
+    path: string,
+    app: OpenApiHttpApplication,
+    documentSource: OpenApiDocumentSource,
+    options: OpenApiSetupOptions = {},
+  ): void {
+    if (options.enabled === false) {
+      return;
+    }
+
+    const spec = loadDocumentSource(documentSource);
+    const httpAdapter = app.getHttpAdapter();
+    const swaggerPath = resolveSetupPath(path, app, options);
+    const jsonPath = resolveJsonDocumentUrl(swaggerPath, app, options);
+
+    if (shouldServeJson(options.raw)) {
+      httpAdapter.get(jsonPath, (_request, response) => {
+        sendResponse(response, spec, 'application/json');
+      });
+    }
+
+    if (options.ui !== false) {
+      httpAdapter.get(swaggerPath, (_request, response) => {
+        sendResponse(
+          response,
+          generateSwaggerUiHtml(
+            options.customSiteTitle ?? spec.info.title,
+            jsonPath,
+          ),
+          'text/html',
+        );
+      });
+    }
+  }
+}
+
+function loadDocumentSource(source: OpenApiDocumentSource): OpenApiSpec {
+  if (typeof source === 'function') {
+    return source();
+  }
+
+  if (isDocumentFileSource(source)) {
+    return loadSpecFile(source.specFile, source);
+  }
+
+  return source;
+}
+
+function isDocumentFileSource(
+  source: OpenApiDocumentSource,
+): source is OpenApiDocumentFileSource {
+  return (
+    source !== null &&
+    typeof source === 'object' &&
+    'specFile' in source &&
+    typeof source.specFile === 'string'
+  );
+}
+
+function resolveSetupPath(
+  path: string,
+  app: OpenApiHttpApplication,
+  options: OpenApiSetupOptions,
+): string {
+  return joinRoutePath(
+    options.useGlobalPrefix === true ? getGlobalPrefix(app) : undefined,
+    path,
+  );
+}
+
+function resolveJsonDocumentUrl(
+  finalSwaggerPath: string,
+  app: OpenApiHttpApplication,
+  options: OpenApiSetupOptions,
+): string {
+  if (!options.jsonDocumentUrl) {
+    return `${finalSwaggerPath}-json`;
+  }
+
+  return joinRoutePath(
+    options.useGlobalPrefix === true ? getGlobalPrefix(app) : undefined,
+    options.jsonDocumentUrl,
+  );
+}
+
+function getGlobalPrefix(app: OpenApiHttpApplication): string {
+  const appWithConfig = app as {
+    readonly config?: { readonly getGlobalPrefix?: () => string };
+  };
+
+  return appWithConfig.config?.getGlobalPrefix?.() ?? '';
+}
+
+function shouldServeJson(raw: OpenApiSetupOptions['raw']): boolean {
+  return (
+    raw === undefined || raw === true || (Array.isArray(raw) && raw.length > 0)
+  );
+}
+
+function joinRoutePath(...parts: readonly (string | undefined)[]): string {
+  return `/${parts
+    .filter((part): part is string => part !== undefined && part !== '')
+    .map((part) => part.replace(/^\/+|\/+$/g, ''))
+    .filter((part) => part.length > 0)
+    .join('/')}`;
+}
+
+function sendResponse(
+  response: unknown,
+  body: OpenApiSpec | string,
+  contentType: string,
+): void {
+  const responseLike = response as {
+    type?: (contentType: string) => { send: (body: unknown) => void };
+    setHeader?: (name: string, value: string) => void;
+    json?: (body: unknown) => void;
+    send?: (body: unknown) => void;
+    end?: (body: string) => void;
+  };
+
+  responseLike.setHeader?.('Content-Type', contentType);
+
+  if (contentType === 'application/json' && responseLike.json) {
+    responseLike.json(body);
+    return;
+  }
+
+  if (responseLike.type && responseLike.send) {
+    responseLike.type(contentType).send(body);
+    return;
+  }
+
+  if (responseLike.send) {
+    responseLike.send(body);
+    return;
+  }
+
+  responseLike.end?.(typeof body === 'string' ? body : JSON.stringify(body));
 }
 
 /**

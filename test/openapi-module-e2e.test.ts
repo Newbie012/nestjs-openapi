@@ -89,6 +89,28 @@ describe('OpenApiModule E2E', () => {
       // The module should compile but providers shouldn't be available
       expect(() => moduleRef.get(OPENAPI_SPEC)).toThrow();
     });
+
+    it('should create a disabled setup helper without requiring the spec', async () => {
+      const moduleRef: TestingModule = await Test.createTestingModule(
+        {},
+      ).compile();
+      const app = moduleRef.createNestApplication();
+
+      expect(() =>
+        OpenApiModule.setup(
+          '/docs',
+          app,
+          {
+            specFile: 'missing.json',
+          },
+          {
+            enabled: false,
+          },
+        ),
+      ).not.toThrow();
+
+      await app.close();
+    });
   });
 
   describe('Generated Spec Content', () => {
@@ -284,6 +306,54 @@ describe('OpenApiModule E2E', () => {
         .expect(200);
 
       expect(response.text).toContain('/api/spec.json');
+    });
+  });
+
+  describe('HTTP Routing with setup helper', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      const moduleRef: TestingModule = await Test.createTestingModule(
+        {},
+      ).compile();
+
+      app = moduleRef.createNestApplication();
+      app.setGlobalPrefix('/service');
+      OpenApiModule.setup(
+        '/docs',
+        app,
+        {
+          specFile: specPath,
+        },
+        {
+          useGlobalPrefix: true,
+          jsonDocumentUrl: '/openapi/platform',
+        },
+      );
+      await app.init();
+    });
+
+    afterAll(async () => {
+      await app?.close();
+    });
+
+    it('should serve OpenAPI JSON at the setup helper path', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/service/openapi/platform')
+        .expect(200)
+        .expect('Content-Type', /application\/json/);
+
+      expect(response.body.info.title).toBe('Products API');
+    });
+
+    it('should serve Swagger UI at the setup helper path', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/service/docs')
+        .expect(200)
+        .expect('Content-Type', /text\/html/);
+
+      expect(response.text).toContain('swagger-ui');
+      expect(response.text).toContain('/service/openapi/platform');
     });
   });
 });

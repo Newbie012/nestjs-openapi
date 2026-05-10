@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Effect } from 'effect';
@@ -49,6 +49,7 @@ describe('resolveOptions', () => {
 
     expect(resolved).toEqual({
       specFile: 'openapi.json',
+      fallbackSpecFiles: [],
       enabled: true,
       jsonPath: '/openapi.json',
       swagger: {
@@ -74,6 +75,7 @@ describe('resolveOptions', () => {
 
     expect(resolved).toEqual({
       specFile: 'custom/spec.json',
+      fallbackSpecFiles: [],
       enabled: false,
       jsonPath: '/spec.json',
       swagger: {
@@ -113,6 +115,7 @@ describe('resolveOptions', () => {
 
 describe('loadSpecFile', () => {
   const tempDir = join(process.cwd(), '.test-temp');
+  const distTempDir = join(process.cwd(), 'dist/.test-temp');
   const specPath = join(tempDir, 'test-spec.json');
 
   beforeEach(() => {
@@ -125,6 +128,9 @@ describe('loadSpecFile', () => {
   afterEach(() => {
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true });
+    }
+    if (existsSync(distTempDir)) {
+      rmSync(distTempDir, { recursive: true });
     }
   });
 
@@ -140,6 +146,31 @@ describe('loadSpecFile', () => {
     expect(() => loadSpecFile('non-existent.json')).toThrow(
       'OpenAPI spec file not found',
     );
+  });
+
+  it('should load from explicit dist fallback when the source path is missing', () => {
+    mkdirSync(distTempDir, { recursive: true });
+    writeFileSync(
+      join(distTempDir, 'dist-only.json'),
+      JSON.stringify(sampleSpec, null, 2),
+    );
+
+    const spec = loadSpecFile('.test-temp/dist-only.json', {
+      fallbackSpecFiles: ['dist/.test-temp/dist-only.json'],
+    });
+
+    expect(spec.info.title).toBe('Test API');
+  });
+
+  it('should load from explicit fallback files', () => {
+    const fallbackPath = join(tempDir, 'fallback.json');
+    writeFileSync(fallbackPath, JSON.stringify(sampleSpec, null, 2));
+
+    const spec = loadSpecFile('.test-temp/missing.json', {
+      fallbackSpecFiles: ['.test-temp/fallback.json'],
+    });
+
+    expect(spec.info.title).toBe('Test API');
   });
 
   it('should throw an error for invalid JSON', () => {
@@ -340,5 +371,130 @@ describe('OpenApiModule.forRoot', () => {
         specFile: 'non-existent.json',
       }),
     ).toThrow('OpenAPI spec file not found');
+  });
+});
+
+describe('OpenApiModule.setup', () => {
+  const tempDir = join(process.cwd(), '.test-temp');
+  const specPath = join(tempDir, 'openapi.json');
+
+  beforeEach(() => {
+    if (!existsSync(tempDir)) {
+      mkdirSync(tempDir, { recursive: true });
+    }
+    writeFileSync(specPath, JSON.stringify(sampleSpec, null, 2));
+  });
+
+  afterEach(() => {
+    if (existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true });
+    }
+  });
+
+  it('should register JSON and Swagger routes with a global prefix', () => {
+    const routes = new Map<
+      string,
+      (request: unknown, response: unknown) => void
+    >();
+
+    OpenApiModule.setup(
+      '/docs',
+      {
+        config: {
+          getGlobalPrefix: () => '/api',
+        },
+        getHttpAdapter: () => ({
+          get: (path, handler) => {
+            routes.set(path, handler);
+          },
+        }),
+      },
+      {
+        specFile: '.test-temp/openapi.json',
+      },
+      {
+        useGlobalPrefix: true,
+        jsonDocumentUrl: '/openapi/platform',
+      },
+    );
+
+    expect([...routes.keys()]).toEqual(['/api/openapi/platform', '/api/docs']);
+
+    const jsonResponse = {
+      setHeader: vi.fn(),
+      json: vi.fn(),
+    };
+    routes.get('/api/openapi/platform')?.({}, jsonResponse);
+
+    expect(jsonResponse.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      'application/json',
+    );
+    expect(jsonResponse.json).toHaveBeenCalledWith(sampleSpec);
+
+    const htmlResponse = {
+      setHeader: vi.fn(),
+      type: vi.fn(),
+      send: vi.fn(),
+    };
+    htmlResponse.type.mockReturnValue(htmlResponse);
+    routes.get('/api/docs')?.({}, htmlResponse);
+
+    expect(htmlResponse.send).toHaveBeenCalledWith(
+      expect.stringContaining('/api/openapi/platform'),
+    );
+  });
+
+  it('should not register routes or load the spec when disabled', () => {
+    const routes = new Map<
+      string,
+      (request: unknown, response: unknown) => void
+    >();
+
+    expect(() =>
+      OpenApiModule.setup(
+        '/docs',
+        {
+          getHttpAdapter: () => ({
+            get: (path, handler) => {
+              routes.set(path, handler);
+            },
+          }),
+        },
+        {
+          specFile: 'missing.json',
+        },
+        {
+          enabled: false,
+        },
+      ),
+    ).not.toThrow();
+
+    expect(routes.size).toBe(0);
+  });
+
+  it('should support a document factory and raw JSON disabling', () => {
+    const routes = new Map<
+      string,
+      (request: unknown, response: unknown) => void
+    >();
+
+    OpenApiModule.setup(
+      '/docs',
+      {
+        getHttpAdapter: () => ({
+          get: (path, handler) => {
+            routes.set(path, handler);
+          },
+        }),
+      },
+      () => sampleSpec,
+      {
+        raw: false,
+        customSiteTitle: 'Factory API',
+      },
+    );
+
+    expect([...routes.keys()]).toEqual(['/docs']);
   });
 });

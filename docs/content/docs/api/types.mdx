@@ -458,12 +458,35 @@ interface OpenApiSecurityScheme {
 
 ```typescript
 interface OpenApiModuleOptions {
-  readonly filePath: string;
+  readonly specFile: string;
+  readonly fallbackSpecFiles?: readonly string[];
   readonly enabled?: boolean;
   readonly jsonPath?: string;
-  readonly serveSwaggerUi?: boolean;
-  readonly swaggerUiPath?: string;
-  readonly swaggerUiTitle?: string;
+  readonly swagger?: boolean | SwaggerOptions;
+}
+
+interface SwaggerOptions {
+  readonly path?: string;
+  readonly title?: string;
+}
+
+interface OpenApiDocumentFileSource {
+  readonly specFile: string;
+  readonly fallbackSpecFiles?: readonly string[];
+}
+
+type OpenApiDocumentSource =
+  | OpenApiSpec
+  | (() => OpenApiSpec)
+  | OpenApiDocumentFileSource;
+
+interface OpenApiSetupOptions {
+  readonly enabled?: boolean;
+  readonly useGlobalPrefix?: boolean;
+  readonly jsonDocumentUrl?: string;
+  readonly ui?: boolean;
+  readonly raw?: boolean | readonly 'json'[];
+  readonly customSiteTitle?: string;
 }
 ```
 
@@ -471,12 +494,15 @@ interface OpenApiModuleOptions {
 
 ```typescript
 interface ResolvedOpenApiModuleOptions {
-  readonly filePath: string;
+  readonly specFile: string;
+  readonly fallbackSpecFiles: readonly string[];
   readonly enabled: boolean;
   readonly jsonPath: string;
-  readonly serveSwaggerUi: boolean;
-  readonly swaggerUiPath: string;
-  readonly swaggerUiTitle: string;
+  readonly swagger: {
+    readonly enabled: boolean;
+    readonly path: string;
+    readonly title: string;
+  };
 }
 ```
 

@@ -119,13 +119,37 @@ import { OpenApiModule } from 'nestjs-openapi';
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/api-docs',
+      specFile: 'openapi.json',
+      swagger: { path: '/api-docs' },
     }),
   ],
 })
 export class AppModule {}
+```
+
+If the OpenAPI routes depend on bootstrap-time config, use `OpenApiModule.setup()` in `main.ts`:
+
+```typescript
+import { OpenApiModule } from 'nestjs-openapi';
+
+const app = await NestFactory.create(AppModule);
+const config = app.get(ConfigService);
+
+app.setGlobalPrefix(config.baseUrl);
+
+OpenApiModule.setup(
+  '/api-docs',
+  app,
+  {
+    specFile: 'openapi.json',
+    fallbackSpecFiles: ['dist/openapi.json'],
+  },
+  {
+    enabled: config.swaggerUi,
+    useGlobalPrefix: true,
+    jsonDocumentUrl: '/openapi',
+  },
+);
 ```
 
 ## Step 5: Update Build Scripts
@@ -292,9 +316,8 @@ if (process.env.USE_RUNTIME_SWAGGER === 'true') {
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
-      serveSwaggerUi: true,
-      swaggerUiPath: '/docs',  // Different path
+      specFile: 'openapi.json',
+      swagger: { path: '/docs' }, // Different path
     }),
   ],
 })

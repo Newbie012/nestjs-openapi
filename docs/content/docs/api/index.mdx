@@ -44,14 +44,14 @@ console.log(`Generated ${result.operationCount} operations`);
 ```
 
 ```typescript
-// Serve at runtime
+// Serve at runtime from a module
 import { OpenApiModule } from 'nestjs-openapi';
 
 @Module({
   imports: [
     OpenApiModule.forRoot({
-      filePath: 'openapi.json',
-      serveSwaggerUi: true,
+      specFile: 'openapi.json',
+      swagger: true,
     }),
   ],
 })

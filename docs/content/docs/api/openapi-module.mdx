@@ -20,14 +20,21 @@ Configure and register the module.
 ```typescript
 class OpenApiModule {
   static forRoot(options: OpenApiModuleOptions): DynamicModule;
+  static setup(
+    path: string,
+    app: OpenApiHttpApplication,
+    documentSource: OpenApiDocumentSource,
+    options?: OpenApiSetupOptions,
+  ): void;
 }
 ```
 
 ### Parameters
 
-| Parameter | Type                   | Description          |
-| --------- | ---------------------- | -------------------- |
-| `options` | `OpenApiModuleOptions` | Module configuration |
+| API                                                 | Description                                             |
+| --------------------------------------------------- | ------------------------------------------------------- |
+| `OpenApiModule.forRoot(options)`                    | Register OpenAPI routes from module-level static config |
+| `OpenApiModule.setup(path, app, document, options)` | Register OpenAPI routes during bootstrap                |
 
 ### OpenApiModuleOptions
 
@@ -39,6 +46,11 @@ interface OpenApiModuleOptions {
    * @required
    */
   readonly specFile: string;
+
+  /**
+   * Additional spec files to try when specFile is missing.
+   */
+  readonly fallbackSpecFiles?: readonly string[];
 
   /**
    * Whether the module is enabled.
@@ -75,6 +87,32 @@ interface SwaggerOptions {
    * Uses spec's info.title if not provided.
    */
   readonly title?: string;
+}
+
+interface OpenApiDocumentFileSource {
+  /**
+   * Path to the generated OpenAPI JSON file.
+   */
+  readonly specFile: string;
+
+  /**
+   * Additional spec files to try when specFile is missing.
+   */
+  readonly fallbackSpecFiles?: readonly string[];
+}
+
+type OpenApiDocumentSource =
+  | OpenApiSpec
+  | (() => OpenApiSpec)
+  | OpenApiDocumentFileSource;
+
+interface OpenApiSetupOptions {
+  readonly enabled?: boolean;
+  readonly useGlobalPrefix?: boolean;
+  readonly jsonDocumentUrl?: string;
+  readonly ui?: boolean;
+  readonly raw?: boolean | readonly 'json'[];
+  readonly customSiteTitle?: string;
 }
 ```
 
@@ -171,6 +209,39 @@ export class AppModule {}
 export class AppModule {}
 ```
 
+### Bootstrap-Time Configuration
+
+Use `OpenApiModule.setup()` when route config comes from providers that are only available after the Nest app is created:
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { OpenApiModule } from 'nestjs-openapi';
+import { AppModule } from './app.module.js';
+import { ConfigService } from './config.service.js';
+
+const app = await NestFactory.create(AppModule);
+const config = app.get(ConfigService);
+
+app.setGlobalPrefix(config.baseUrl);
+
+OpenApiModule.setup(
+  '/docs',
+  app,
+  {
+    specFile: 'apps/api/src/openapi/openapi.generated.json',
+    fallbackSpecFiles: ['dist/apps/api/src/openapi/openapi.generated.json'],
+  },
+  {
+    enabled: config.swaggerUi,
+    useGlobalPrefix: true,
+    jsonDocumentUrl: '/openapi/platform',
+    customSiteTitle: 'Platform API',
+  },
+);
+```
+
+`useGlobalPrefix` matches `@nestjs/swagger`: it prefixes the docs and JSON routes with the value passed to `app.setGlobalPrefix()`.
+
 ## Injection Tokens
 
 The module exports two injection tokens for accessing the spec and options in your services.
@@ -237,7 +308,9 @@ Load an OpenAPI spec file from disk:
 ```typescript
 import { loadSpecFile } from 'nestjs-openapi';
 
-const spec = loadSpecFile('openapi.json');
+const spec = loadSpecFile('openapi.json', {
+  fallbackSpecFiles: ['dist/openapi.json'],
+});
 console.log(spec.info.title);
 ```
 
@@ -277,6 +350,7 @@ The resolved options interface with all defaults applied:
 ```typescript
 interface ResolvedOpenApiModuleOptions {
   readonly specFile: string;
+  readonly fallbackSpecFiles: readonly string[];
   readonly enabled: boolean;
   readonly jsonPath: string;
   readonly swagger: {
