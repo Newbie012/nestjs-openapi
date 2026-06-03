@@ -1,5 +1,13 @@
 # nestjs-openapi
 
+## 0.4.1
+
+### Patch Changes
+
+- [#40](https://github.com/Newbie012/nestjs-openapi/pull/40) [`4c2afd2`](https://github.com/Newbie012/nestjs-openapi/commit/4c2afd2ae491307691aa0bd5d869a2b528ac7ec2) Thanks [@Newbie012](https://github.com/Newbie012)! - Keep the success response for handlers that declare only error `@ApiResponse` codes.
+
+  Previously, a handler without a return type (such as a `@HttpCode(204)` void `DELETE`) that declared only error responses via `@ApiResponse` lost its success response entirely, emitting just the error codes. The default success response is now always documented unless the handler already declares a 2xx response.
+
 ## 0.4.0
 
 ### Minor Changes
