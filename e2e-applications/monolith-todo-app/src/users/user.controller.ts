@@ -18,7 +18,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { CreateUserDto, UserDto } from './dto';
+import { CreateUserDto, UserDto, DeleteUserConflictDto } from './dto';
 
 @ApiTags('users')
 @Controller('api/users')
@@ -99,6 +99,7 @@ export class UserController {
   @ApiResponse({
     status: 409,
     description: 'User still has todos and cannot be deleted',
+    type: DeleteUserConflictDto,
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string): void {

@@ -855,6 +855,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
           "description": "",
         },
         "409": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteUserConflictDto",
+              },
+            },
+          },
           "description": "User still has todos and cannot be deleted",
         },
       },

@@ -26,6 +26,27 @@ export class UserDto {
   createdAt: Date;
 }
 
+export class DeleteUserConflictDto {
+  @ApiProperty({
+    description: 'HTTP status code',
+    example: 409,
+  })
+  statusCode: number;
+
+  @ApiProperty({
+    description: 'Machine-readable error kind',
+    enum: ['USER_HAS_TODOS'],
+    example: 'USER_HAS_TODOS',
+  })
+  code: 'USER_HAS_TODOS';
+
+  @ApiProperty({
+    description: 'Human-readable explanation',
+    example: 'User with ID 1 still has todos and cannot be deleted',
+  })
+  message: string;
+}
+
 export class CreateUserDto {
   @ApiProperty({
     description: 'User email address',
