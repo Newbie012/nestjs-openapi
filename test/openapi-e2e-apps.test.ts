@@ -56,7 +56,7 @@ describe('OpenAPI generation for E2E apps', () => {
     it('keeps the 204 success response for a void DELETE that only declares an error response', () => {
       const responses = spec['/api/users/{id}'].delete.responses;
 
-      expect(Object.keys(responses).sort()).toEqual(['204', '404']);
+      expect(Object.keys(responses).sort()).toEqual(['204', '409']);
       expect(responses['204'].content).toBeUndefined();
     });
   });

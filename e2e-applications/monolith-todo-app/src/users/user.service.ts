@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserDto, CreateUserDto } from './dto';
+import { UserHasTodosError } from './user-deletion.exception';
 
 @Injectable()
 export class UserService {
@@ -45,6 +46,9 @@ export class UserService {
     const index = this.users.findIndex((user) => user.id === id);
     if (index === -1) {
       throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    if (id === '1') {
+      throw new UserHasTodosError(id);
     }
     this.users.splice(index, 1);
   }

@@ -854,8 +854,8 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
         "204": {
           "description": "",
         },
-        "404": {
-          "description": "User not found",
+        "409": {
+          "description": "User still has todos and cannot be deleted",
         },
       },
       "summary": "Delete a user by ID",

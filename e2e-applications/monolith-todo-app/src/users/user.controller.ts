@@ -97,8 +97,8 @@ export class UserController {
     type: 'string',
   })
   @ApiResponse({
-    status: 404,
-    description: 'User not found',
+    status: 409,
+    description: 'User still has todos and cannot be deleted',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string): void {
