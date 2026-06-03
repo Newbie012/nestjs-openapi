@@ -1044,6 +1044,41 @@ describe('transformMethod', () => {
       expect(Object.keys(operation.responses).sort()).toEqual(['201', '400']);
       expect(operation.responses['201'].description).toBe('User created');
     });
+
+    it('should keep the @HttpCode success response for a void handler when @ApiResponse only covers error codes', () => {
+      const methodInfo = createMethodInfo({
+        httpMethod: 'DELETE',
+        path: '/users/{id}',
+        methodName: 'deleteUser',
+        httpCode: Option.some(204),
+        returnType: {
+          type: Option.some('void'),
+          inline: Option.none(),
+          container: Option.none(),
+          filePath: Option.none(),
+        },
+        responses: [
+          {
+            statusCode: 400,
+            description: Option.some('Cannot delete the last rule'),
+            type: Option.some('LastRuleError'),
+            isArray: false,
+          },
+        ],
+      });
+
+      const result = transformMethod(methodInfo);
+      const operation = result['/users/{id}'].delete;
+
+      expect(operation.responses).toHaveProperty('204');
+      expect(operation.responses).toHaveProperty('400');
+      // 204 success carries no body
+      expect(operation.responses['204'].content).toBeUndefined();
+      // 400 keeps its declared error schema
+      expect(
+        operation.responses['400'].content?.['application/json'].schema,
+      ).toEqual({ $ref: '#/components/schemas/LastRuleError' });
+    });
   });
 
   describe('Content types', () => {

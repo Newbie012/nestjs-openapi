@@ -837,6 +837,39 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
     },
   },
   "/api/users/{id}": {
+    "delete": {
+      "operationId": "UserController_remove",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "204": {
+          "description": "",
+        },
+        "409": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteUserConflictDto",
+              },
+            },
+          },
+          "description": "User still has todos and cannot be deleted",
+        },
+      },
+      "summary": "Delete a user by ID",
+      "tags": [
+        "users",
+      ],
+    },
     "get": {
       "operationId": "UserController_findOne",
       "parameters": [
