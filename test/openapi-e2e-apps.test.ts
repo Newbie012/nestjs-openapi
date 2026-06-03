@@ -52,5 +52,12 @@ describe('OpenAPI generation for E2E apps', () => {
       expect(search.required).toBe(false);
       expect(search.schema).toEqual({ type: 'string' });
     });
+
+    it('keeps the 204 success response for a void DELETE that only declares an error response', () => {
+      const responses = spec['/api/users/{id}'].delete.responses;
+
+      expect(Object.keys(responses).sort()).toEqual(['204', '404']);
+      expect(responses['204'].content).toBeUndefined();
+    });
   });
 });

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Query,
@@ -86,5 +87,21 @@ export class UserController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createUserDto: CreateUserDto): UserDto {
     return this.userService.create(createUserDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a user by ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID',
+    type: 'string',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id') id: string): void {
+    this.userService.remove(id);
   }
 }

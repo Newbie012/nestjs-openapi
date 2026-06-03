@@ -837,6 +837,32 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
     },
   },
   "/api/users/{id}": {
+    "delete": {
+      "operationId": "UserController_remove",
+      "parameters": [
+        {
+          "description": "User ID",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "204": {
+          "description": "",
+        },
+        "404": {
+          "description": "User not found",
+        },
+      },
+      "summary": "Delete a user by ID",
+      "tags": [
+        "users",
+      ],
+    },
     "get": {
       "operationId": "UserController_findOne",
       "parameters": [
