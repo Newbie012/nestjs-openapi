@@ -501,11 +501,12 @@ const buildResponses = (
     ]),
   );
 
+  // Document the default success response unless the handler already declares
+  // a 2xx response via @ApiResponse.
   return {
-    ...(methodInfo.responses.length === 0 ||
-    (!hasDeclaredSuccessResponse(methodInfo.responses) && hasReturnType)
-      ? { [statusCode.toString()]: defaultSuccessEntry }
-      : {}),
+    ...(hasDeclaredSuccessResponse(methodInfo.responses)
+      ? {}
+      : { [statusCode.toString()]: defaultSuccessEntry }),
     ...declaredResponses,
   };
 };
