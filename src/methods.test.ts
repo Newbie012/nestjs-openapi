@@ -1369,4 +1369,113 @@ describe('getMethodInfo', () => {
       expect(info.parameters.some((p) => p.name === 'search')).toBe(true);
     });
   });
+
+  describe('Enum parameter types', () => {
+    let setup: TestSetup;
+
+    beforeEach(() => {
+      setup = new TestSetup();
+    });
+
+    const enumProject = () =>
+      new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+          target: ScriptTarget.Latest,
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+      });
+
+    it('should name a single-member enum param after the enum, not its member', () => {
+      // TypeScript collapses the declared type to the member literal, so the
+      // type symbol is the member (Email) rather than the enum (Channel).
+      const info = setup.getMethodInfo(`
+        enum Channel {
+          Email = 'email'
+        }
+
+        @Controller('/notifications')
+        class NotificationsController {
+          @Get()
+          findAll(@Query('channel') channel: Channel) {
+            return [];
+          }
+        }
+      `);
+
+      expect(info?.parameters[0].tsType).toBe('Channel');
+    });
+
+    it('should name a multi-member enum param after the enum', () => {
+      const info = setup.getMethodInfo(`
+        enum Channel {
+          Email = 'email',
+          Sms = 'sms'
+        }
+
+        @Controller('/notifications')
+        class NotificationsController {
+          @Get()
+          findAll(@Query('channel') channel: Channel) {
+            return [];
+          }
+        }
+      `);
+
+      expect(info?.parameters[0].tsType).toBe('Channel');
+    });
+
+    it('should name a single-member numeric enum path param after the enum', () => {
+      const info = setup.getMethodInfo(`
+        enum Tier {
+          Free = 0
+        }
+
+        @Controller('/accounts')
+        class AccountsController {
+          @Get(':tier')
+          findByTier(@Param('tier') tier: Tier) {
+            return [];
+          }
+        }
+      `);
+
+      expect(info?.parameters[0].tsType).toBe('Tier');
+    });
+
+    it('should use the original enum name for an aliased single-member enum import', () => {
+      const project = enumProject();
+
+      project.createSourceFile(
+        'dto/channel.enum.ts',
+        `
+        export enum Channel {
+          Email = 'email'
+        }
+      `,
+      );
+
+      const controllerFile = project.createSourceFile(
+        'controllers/notification.controller.ts',
+        `
+        import { Channel as DeliveryChannel } from '../dto/channel.enum';
+
+        @Controller('/notifications')
+        class NotificationsController {
+          @Get()
+          findAll(@Query('channel') channel: DeliveryChannel) {
+            return [];
+          }
+        }
+      `,
+      );
+
+      const controller = controllerFile.getClasses()[0];
+      const method = controller.getMethods()[0];
+      const info = Option.getOrThrow(getMethodInfo(controller, method));
+
+      expect(info.parameters[0].tsType).toBe('Channel');
+    });
+  });
 });

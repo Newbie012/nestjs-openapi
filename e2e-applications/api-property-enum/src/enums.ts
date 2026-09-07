@@ -23,3 +23,11 @@ export enum Size {
   Large = 'L',
   ExtraLarge = 'XL',
 }
+
+/**
+ * Single-member enum: TypeScript collapses its declared type to the member
+ * literal, so schema naming must walk back up to the enum declaration.
+ */
+export enum Channel {
+  Email = 'email',
+}

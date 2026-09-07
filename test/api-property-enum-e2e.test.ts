@@ -91,6 +91,43 @@ describe('@ApiProperty extraction E2E', () => {
       );
     });
 
+    it('should ref the enum declaration for a single-member enum query param', async () => {
+      // A single-member enum collapses to its member literal in the type
+      // system; the ref must still point at the enum, and the schema must exist
+      await getSchemas();
+      const params = spec.paths['/tasks/filter'].get.parameters ?? [];
+      const channel = params.find((p) => p.name === 'channel');
+
+      expect(channel?.schema).toEqual({
+        $ref: '#/components/schemas/Channel',
+      });
+      expect(spec.components?.schemas?.['Channel']).toMatchObject({
+        type: 'string',
+        enum: ['email'],
+      });
+      expect(spec.components?.schemas?.['Email']).toBeUndefined();
+    });
+
+    it('should ref the enum declaration for a multi-member enum query param', async () => {
+      await getSchemas();
+      const params = spec.paths['/tasks/filter'].get.parameters ?? [];
+      const color = params.find((p) => p.name === 'color');
+
+      expect(color?.schema).toEqual({ $ref: '#/components/schemas/Color' });
+    });
+
+    it('should ref a single-member enum from DTO properties', async () => {
+      const schemas = await getSchemas();
+      const props = schemas['SearchDto']?.properties ?? {};
+
+      expect(props['channel']).toEqual({
+        $ref: '#/components/schemas/Channel',
+      });
+      expect(props['fallbackChannel']).toEqual({
+        $ref: '#/components/schemas/Channel',
+      });
+    });
+
     it('should extract two-value inline enum', async () => {
       const schemas = await getSchemas();
       const sortOrder = schemas['SearchDto']?.properties?.[

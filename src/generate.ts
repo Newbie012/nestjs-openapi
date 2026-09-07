@@ -36,6 +36,7 @@ import { TransformerService } from './transformer.js';
 import type { GeneratedSchemas } from './schema-generator.js';
 import { normalizeStructureRefsEffect } from './schema-normalizer.js';
 import { collapseAliasRefs } from './schema-alias-collapser.js';
+import { expandConstSchemas } from './schema-const-expander.js';
 import { mergeSchemasEffect } from './schema-merger.js';
 import { filterMethods } from './filter.js';
 import { transformSpecForVersion } from './schema-version-transformer.js';
@@ -1046,6 +1047,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(function* (
     schemas = collapsed.schemas;
   }
   yield* Effect.annotateCurrentSpan('aliasRefMode', aliasRefsMode);
+
+  // `const` is JSON Schema, and OpenAPI only adopted it in 3.1. Rewrite it as
+  // a single-value `enum`, which every version understands.
+  schemas = expandConstSchemas(schemas);
 
   const securitySchemes =
     security.schemes && security.schemes.length > 0

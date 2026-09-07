@@ -96,15 +96,36 @@ describe('OpenAPI generation for E2E apps', () => {
     });
 
     it('hoists the error DTO into components.schemas with its property shape', () => {
+      // A one-inhabitant type is a single-value enum, not `const`: OpenAPI only
+      // adopted `const` in 3.1 and this spec is 3.0.3
       expect(spec.components?.schemas?.DeleteUserConflictDto).toMatchObject({
         type: 'object',
         properties: {
           statusCode: { type: 'number' },
-          code: { const: 'USER_HAS_TODOS', type: 'string' },
+          code: { enum: ['USER_HAS_TODOS'], type: 'string' },
           message: { type: 'string' },
         },
         required: ['statusCode', 'code', 'message'],
       });
+    });
+
+    it('emits no `const` keyword anywhere in the spec', () => {
+      const constPaths: string[] = [];
+      const walk = (node: unknown, path: string): void => {
+        if (Array.isArray(node)) {
+          node.forEach((item, index) => walk(item, `${path}/${index}`));
+          return;
+        }
+        if (node === null || typeof node !== 'object') return;
+        const record = node as Record<string, unknown>;
+        if ('const' in record) constPaths.push(path);
+        for (const [key, value] of Object.entries(record)) {
+          walk(value, `${path}/${key}`);
+        }
+      };
+      walk(spec, '');
+
+      expect(constPaths).toEqual([]);
     });
   });
 });

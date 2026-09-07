@@ -4,6 +4,7 @@ import type {
   ClassDeclaration,
   Decorator,
   ParameterDeclaration,
+  Symbol as TsSymbol,
 } from 'ts-morph';
 import { ts } from 'ts-morph';
 import type {
@@ -580,6 +581,25 @@ const expandQueryDtoProperties = (
   return expandedParams;
 };
 
+/**
+ * Resolves the name of the enum that declares a type symbol.
+ *
+ * TypeScript collapses the declared type of a single-member enum to that
+ * member's literal type, so the type's symbol is the enum member (`Email`)
+ * rather than the enum (`Channel`). Walking up to the enum declaration keeps
+ * schema refs pointing at the enum name, which is what actually gets emitted.
+ */
+const getDeclaringEnumName = (symbol: TsSymbol): string | undefined => {
+  for (const declaration of symbol.getDeclarations()) {
+    const enumName = declaration
+      .asKind?.(ts.SyntaxKind.EnumMember)
+      ?.getParent()
+      .getName();
+    if (enumName) return enumName;
+  }
+  return undefined;
+};
+
 const extractParameters = (
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
@@ -624,7 +644,7 @@ const extractParameters = (
       let tsType = rawTsType;
       const symbol = paramType.getSymbol?.();
       if (symbol) {
-        const symbolName = symbol.getName();
+        const symbolName = getDeclaringEnumName(symbol) ?? symbol.getName();
         // Use symbol name if it's a valid identifier (not __type etc.)
         // But skip built-in types like Array, Promise, etc. - those should use getText()
         // to preserve the full generic signature like "Array<string>"
