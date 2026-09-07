@@ -1,5 +1,15 @@
 # nestjs-openapi
 
+## 0.5.0
+
+### Minor Changes
+
+- [#43](https://github.com/Newbie012/nestjs-openapi/pull/43) [`44dfd75`](https://github.com/Newbie012/nestjs-openapi/commit/44dfd75fd6cca5e7127e9787218bf9ed5133e839) Thanks [@Newbie012](https://github.com/Newbie012)! - Emit `enum: [value]` instead of the JSON Schema `const` keyword, which OpenAPI only adopted in 3.1. Generated output changes: `{ "const": "paypal" }` is now `{ "enum": ["paypal"] }`.
+
+### Patch Changes
+
+- [#43](https://github.com/Newbie012/nestjs-openapi/pull/43) [`44dfd75`](https://github.com/Newbie012/nestjs-openapi/commit/44dfd75fd6cca5e7127e9787218bf9ed5133e839) Thanks [@Newbie012](https://github.com/Newbie012)! - A parameter typed with a single-member enum now refs the enum instead of its member. TypeScript collapses the declared type to the member literal, so the ref pointed at a schema that never existed.
+
 ## 0.4.1
 
 ### Patch Changes
