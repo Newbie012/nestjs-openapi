@@ -27,7 +27,7 @@ describe('Discriminated Unions E2E', () => {
   });
 
   describe('PaymentMethodDto discriminated union', () => {
-    it('should have const values for type discriminator', async () => {
+    it('should have single-value enum type discriminators', async () => {
       const spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
       const schema = spec.components.schemas.PaymentMethodDto;
 
@@ -39,33 +39,37 @@ describe('Discriminated Unions E2E', () => {
       // Find the credit_card variant
       const creditCardVariant = variants.find(
         (v: any) =>
-          v.properties?.type?.const === 'credit_card' ||
+          v.properties?.type?.enum?.[0] === 'credit_card' ||
           v.properties?.cardNumber,
       );
       expect(creditCardVariant).toBeDefined();
-      expect(creditCardVariant.properties.type.const).toBe('credit_card');
+      expect(creditCardVariant.properties.type).toMatchObject({
+        enum: ['credit_card'],
+      });
 
       // Find the paypal variant
       const paypalVariant = variants.find(
         (v: any) =>
-          v.properties?.type?.const === 'paypal' || v.properties?.email,
+          v.properties?.type?.enum?.[0] === 'paypal' || v.properties?.email,
       );
       expect(paypalVariant).toBeDefined();
-      expect(paypalVariant.properties.type.const).toBe('paypal');
+      expect(paypalVariant.properties.type).toMatchObject({ enum: ['paypal'] });
 
       // Find the bank_transfer variant
       const bankTransferVariant = variants.find(
         (v: any) =>
-          v.properties?.type?.const === 'bank_transfer' ||
+          v.properties?.type?.enum?.[0] === 'bank_transfer' ||
           v.properties?.accountNumber,
       );
       expect(bankTransferVariant).toBeDefined();
-      expect(bankTransferVariant.properties.type.const).toBe('bank_transfer');
+      expect(bankTransferVariant.properties.type).toMatchObject({
+        enum: ['bank_transfer'],
+      });
     });
   });
 
   describe('CodeExecutionSourceDto discriminated union', () => {
-    it('should have const value for OpenSource discriminator', async () => {
+    it('should have a single-value enum OpenSource discriminator', async () => {
       const spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
       const schema = spec.components.schemas.CodeExecutionSourceDto;
 
@@ -79,12 +83,14 @@ describe('Discriminated Unions E2E', () => {
         (v: any) => v.properties?.libraryName,
       );
       expect(openSourceVariant).toBeDefined();
-      expect(openSourceVariant.properties.kind.const).toBe('OpenSource');
+      expect(openSourceVariant.properties.kind).toMatchObject({
+        enum: ['OpenSource'],
+      });
     });
   });
 
   describe('NotificationDto discriminated union', () => {
-    it('should have const values for channel discriminator', async () => {
+    it('should have single-value enum channel discriminators', async () => {
       const spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
       const schema = spec.components.schemas.NotificationDto;
 
@@ -96,26 +102,30 @@ describe('Discriminated Unions E2E', () => {
       // Find the email variant
       const emailVariant = variants.find(
         (v: any) =>
-          v.properties?.channel?.const === 'email' || v.properties?.subject,
+          v.properties?.channel?.enum?.[0] === 'email' || v.properties?.subject,
       );
       expect(emailVariant).toBeDefined();
-      expect(emailVariant.properties.channel.const).toBe('email');
+      expect(emailVariant.properties.channel).toMatchObject({
+        enum: ['email'],
+      });
 
       // Find the sms variant
       const smsVariant = variants.find(
         (v: any) =>
-          v.properties?.channel?.const === 'sms' || v.properties?.phoneNumber,
+          v.properties?.channel?.enum?.[0] === 'sms' ||
+          v.properties?.phoneNumber,
       );
       expect(smsVariant).toBeDefined();
-      expect(smsVariant.properties.channel.const).toBe('sms');
+      expect(smsVariant.properties.channel).toMatchObject({ enum: ['sms'] });
 
       // Find the push variant
       const pushVariant = variants.find(
         (v: any) =>
-          v.properties?.channel?.const === 'push' || v.properties?.deviceToken,
+          v.properties?.channel?.enum?.[0] === 'push' ||
+          v.properties?.deviceToken,
       );
       expect(pushVariant).toBeDefined();
-      expect(pushVariant.properties.channel.const).toBe('push');
+      expect(pushVariant.properties.channel).toMatchObject({ enum: ['push'] });
     });
   });
 });

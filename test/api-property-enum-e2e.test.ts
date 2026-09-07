@@ -101,7 +101,10 @@ describe('@ApiProperty extraction E2E', () => {
       expect(channel?.schema).toEqual({
         $ref: '#/components/schemas/Channel',
       });
-      expect(spec.components?.schemas?.['Channel']).toBeDefined();
+      expect(spec.components?.schemas?.['Channel']).toMatchObject({
+        type: 'string',
+        enum: ['email'],
+      });
       expect(spec.components?.schemas?.['Email']).toBeUndefined();
     });
 
