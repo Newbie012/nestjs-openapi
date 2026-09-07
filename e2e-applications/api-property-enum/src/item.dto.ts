@@ -3,7 +3,7 @@ import {
   ApiPropertyOptional,
   ApiHideProperty,
 } from '@nestjs/swagger';
-import { Color, Priority, Size } from './enums';
+import { Channel, Color, Priority, Size } from './enums';
 
 /**
  * DTO covering all extractable @ApiProperty options.
@@ -89,4 +89,9 @@ export class SearchDto {
 
   @ApiProperty({ enum: Size, isArray: true, description: 'Filter by sizes' })
   sizes: Size[];
+
+  @ApiProperty({ enum: Channel, description: 'Delivery channel' })
+  channel: Channel;
+
+  fallbackChannel: Channel;
 }

@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ItemDto, TaskDto, SearchDto } from './item.dto';
+import { Channel, Color } from './enums';
 
 @ApiTags('Items')
 @Controller('items')
@@ -34,6 +35,16 @@ export class TaskController {
   @ApiOperation({ summary: 'Search tasks' })
   @ApiResponse({ status: 200, description: 'Search results', type: [TaskDto] })
   search(@Body() _search: SearchDto): TaskDto[] {
+    return [];
+  }
+
+  @Get('filter')
+  @ApiOperation({ summary: 'Filter tasks by enum-typed query params' })
+  @ApiResponse({ status: 200, description: 'Filtered tasks', type: [TaskDto] })
+  filter(
+    @Query('channel') _channel: Channel,
+    @Query('color') _color: Color,
+  ): TaskDto[] {
     return [];
   }
 }
