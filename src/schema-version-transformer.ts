@@ -27,6 +27,41 @@ const schemaIncludesNull = (schema: OpenApiSchema): boolean => {
   return Array.isArray(schema.type) && schema.type.includes('null');
 };
 
+/**
+ * Unwraps `{ allOf: [{ $ref }] }`, a wrapper that only exists because 3.0
+ * ignores keywords sitting beside `$ref`. From 3.1 on, `$ref` takes siblings.
+ */
+const unwrapSingleRefAllOf = (schema: OpenApiSchema): OpenApiSchema => {
+  const keys = Object.keys(schema);
+  const onlyMember = schema.allOf?.length === 1 ? schema.allOf[0] : undefined;
+  const isBareRef =
+    onlyMember?.$ref !== undefined && Object.keys(onlyMember).length === 1;
+
+  return keys.length === 1 && keys[0] === 'allOf' && isBareRef && onlyMember
+    ? onlyMember
+    : schema;
+};
+
+/**
+ * JSON Schema 2020-12 dropped the `binary` and `byte` formats that 3.0 used to
+ * mark payloads as bytes, so 3.1 states the same thing with content keywords.
+ */
+const BINARY_FORMAT_REPLACEMENTS: Record<string, OpenApiSchema> = {
+  binary: { contentMediaType: 'application/octet-stream' },
+  byte: { contentEncoding: 'base64' },
+};
+
+const replaceBinaryFormat = (schema: OpenApiSchema): OpenApiSchema => {
+  const replacement = schema.format
+    ? BINARY_FORMAT_REPLACEMENTS[schema.format]
+    : undefined;
+  if (!replacement) return schema;
+
+  const { format: _format, ...rest } = schema;
+
+  return { ...rest, ...replacement };
+};
+
 const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
   // Transform nested schemas first
   const transformedOneOf = schema.oneOf?.map(transformSchemaToV31);
@@ -54,7 +89,7 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
       : schema.type;
 
   const transformedSchema: OpenApiSchema = {
-    ...restWithoutNullable,
+    ...replaceBinaryFormat(restWithoutNullable),
     ...(transformedType !== undefined && { type: transformedType }),
     ...(transformedOneOf && { oneOf: transformedOneOf }),
     ...(transformedAnyOf && { anyOf: transformedAnyOf }),
@@ -90,7 +125,7 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
   }
 
   // allOf/$ref/other schema forms need an outer union to keep nullability.
-  return { anyOf: [transformedSchema, NULL_SCHEMA] };
+  return { anyOf: [unwrapSingleRefAllOf(transformedSchema), NULL_SCHEMA] };
 };
 
 const schemaIncludesNullInVariants = (
