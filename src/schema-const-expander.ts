@@ -1,4 +1,4 @@
-import type { OpenApiSchema } from './types.js';
+import type { OpenApiSchema, OpenApiVersion } from './types.js';
 
 /**
  * Expands the JSON Schema `const` keyword into a single-value `enum`.
@@ -10,7 +10,8 @@ import type { OpenApiSchema } from './types.js';
  * the keyword reads the schema as unconstrained.
  *
  * `enum: [value]` says the same thing and is valid in every OpenAPI version,
- * so single- and multi-member enums come out in the same shape.
+ * so single- and multi-member enums come out in the same shape. From 3.1 on,
+ * `const` is valid and idiomatic, so it is left as written.
  */
 
 /** A schema carrying `const`, which `OpenApiSchema` itself does not define. */
@@ -70,13 +71,19 @@ export const expandConstInSchema = (schema: OpenApiSchema): OpenApiSchema => {
   };
 };
 
-/** Applies {@link expandConstInSchema} to every schema in a components map */
+/**
+ * Applies {@link expandConstInSchema} to every schema in a components map,
+ * for target versions that do not know the `const` keyword.
+ */
 export const expandConstSchemas = (
   schemas: Record<string, OpenApiSchema>,
+  version: OpenApiVersion,
 ): Record<string, OpenApiSchema> =>
-  Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [
-      name,
-      expandConstInSchema(schema),
-    ]),
-  );
+  version === '3.0.3'
+    ? Object.fromEntries(
+        Object.entries(schemas).map(([name, schema]) => [
+          name,
+          expandConstInSchema(schema),
+        ]),
+      )
+    : schemas;

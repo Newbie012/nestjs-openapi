@@ -491,6 +491,10 @@ export interface OpenApiSchema {
   readonly nullable?: boolean;
   /** Examples array for 3.1+ (replaces single 'example' field) */
   readonly examples?: readonly unknown[];
+  /** 3.1+ replacement for format: 'byte' */
+  readonly contentEncoding?: string;
+  /** 3.1+ replacement for format: 'binary' */
+  readonly contentMediaType?: string;
   // String validation constraints
   readonly minLength?: number;
   readonly maxLength?: number;

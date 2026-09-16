@@ -148,10 +148,13 @@ describe('expandConstInSchema', () => {
 
 describe('expandConstSchemas', () => {
   it('should expand const across every schema in the map', () => {
-    const result = expandConstSchemas({
-      Channel: withConst({ const: 'email', type: 'string' }),
-      Color: { type: 'string', enum: ['red', 'green'] },
-    });
+    const result = expandConstSchemas(
+      {
+        Channel: withConst({ const: 'email', type: 'string' }),
+        Color: { type: 'string', enum: ['red', 'green'] },
+      },
+      '3.0.3',
+    );
 
     expect(result).toEqual({
       Channel: { enum: ['email'], type: 'string' },
@@ -160,6 +163,50 @@ describe('expandConstSchemas', () => {
   });
 
   it('should return an empty map unchanged', () => {
-    expect(expandConstSchemas({})).toEqual({});
+    expect(expandConstSchemas({}, '3.0.3')).toEqual({});
+  });
+
+  it.each(['3.1.0', '3.2.0'] as const)(
+    'should keep const as-is for %s',
+    (version) => {
+      const result = expandConstSchemas(
+        { Widget: withConst({ const: 'card', type: 'string' }) },
+        version,
+      );
+
+      expect(result['Widget']).toEqual({ const: 'card', type: 'string' });
+    },
+  );
+
+  it.each(['3.0.3', '3.1.0', '3.2.0'] as const)(
+    'should leave a multi-value enum untouched for %s',
+    (version) => {
+      const result = expandConstSchemas(
+        { Widget: { type: 'string', enum: ['card', 'cash'] } },
+        version,
+      );
+
+      expect(result['Widget']).toEqual({
+        type: 'string',
+        enum: ['card', 'cash'],
+      });
+      expect(result['Widget']).not.toHaveProperty('const');
+    },
+  );
+
+  it('should expand const in nested properties for 3.0.3 only', () => {
+    const schemas = {
+      Widget: {
+        type: 'object' as const,
+        properties: { kind: withConst({ const: 'fixed', type: 'string' }) },
+      },
+    };
+
+    expect(expandConstSchemas(schemas, '3.0.3')['Widget']?.properties).toEqual({
+      kind: { enum: ['fixed'], type: 'string' },
+    });
+    expect(expandConstSchemas(schemas, '3.1.0')['Widget']?.properties).toEqual({
+      kind: { const: 'fixed', type: 'string' },
+    });
   });
 });

@@ -1048,9 +1048,13 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(function* (
   }
   yield* Effect.annotateCurrentSpan('aliasRefMode', aliasRefsMode);
 
-  // `const` is JSON Schema, and OpenAPI only adopted it in 3.1. Rewrite it as
-  // a single-value `enum`, which every version understands.
-  schemas = expandConstSchemas(schemas);
+  // Get OpenAPI version from config (default to 3.0.3)
+  const openApiVersion = openapi.version ?? '3.0.3';
+  yield* Effect.annotateCurrentSpan('openApiVersion', openApiVersion);
+
+  // `const` is JSON Schema, and OpenAPI only adopted it in 3.1. For 3.0.3,
+  // rewrite it as a single-value `enum`, which that version understands.
+  schemas = expandConstSchemas(schemas, openApiVersion);
 
   const securitySchemes =
     security.schemes && security.schemes.length > 0
@@ -1067,10 +1071,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(function* (
           ...(hasSecuritySchemes && { securitySchemes }),
         }
       : undefined;
-
-  // Get OpenAPI version from config (default to 3.0.3)
-  const openApiVersion = openapi.version ?? '3.0.3';
-  yield* Effect.annotateCurrentSpan('openApiVersion', openApiVersion);
 
   // Always include servers and tags (even if empty) to match NestJS Swagger output
   let spec: OpenApiSpec = {

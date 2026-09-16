@@ -50,6 +50,8 @@ describe('OpenAPI Version E2E', () => {
     // Remove source files
     const controllerPath = resolve(srcDir, 'user.controller.ts');
     const modulePath = resolve(srcDir, 'app.module.ts');
+    const widgetDtoPath = resolve(srcDir, 'widget.dto.ts');
+    if (existsSync(widgetDtoPath)) unlinkSync(widgetDtoPath);
     if (existsSync(controllerPath)) unlinkSync(controllerPath);
     if (existsSync(modulePath)) unlinkSync(modulePath);
   });
@@ -59,6 +61,7 @@ describe('OpenAPI Version E2E', () => {
     const controllerContent = `
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { WidgetDto } from './widget.dto.js';
 
 class UserDto {
   id: string;
@@ -90,6 +93,13 @@ export class UserController {
   create(@Body() dto: CreateUserDto): UserDto {
     return { id: '1', name: dto.name, email: dto.email, age: dto.age };
   }
+
+  @Get('widget')
+  @ApiOperation({ summary: 'Get the widget' })
+  @ApiResponse({ status: 200, type: WidgetDto })
+  widget(): WidgetDto {
+    return { kind: 'card', status: 'active' };
+  }
 }
 `;
 
@@ -103,6 +113,14 @@ import { UserController } from './user.controller.js';
 export class AppModule {}
 `;
 
+    const widgetDtoContent = `
+export class WidgetDto {
+  kind: 'card';
+  status: 'active' | 'disabled';
+}
+`;
+
+    writeFileSync(resolve(srcDir, 'widget.dto.ts'), widgetDtoContent);
     writeFileSync(resolve(srcDir, 'user.controller.ts'), controllerContent);
     writeFileSync(resolve(srcDir, 'app.module.ts'), moduleContent);
   };
@@ -118,6 +136,7 @@ export default defineConfig({
   files: {
     entry: 'src/app.module.ts',
     tsconfig: '../../tsconfig.json',
+    dtoGlob: 'src/**/*.dto.ts',
   },
   openapi: {
     ${versionLine}
@@ -130,6 +149,97 @@ export default defineConfig({
 `;
     writeFileSync(configPath, configContent);
   };
+
+  // Helper to read the properties of the generated single-literal DTO schema
+  const readWidgetProperties = (): Record<
+    string,
+    Record<string, unknown>
+  > => {
+    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+    const schema = spec.components?.schemas?.['WidgetDto'];
+
+    return (schema?.properties ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
+  };
+
+  describe('single-value literal types', () => {
+    it('should emit a single-value enum for 3.0.3', async () => {
+      // ARRANGE
+      createTestFiles();
+      createConfig('3.0.3');
+
+      // ACT
+      await generate(configPath);
+
+      // ASSERT
+      const properties = readWidgetProperties();
+      expect(properties['kind']).toMatchObject({ enum: ['card'] });
+      expect(properties['kind']).not.toHaveProperty('const');
+    });
+
+    it('should emit const for 3.1.0', async () => {
+      // ARRANGE
+      createTestFiles();
+      createConfig('3.1.0');
+
+      // ACT
+      await generate(configPath);
+
+      // ASSERT
+      const properties = readWidgetProperties();
+      expect(properties['kind']).toMatchObject({ const: 'card' });
+      expect(properties['kind']).not.toHaveProperty('enum');
+    });
+
+    it('should emit const for 3.2.0', async () => {
+      // ARRANGE
+      createTestFiles();
+      createConfig('3.2.0');
+
+      // ACT
+      await generate(configPath);
+
+      // ASSERT
+      const properties = readWidgetProperties();
+      expect(properties['kind']).toMatchObject({ const: 'card' });
+      expect(properties['kind']).not.toHaveProperty('enum');
+    });
+
+    it('should emit a single-value enum when no version is configured', async () => {
+      // ARRANGE
+      createTestFiles();
+      createConfig();
+
+      // ACT
+      await generate(configPath);
+
+      // ASSERT
+      const properties = readWidgetProperties();
+      expect(properties['kind']).toMatchObject({ enum: ['card'] });
+      expect(properties['kind']).not.toHaveProperty('const');
+    });
+
+    it.each(['3.0.3', '3.1.0', '3.2.0'])(
+      'should keep a multi-value enum as an enum for %s',
+      async (version) => {
+        // ARRANGE
+        createTestFiles();
+        createConfig(version);
+
+        // ACT
+        await generate(configPath);
+
+        // ASSERT
+        const properties = readWidgetProperties();
+        expect(properties['status']).toMatchObject({
+          enum: ['active', 'disabled'],
+        });
+        expect(properties['status']).not.toHaveProperty('const');
+      },
+    );
+  });
 
   describe('OpenAPI 3.0.3 (default)', () => {
     it('should generate spec with version 3.0.3 by default', async () => {
