@@ -1,5 +1,11 @@
 # nestjs-openapi
 
+## 0.5.1
+
+### Patch Changes
+
+- [#45](https://github.com/Newbie012/nestjs-openapi/pull/45) [`8b492cd`](https://github.com/Newbie012/nestjs-openapi/commit/8b492cd746c1482db49b3c1ca60a92f42ed86c6c) Thanks [@Newbie012](https://github.com/Newbie012)! - Emit 3.1-native schema shapes when targeting OpenAPI 3.1+: `const` for single-value literals, a bare `$ref` inside the nullable union, and `contentMediaType`/`contentEncoding` instead of `format: binary`/`byte`. Output for 3.0.3 is unchanged.
+
 ## 0.5.0
 
 ### Minor Changes
