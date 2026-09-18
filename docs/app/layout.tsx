@@ -1,5 +1,4 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
-import { Banner } from 'fumadocs-ui/components/banner';
 import './global.css';
 import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
@@ -44,9 +43,6 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             enableSystem: true,
           }}
         >
-          <Banner id="wip-docs-notice">
-            Docs are a work in progress - contributions welcome
-          </Banner>
           {children}
         </RootProvider>
         <Analytics />
