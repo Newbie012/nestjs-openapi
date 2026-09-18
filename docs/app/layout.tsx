@@ -4,6 +4,7 @@ import './global.css';
 import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/next';
+import { siteUrl } from '@/lib/site-url';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -11,15 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    (() => {
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ??
-        process.env.VERCEL_URL ??
-        'http://localhost:3000';
-      return siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`;
-    })(),
-  ),
+  metadataBase: new URL(siteUrl),
   title: {
     default: 'nestjs-openapi',
     template: '%s | nestjs-openapi',
@@ -34,6 +27,9 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     images: '/og',
+  },
+  verification: {
+    google: 'pWFmw4yXOsEC5_GbQfmHBCXVI4acmB6Bbt_TmdkAu2A',
   },
 };
 
