@@ -46,7 +46,15 @@
     "openapi",
     "swagger",
     "typescript",
-    "static-analysis"
+    "static-analysis",
+    "nest",
+    "nestjs-swagger",
+    "openapi3",
+    "openapi-generator",
+    "openapi-spec",
+    "swagger-generator",
+    "api-documentation",
+    "codegen"
   ],
   "author": "Eliya Cohen",
   "license": "MIT",
@@ -57,7 +65,7 @@
   "bugs": {
     "url": "https://github.com/Newbie012/nestjs-openapi/issues"
   },
-  "homepage": "https://github.com/Newbie012/nestjs-openapi#readme",
+  "homepage": "https://nestjs-openapi.vercel.app",
   "packageManager": "pnpm@10.17.0",
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.2",

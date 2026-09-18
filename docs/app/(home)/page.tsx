@@ -14,6 +14,14 @@ import {
 import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import { CopyButton } from '@/components/copy-button';
 import { CodeComparison } from '@/components/code-comparison';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: {
+    absolute: 'nestjs-openapi - Generate OpenAPI specs from NestJS with static analysis',
+  },
+  alternates: { canonical: '/' },
+};
 
 export default function HomePage() {
   return (
