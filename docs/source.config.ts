@@ -9,13 +9,17 @@ import {
   rehypeCodeDefaultOptions,
 } from 'fumadocs-core/mdx-plugins';
 import { transformerTwoslash } from 'fumadocs-twoslash';
+import { z } from 'zod';
 
 // You can customise Zod schemas for frontmatter and `meta.json` here
 // see https://fumadocs.dev/docs/mdx/collections
 export const docs = defineDocs({
   dir: 'content/docs',
   docs: {
-    schema: frontmatterSchema,
+    schema: frontmatterSchema.extend({
+      // Overrides the <title> tag only; `title` still drives the sidebar and heading
+      seoTitle: z.string().optional(),
+    }),
     postprocess: {
       includeProcessedMarkdown: true,
     },
