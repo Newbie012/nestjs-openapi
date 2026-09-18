@@ -1,5 +1,11 @@
 # nestjs-openapi
 
+## 0.5.2
+
+### Patch Changes
+
+- [#48](https://github.com/Newbie012/nestjs-openapi/pull/48) [`0929ff3`](https://github.com/Newbie012/nestjs-openapi/commit/0929ff3fc58e52637c18d79a45a9213ecce18953) Thanks [@Newbie012](https://github.com/Newbie012)! - Point the package `homepage` at the documentation site and expand the npm `keywords`.
+
 ## 0.5.1
 
 ### Patch Changes
