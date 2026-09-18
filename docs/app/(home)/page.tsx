@@ -15,17 +15,40 @@ import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import { CopyButton } from '@/components/copy-button';
 import { CodeComparison } from '@/components/code-comparison';
 import type { Metadata } from 'next';
+import { siteUrl } from '@/lib/site-url';
 
 export const metadata: Metadata = {
   title: {
-    absolute: 'nestjs-openapi - Generate OpenAPI specs from NestJS with static analysis',
+    absolute:
+      'nestjs-openapi - Generate OpenAPI specs from NestJS with static analysis',
   },
   alternates: { canonical: '/' },
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: 'nestjs-openapi',
+  description:
+    'Static analysis tool that generates OpenAPI specifications from NestJS applications. No runtime required - just your TypeScript types.',
+  url: siteUrl,
+  codeRepository: 'https://github.com/Newbie012/nestjs-openapi',
+  programmingLanguage: 'TypeScript',
+  runtimePlatform: 'Node.js',
+  license: 'https://opensource.org/licenses/MIT',
+  author: { '@type': 'Person', name: 'Eliya Cohen' },
+  keywords: 'nestjs, openapi, swagger, typescript, static analysis',
 };
 
 export default function HomePage() {
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+        }}
+      />
       {/* Hero */}
       <section className="relative px-6 pt-20 pb-16 md:pt-28 md:pb-24 overflow-hidden">
         {/* Grid background */}
