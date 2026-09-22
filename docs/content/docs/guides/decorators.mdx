@@ -1,16 +1,17 @@
 ---
 title: Decorators
-description: Supported NestJS and Swagger decorators
+seoTitle: 'Supported NestJS and Swagger decorators'
+description: 'Which NestJS and @nestjs/swagger decorators nestjs-openapi reads for routing, operations, parameters and security, and which it ignores.'
 ---
 
 The generator covers the most common NestJS + Swagger decorators. Schemas come from TypeScript types (not `@ApiProperty`); security schemes are defined in config and decorators add per-operation requirements.
 
 <Callout>
-  Quick truth table: we read routing + HTTP method decorators, Swagger
-  operation metadata (tags, operation, consumes/produces, ApiResponse),
-  parameter descriptions from `@ApiParam`/`@ApiQuery`, and method-level
-  exclusion decorators. We ignore property-level Swagger decorators and
-  response shortcuts.
+  Quick truth table: we read routing + HTTP method decorators, Swagger operation
+  metadata (tags, operation, consumes/produces, ApiResponse), parameter
+  descriptions from `@ApiParam`/`@ApiQuery`, and method-level exclusion
+  decorators. We ignore property-level Swagger decorators and response
+  shortcuts.
 </Callout>
 
 For a concise overview, see the [Support Matrix](/docs/guides/support-matrix).
