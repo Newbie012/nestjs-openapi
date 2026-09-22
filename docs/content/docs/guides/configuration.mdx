@@ -1,6 +1,7 @@
 ---
 title: Configuration
-description: Complete configuration reference for nestjs-openapi
+seoTitle: 'Configuration options'
+description: 'Every option in the nestjs-openapi config file: output path and format, entry module, tsconfig, OpenAPI info, servers, security schemes and filters.'
 ---
 
 All configuration is done through a TypeScript config file (typically `openapi.config.ts`). Use the `defineConfig` helper for type safety.
@@ -316,10 +317,10 @@ Schema generation and normalization options.
 
 Controls how pass-through alias schemas are emitted (default: `"collapse"`).
 
-| Value        | Description |
-| ------------ | ----------- |
+| Value        | Description                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
 | `"collapse"` | Rewrite alias chains like `A -> B -> C` to `A -> C` when `B` is only a `$ref` wrapper, then remove `B` |
-| `"preserve"` | Keep alias schemas in `components.schemas` |
+| `"preserve"` | Keep alias schemas in `components.schemas`                                                             |
 
 ```typescript
 options: {

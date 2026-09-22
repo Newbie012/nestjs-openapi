@@ -116,6 +116,23 @@ export default function HomePage() {
                 show up in the spec. Less decorators to maintain, fewer
                 surprises.
               </p>
+              <p className="mt-3 text-fd-muted-foreground leading-relaxed">
+                See the{' '}
+                <Link
+                  href="/docs/comparison"
+                  className="text-fd-foreground underline underline-offset-4"
+                >
+                  full comparison with @nestjs/swagger
+                </Link>{' '}
+                or the{' '}
+                <Link
+                  href="/docs/recipes/migration"
+                  className="text-fd-foreground underline underline-offset-4"
+                >
+                  migration guide
+                </Link>
+                .
+              </p>
             </div>
 
             <CodeComparison />
