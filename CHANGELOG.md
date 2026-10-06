@@ -1,5 +1,25 @@
 # nestjs-openapi
 
+## 0.6.0
+
+### Minor Changes
+
+- [#52](https://github.com/Newbie012/nestjs-openapi/pull/52) [`5fe0ef7`](https://github.com/Newbie012/nestjs-openapi/commit/5fe0ef71a79fa0de5f44ca6b4ed17903bd4c2cf2) Thanks [@Newbie012](https://github.com/Newbie012)! - Read @nestjs/swagger decorators faithfully and generate schemas faster.
+  - Decorator arguments are evaluated statically (constants, enum members, concatenation, template literals, `Object.values`, array methods); unreadable values are reported.
+  - `applyDecorators()` wrappers are followed; the new `decorators` option describes wrappers that cannot be followed.
+  - `@ApiResponse` and its shortcuts, `@ApiBody`, `@ApiQuery`/`@ApiParam`/`@ApiHeader(s)`, `@ApiExtension`, `@ApiExtraModels`, `@ApiProperty` precedence and mapped types now match @nestjs/swagger.
+  - Path arrays, `@Version()` and `@All()` are documented. New options: `versioning`, `transformPath`, `include`, `deepScanRoutes` and `enums`.
+  - Schemas are generated in one TypeScript program per run, and a type the generator crashes on is recovered instead of dropped.
+
+  Output changes for existing users: operations gain the responses, parameters and metadata their decorators declare, and `examples` follow the OpenAPI version.
+
+- [#53](https://github.com/Newbie012/nestjs-openapi/pull/53) [`ef0d9be`](https://github.com/Newbie012/nestjs-openapi/commit/ef0d9be47b6331780e5858df7e2914bb8fe3d5a3) Thanks [@Newbie012](https://github.com/Newbie012)! - One schema per declaration, and spec-valid component names.
+
+  Output changes for existing users:
+  - Different declarations sharing a name (two files each declaring an `AddressDto`) no longer share one schema. By default each is written in place where it is used, with a warning; the new `schemaNameCollision` option can name them after their files (`'rename'`), use a naming function, or fail (`'error'`).
+  - Generic instantiations get valid component names: `Page<User>` becomes `Page_User`. Set `schemas.genericNames: 'raw'` to keep the TypeScript names.
+  - `MissingGenericSchemaTempFileWriteError` and `MissingGenericSchemaTempFileCleanupError` are no longer exported.
+
 ## 0.5.2
 
 ### Patch Changes
