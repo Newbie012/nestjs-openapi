@@ -488,7 +488,12 @@
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/Role"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ],
+            "description": "User role"
           }
         },
         "required": [

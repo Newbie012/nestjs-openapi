@@ -8,16 +8,36 @@
 import { Effect, Option } from 'effect';
 import type {
   ClassDeclaration,
-  Decorator,
   EnumDeclaration,
   EnumMember,
-  Identifier,
-  ObjectLiteralExpression,
   PropertyDeclaration,
 } from 'ts-morph';
 import { Node, ts } from 'ts-morph';
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 import { ValidationMappingError } from './errors.js';
+import {
+  getEffectiveDecorators,
+  type DecoratorCall,
+  type DecoratorExpansionOptions,
+} from './decorators.js';
+import {
+  asBoolean,
+  asNumber,
+  asString,
+  getProperty,
+  toPlain,
+  unwrapThunk,
+  type StaticValue,
+} from './static-value.js';
+import {
+  DEFAULT_SCHEMA_NAMING,
+  allowsNull,
+  isArraySchema,
+  readDeclaredPropertySchema,
+  type EnumValue,
+  type SchemaNaming,
+} from './property-schema.js';
+import { getLiteralValues, resolveDeclarations } from './ast.js';
 
 // Validation constraint types
 
@@ -59,6 +79,13 @@ export interface ValidationConstraints {
 
   // Visibility (from @ApiHideProperty)
   readonly hidden?: boolean;
+
+  readonly schemaOverride?: JsonSchema;
+  readonly keywords?: Readonly<Record<string, unknown>>;
+  readonly enumComponent?: {
+    readonly name: string;
+    readonly schema: JsonSchema;
+  };
 }
 
 /**
@@ -67,6 +94,7 @@ export interface ValidationConstraints {
 export interface PropertyValidationInfo {
   readonly isOptional: boolean;
   readonly constraints: ValidationConstraints;
+  readonly unreadable?: readonly string[];
 }
 
 /**
@@ -76,15 +104,22 @@ export interface PropertyValidationInfo {
 export interface ClassValidationInfo {
   readonly constraints: Record<string, ValidationConstraints>;
   readonly required: readonly string[];
+  readonly optional: readonly string[];
+  readonly unreadable?: readonly string[];
 }
 
-type EnumValue = string | number;
 type DecoratorMapper = (
   args: readonly string[],
 ) => Partial<ValidationConstraints>;
+type HandlerContext = {
+  readonly naming: SchemaNaming;
+  readonly property: PropertyDeclaration;
+};
+
 type DecoratorHandler = (
   state: PropertyValidationInfo,
-  decorator: Decorator,
+  call: DecoratorCall,
+  context: HandlerContext,
 ) => PropertyValidationInfo;
 
 type EnumExtractionState = {
@@ -93,22 +128,6 @@ type EnumExtractionState = {
 };
 
 type EnumInitializer = NonNullable<ReturnType<EnumMember['getInitializer']>>;
-
-/**
- * Get the name of a decorator
- */
-const getDecoratorName = (decorator: Decorator): Option.Option<string> =>
-  Option.fromNullable(decorator.getCallExpression()).pipe(
-    Option.match({
-      onNone: () => Option.fromNullable(decorator.getName()),
-      onSome: (callExpr) => {
-        const expression = callExpr.getExpression();
-        return expression.getKind() === ts.SyntaxKind.Identifier
-          ? Option.some(expression.getText())
-          : Option.none();
-      },
-    }),
-  );
 
 /**
  * Parse a string to a number, returning undefined if invalid
@@ -182,12 +201,20 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
   Type: () => ({}),
 };
 
-/** Extract text arguments from a decorator's call expression */
-const getDecoratorArgs = (decorator: Decorator): readonly string[] =>
-  decorator
-    .getCallExpression()
-    ?.getArguments()
-    .map((arg) => arg.getText()) ?? [];
+const argumentText = (value: StaticValue | undefined) => {
+  switch (value?.kind) {
+    case 'literal':
+      return value.value === undefined ? '' : String(value.value);
+    case 'reference':
+      return value.name;
+    case 'unknown':
+      return value.text;
+    default:
+      return '';
+  }
+};
+
+const getDecoratorArgs = (call: DecoratorCall) => call.args.map(argumentText);
 
 /**
  * Extract enum values from a TypeScript enum declaration
@@ -253,138 +280,13 @@ const extractEnumValues = (enumDecl: EnumDeclaration): readonly EnumValue[] =>
     nextValue: 0,
   }).values;
 
-type SymbolDeclaration = ReturnType<
-  NonNullable<ReturnType<Identifier['getSymbol']>>['getDeclarations']
->[number];
-
-const findDirectEnumDeclaration = (
-  declarations: readonly SymbolDeclaration[],
-): EnumDeclaration | undefined =>
-  declarations.find((decl): decl is EnumDeclaration =>
-    Node.isEnumDeclaration(decl),
+const resolveEnumFromValue = (value: StaticValue | undefined) => {
+  const unwrapped = unwrapThunk(value);
+  if (unwrapped?.kind !== 'reference' || !unwrapped.node) return undefined;
+  const enumDecl = resolveDeclarations(unwrapped.node).find(
+    Node.isEnumDeclaration,
   );
-
-const findImportedEnumSpecifierDeclaration = (
-  declarations: readonly SymbolDeclaration[],
-): EnumDeclaration | undefined =>
-  declarations
-    .filter(Node.isImportSpecifier)
-    .flatMap(
-      (decl) => decl.getSymbol()?.getAliasedSymbol()?.getDeclarations() ?? [],
-    )
-    .find((decl): decl is EnumDeclaration => Node.isEnumDeclaration(decl));
-
-const findEnumDeclaration = (
-  declarations: readonly SymbolDeclaration[],
-): EnumDeclaration | undefined =>
-  findDirectEnumDeclaration(declarations) ??
-  findImportedEnumSpecifierDeclaration(declarations);
-
-/**
- * Resolve an enum declaration from an identifier
- */
-const resolveEnumFromIdentifier = (
-  identifier: Identifier,
-): readonly EnumValue[] | undefined =>
-  Option.fromNullable(identifier.getSymbol()).pipe(
-    Option.map((symbol) => symbol.getDeclarations()),
-    Option.filter((declarations) => declarations.length > 0),
-    Option.flatMap((declarations) =>
-      Option.fromNullable(findEnumDeclaration(declarations)),
-    ),
-    Option.map(extractEnumValues),
-    Option.getOrUndefined,
-  );
-
-/**
- * Resolve an enum from a decorator argument like @IsEnum(MyEnum)
- */
-const resolveEnumFromDecorator = (
-  decorator: Decorator,
-): readonly EnumValue[] | undefined => {
-  const firstArg = decorator.getCallExpression()?.getArguments()?.[0];
-  return firstArg && Node.isIdentifier(firstArg)
-    ? resolveEnumFromIdentifier(firstArg)
-    : undefined;
-};
-
-/** Read a property assignment initializer */
-const getPropertyInitializer = (
-  objLit: ObjectLiteralExpression,
-  name: string,
-) =>
-  objLit
-    .getProperty(name)
-    ?.asKind?.(ts.SyntaxKind.PropertyAssignment)
-    ?.getInitializer();
-
-type PropertyInitializer = NonNullable<
-  ReturnType<typeof getPropertyInitializer>
->;
-
-/** Read a string literal value from a property assignment */
-const getStringProp = (
-  objLit: ObjectLiteralExpression,
-  name: string,
-): string | undefined =>
-  getPropertyInitializer(objLit, name)
-    ?.asKind?.(ts.SyntaxKind.StringLiteral)
-    ?.getLiteralValue();
-
-/** Read a numeric literal value from a property assignment */
-const readNumericInitializer = (
-  initializer: PropertyInitializer,
-): number | undefined => {
-  const numericLiteral = initializer.asKind?.(ts.SyntaxKind.NumericLiteral);
-  if (numericLiteral) {
-    return numericLiteral.getLiteralValue();
-  }
-
-  return Node.isPrefixUnaryExpression(initializer)
-    ? parseNumber(initializer.getText())
-    : undefined;
-};
-
-const getNumericProp = (
-  objLit: ObjectLiteralExpression,
-  name: string,
-): number | undefined => {
-  const initializer = getPropertyInitializer(objLit, name);
-  return initializer ? readNumericInitializer(initializer) : undefined;
-};
-
-/** Read a boolean literal value from a property assignment */
-const getBooleanProp = (
-  objLit: ObjectLiteralExpression,
-  name: string,
-): boolean | undefined => {
-  const text = getPropertyInitializer(objLit, name)?.getText();
-  return text === 'true' ? true : text === 'false' ? false : undefined;
-};
-
-/** Read a primitive value (string, number, boolean, null) from an initializer */
-const PRIMITIVE_LITERAL_VALUES: Record<string, boolean | null | undefined> = {
-  true: true,
-  false: false,
-  null: null,
-};
-
-const readPrimitiveInitializer = (
-  initializer: PropertyInitializer,
-): unknown => {
-  if (Node.isStringLiteral(initializer) || Node.isNumericLiteral(initializer)) {
-    return initializer.getLiteralValue();
-  }
-
-  return PRIMITIVE_LITERAL_VALUES[initializer.getText()];
-};
-
-const getPrimitiveValue = (
-  objLit: ObjectLiteralExpression,
-  name: string,
-): unknown => {
-  const initializer = getPropertyInitializer(objLit, name);
-  return initializer ? readPrimitiveInitializer(initializer) : undefined;
+  return enumDecl && extractEnumValues(enumDecl);
 };
 
 const API_STRING_KEYS = ['description', 'title', 'format', 'pattern'] as const;
@@ -407,161 +309,74 @@ const API_BOOLEAN_KEYS = [
   'nullable',
   'isArray',
 ] as const;
-const API_PRIMITIVE_KEYS = ['example', 'default'] as const;
-const API_TYPE_IDENTIFIERS: Record<string, Partial<ValidationConstraints>> = {
-  String: { type: 'string' },
-  Number: { type: 'number' },
-  Boolean: { type: 'boolean' },
-  Object: { type: 'object' },
-  Array: { type: 'array' },
-  Date: { type: 'string', format: 'date-time' },
-};
-
+const API_PLAIN_KEYS = ['example', 'default'] as const;
 const buildConstraintsFromKeys = <K extends keyof ValidationConstraints>(
-  objectLiteral: ObjectLiteralExpression,
+  options: StaticValue,
   keys: readonly K[],
   read: (
-    objectLiteral: ObjectLiteralExpression,
-    key: K,
+    value: StaticValue | undefined,
   ) => ValidationConstraints[K] | undefined,
 ): Partial<ValidationConstraints> =>
   Object.fromEntries(
     keys.flatMap((key) => {
-      const value = read(objectLiteral, key);
+      const value = read(getProperty(options, key));
       return value === undefined ? [] : ([[key, value]] as const);
     }),
   ) as Partial<ValidationConstraints>;
 
-const readEnumArrayElement = (element: Node): EnumValue | undefined => {
-  if (Node.isStringLiteral(element) || Node.isNumericLiteral(element)) {
-    return element.getLiteralValue();
-  }
-
-  return Node.isPrefixUnaryExpression(element)
-    ? parseNumber(element.getText())
-    : undefined;
-};
-
-const readEnumArrayLiteral = (
-  initializer: PropertyInitializer,
+export const readEnumValues = (
+  value: StaticValue | undefined,
 ): readonly EnumValue[] | undefined => {
-  const arrayLiteral = initializer.asKind?.(
-    ts.SyntaxKind.ArrayLiteralExpression,
-  );
-  if (!arrayLiteral) {
-    return undefined;
+  const unwrapped = unwrapThunk(value);
+  if (unwrapped?.kind !== 'array' && unwrapped?.kind !== 'object') {
+    return resolveEnumFromValue(unwrapped);
   }
-
-  const values = arrayLiteral
-    .getElements()
-    .map(readEnumArrayElement)
-    .filter((value): value is EnumValue => value !== undefined);
-
+  const items =
+    unwrapped.kind === 'array'
+      ? unwrapped.items
+      : Object.values(unwrapped.properties);
+  const values = items.flatMap((item) =>
+    item.kind === 'literal' &&
+    (typeof item.value === 'string' || typeof item.value === 'number')
+      ? [item.value]
+      : [],
+  );
   return values.length > 0 ? values : undefined;
-};
-
-const readEnumIdentifier = (
-  initializer: PropertyInitializer,
-): readonly EnumValue[] | undefined =>
-  Node.isIdentifier(initializer)
-    ? resolveEnumFromIdentifier(initializer)
-    : undefined;
-
-/**
- * Extract enum values from @ApiProperty({ enum: ... })
- */
-const extractApiPropertyEnum = (
-  objLit: ObjectLiteralExpression,
-): readonly EnumValue[] | undefined => {
-  const initializer = getPropertyInitializer(objLit, 'enum');
-  if (!initializer) {
-    return undefined;
-  }
-
-  return readEnumArrayLiteral(initializer) ?? readEnumIdentifier(initializer);
-};
-
-const readApiTypeIdentifier = (
-  initializer: PropertyInitializer,
-): Partial<ValidationConstraints> | undefined =>
-  Node.isIdentifier(initializer)
-    ? API_TYPE_IDENTIFIERS[initializer.getText()]
-    : undefined;
-
-const readApiTypeArrayElement = (
-  initializer: PropertyInitializer,
-): Partial<ValidationConstraints> | undefined => {
-  const firstArrayElement = initializer
-    .asKind?.(ts.SyntaxKind.ArrayLiteralExpression)
-    ?.getElements()[0];
-  if (!firstArrayElement || !Node.isIdentifier(firstArrayElement)) {
-    return undefined;
-  }
-
-  const itemType = API_TYPE_IDENTIFIERS[firstArrayElement.getText()];
-  return itemType ? { ...itemType, isArray: true } : undefined;
-};
-
-/**
- * Extract primitive type overrides from @ApiProperty({ type: String }).
- */
-const extractApiPropertyType = (
-  objLit: ObjectLiteralExpression,
-): Partial<ValidationConstraints> | undefined => {
-  const initializer = getPropertyInitializer(objLit, 'type');
-  if (!initializer) {
-    return undefined;
-  }
-
-  return (
-    readApiTypeIdentifier(initializer) ?? readApiTypeArrayElement(initializer)
-  );
 };
 
 /**
  * Extract all supported options from @ApiProperty / @ApiPropertyOptional.
  */
 const extractApiPropertyConstraints = (
-  decorator: Decorator,
-): Partial<ValidationConstraints> | undefined =>
-  Option.fromNullable(
-    decorator
-      .getCallExpression()
-      ?.getArguments()[0]
-      ?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression),
-  ).pipe(
-    Option.map((objectLiteral) => {
-      const enumValues = extractApiPropertyEnum(objectLiteral);
-      const typeConstraints = extractApiPropertyType(objectLiteral);
+  call: DecoratorCall,
+  { naming, property }: HandlerContext,
+): Partial<ValidationConstraints> | undefined => {
+  const options = call.args[0];
+  if (options?.kind !== 'object') return undefined;
 
-      return {
-        ...(enumValues ? { enum: enumValues } : {}),
-        ...(typeConstraints ?? {}),
-        ...buildConstraintsFromKeys(
-          objectLiteral,
-          API_STRING_KEYS,
-          (obj, key) => getStringProp(obj, key),
-        ),
-        ...buildConstraintsFromKeys(
-          objectLiteral,
-          API_NUMBER_KEYS,
-          (obj, key) => getNumericProp(obj, key),
-        ),
-        ...buildConstraintsFromKeys(
-          objectLiteral,
-          API_BOOLEAN_KEYS,
-          (obj, key) => getBooleanProp(obj, key),
-        ),
-        ...buildConstraintsFromKeys(
-          objectLiteral,
-          API_PRIMITIVE_KEYS,
-          (obj, key) => getPrimitiveValue(obj, key),
-        ),
-      };
-    }),
-    Option.filter((result) => Object.keys(result).length > 0),
-    Option.getOrUndefined,
+  const declared = readDeclaredPropertySchema(
+    options,
+    naming,
+    readEnumValues,
+    () => getLiteralValues(property.getType()),
   );
+  const result = {
+    ...buildConstraintsFromKeys(options, API_STRING_KEYS, asString),
+    ...buildConstraintsFromKeys(options, API_NUMBER_KEYS, asNumber),
+    ...buildConstraintsFromKeys(options, API_BOOLEAN_KEYS, asBoolean),
+    ...buildConstraintsFromKeys(options, API_PLAIN_KEYS, (value) =>
+      value === undefined ? undefined : toPlain(value),
+    ),
+    ...(declared.override ? { schemaOverride: declared.override } : {}),
+    ...(Object.keys(declared.keywords).length > 0
+      ? { keywords: declared.keywords }
+      : {}),
+    ...(declared.enumComponent
+      ? { enumComponent: declared.enumComponent }
+      : {}),
+  };
+  return Object.keys(result).length > 0 ? result : undefined;
+};
 
 const compactConstraints = (
   constraints: Partial<ValidationConstraints>,
@@ -604,8 +419,8 @@ const withApiPropertyConstraints = (
 
 const createMappedDecoratorHandler =
   (mapper: DecoratorMapper): DecoratorHandler =>
-  (state, decorator) =>
-    withMergedConstraints(state, mapper(getDecoratorArgs(decorator)));
+  (state, call) =>
+    withMergedConstraints(state, mapper(getDecoratorArgs(call)));
 
 const mappedDecoratorHandlers = Object.fromEntries(
   Object.entries(DECORATOR_MAPPINGS).map(([decoratorName, mapper]) => [
@@ -614,31 +429,92 @@ const mappedDecoratorHandlers = Object.fromEntries(
   ]),
 ) as Record<string, DecoratorHandler>;
 
-const apiPropertyDecoratorHandler: DecoratorHandler = (state, decorator) =>
-  Option.fromNullable(extractApiPropertyConstraints(decorator)).pipe(
+const withApiPropertyRequired = (
+  state: PropertyValidationInfo,
+  call: DecoratorCall,
+): PropertyValidationInfo => {
+  const required = asBoolean(getProperty(call.args[0], 'required'));
+  return required === undefined ? state : { ...state, isOptional: !required };
+};
+
+const describeLocation = (
+  value: StaticValue | undefined,
+  call: DecoratorCall,
+) => {
+  const node = (value && 'node' in value ? value.node : undefined) ?? call.node;
+  return `${node.getSourceFile().getFilePath()}:${node.getStartLineNumber()}`;
+};
+
+const describeArgument = (value: StaticValue | undefined) => {
+  if (value === undefined) return 'undefined';
+  if (value.kind === 'unknown') return value.text;
+  if (value.kind === 'reference') return value.name;
+  return JSON.stringify(toPlain(value));
+};
+
+// Recorded so an argument is never silently dropped
+const withUnreadable = (
+  state: PropertyValidationInfo,
+  message: string,
+): PropertyValidationInfo => ({
+  ...state,
+  unreadable: [...(state.unreadable ?? []), message],
+});
+
+const withEnumArgument = (
+  state: PropertyValidationInfo,
+  call: DecoratorCall,
+  value: StaticValue | undefined,
+) => {
+  const enumValues = readEnumValues(value);
+  if (enumValues && enumValues.length > 0) {
+    return withMergedConstraints(state, { enum: enumValues });
+  }
+  return withUnreadable(
+    state,
+    `@${call.name}(values) cannot read \`${describeArgument(value)}\` statically (${describeLocation(value, call)})`,
+  );
+};
+
+const apiPropertyDecoratorHandler: DecoratorHandler = (
+  state,
+  call,
+  context,
+) => {
+  const enumOption = getProperty(call.args[0], 'enum');
+  if (enumOption === undefined || readEnumValues(enumOption)) {
+    return apiPropertyConstraintsHandler(state, call, context);
+  }
+  const unreadable = withUnreadable(
+    state,
+    `@${call.name}({ enum }) cannot read \`${describeArgument(enumOption)}\` statically (${describeLocation(enumOption, call)})`,
+  );
+  return apiPropertyConstraintsHandler(unreadable, call, context);
+};
+
+const apiPropertyConstraintsHandler: DecoratorHandler = (
+  state,
+  call,
+  context,
+) =>
+  Option.fromNullable(extractApiPropertyConstraints(call, context)).pipe(
     Option.match({
       onNone: () => state,
       onSome: (apiConstraints) =>
         withApiPropertyConstraints(state, apiConstraints),
     }),
+    (updated) => withApiPropertyRequired(updated, call),
   );
 
 const decoratorHandlers: Record<string, DecoratorHandler> = {
   ...mappedDecoratorHandlers,
   IsOptional: (state) => ({ ...state, isOptional: true }),
   ApiHideProperty: (state) => withMergedConstraints(state, { hidden: true }),
-  IsEnum: (state, decorator) =>
-    Option.fromNullable(resolveEnumFromDecorator(decorator)).pipe(
-      Option.filter((enumValues) => enumValues.length > 0),
-      Option.match({
-        onNone: () => state,
-        onSome: (enumValues) =>
-          withMergedConstraints(state, { enum: enumValues }),
-      }),
-    ),
+  IsEnum: (state, call) => withEnumArgument(state, call, call.args[0]),
+  IsIn: (state, call) => withEnumArgument(state, call, call.args[0]),
   ApiProperty: apiPropertyDecoratorHandler,
-  ApiPropertyOptional: (state, decorator) =>
-    apiPropertyDecoratorHandler({ ...state, isOptional: true }, decorator),
+  ApiPropertyOptional: (state, call, context) =>
+    apiPropertyDecoratorHandler({ ...state, isOptional: true }, call, context),
 };
 
 const createInitialPropertyValidationInfo = (
@@ -648,27 +524,18 @@ const createInitialPropertyValidationInfo = (
   constraints: {},
 });
 
-const applyDecorator = (
-  state: PropertyValidationInfo,
-  decorator: Decorator,
-): PropertyValidationInfo =>
-  getDecoratorName(decorator).pipe(
-    Option.flatMap((name) => Option.fromNullable(decoratorHandlers[name])),
-    Option.match({
-      onNone: () => state,
-      onSome: (handler) => handler(state, decorator),
-    }),
-  );
-
 const extractPropertyState = (
   property: PropertyDeclaration,
+  expansion?: DecoratorExpansionOptions,
+  naming: SchemaNaming = DEFAULT_SCHEMA_NAMING,
 ): PropertyValidationInfo =>
-  property
-    .getDecorators()
-    .reduce<PropertyValidationInfo>(
-      applyDecorator,
-      createInitialPropertyValidationInfo(property),
-    );
+  getEffectiveDecorators(property, expansion).reduce<PropertyValidationInfo>(
+    (state, call) => {
+      const handler = decoratorHandlers[call.name];
+      return handler ? handler(state, call, { naming, property }) : state;
+    },
+    createInitialPropertyValidationInfo(property),
+  );
 
 const hasConstraints = (constraints: ValidationConstraints): boolean =>
   Object.keys(constraints).length > 0;
@@ -678,13 +545,18 @@ const hasConstraints = (constraints: ValidationConstraints): boolean =>
  */
 export const extractPropertyConstraints = (
   property: PropertyDeclaration,
-): ValidationConstraints => extractPropertyState(property).constraints;
+  expansion?: DecoratorExpansionOptions,
+  naming?: SchemaNaming,
+): ValidationConstraints =>
+  extractPropertyState(property, expansion, naming).constraints;
 
 /**
  * Check if a property is optional.
  */
-export const isPropertyOptional = (property: PropertyDeclaration): boolean =>
-  extractPropertyState(property).isOptional;
+export const isPropertyOptional = (
+  property: PropertyDeclaration,
+  expansion?: DecoratorExpansionOptions,
+): boolean => extractPropertyState(property, expansion).isOptional;
 
 /**
  * Extract both optionality and constraints from a property in a single pass.
@@ -692,20 +564,35 @@ export const isPropertyOptional = (property: PropertyDeclaration): boolean =>
  */
 export const extractPropertyValidationInfo = (
   property: PropertyDeclaration,
-): PropertyValidationInfo => extractPropertyState(property);
+  expansion?: DecoratorExpansionOptions,
+  naming?: SchemaNaming,
+): PropertyValidationInfo => extractPropertyState(property, expansion, naming);
 
 /**
  * Extract class-level validation metadata in one pass.
  */
 export const extractClassValidationInfo = (
   classDecl: ClassDeclaration,
+  expansion?: DecoratorExpansionOptions,
+  naming?: SchemaNaming,
 ): ClassValidationInfo =>
   classDecl.getProperties().reduce<ClassValidationInfo>(
     (acc, property) => {
       const propertyName = property.getName();
-      const propertyValidation = extractPropertyValidationInfo(property);
+      const propertyValidation = extractPropertyValidationInfo(
+        property,
+        expansion,
+        naming,
+      );
 
+      const unreadable = (propertyValidation.unreadable ?? []).map(
+        (note) =>
+          `${classDecl.getName() ?? '<anonymous>'}.${propertyName}: ${note}`,
+      );
       return {
+        ...(acc.unreadable || unreadable.length > 0
+          ? { unreadable: [...(acc.unreadable ?? []), ...unreadable] }
+          : {}),
         constraints: hasConstraints(propertyValidation.constraints)
           ? {
               ...acc.constraints,
@@ -715,9 +602,12 @@ export const extractClassValidationInfo = (
         required: propertyValidation.isOptional
           ? acc.required
           : [...acc.required, propertyName],
+        optional: propertyValidation.isOptional
+          ? [...acc.optional, propertyName]
+          : acc.optional,
       };
     },
-    { constraints: {}, required: [] },
+    { constraints: {}, required: [], optional: [] },
   );
 
 /**
@@ -725,15 +615,18 @@ export const extractClassValidationInfo = (
  */
 export const extractClassConstraints = (
   classDecl: ClassDeclaration,
+  expansion?: DecoratorExpansionOptions,
 ): Record<string, ValidationConstraints> =>
-  extractClassValidationInfo(classDecl).constraints;
+  extractClassValidationInfo(classDecl, expansion).constraints;
 
 /**
  * Get required property names from a class (those without @IsOptional)
  */
 export const getRequiredProperties = (
   classDecl: ClassDeclaration,
-): readonly string[] => extractClassValidationInfo(classDecl).required;
+  expansion?: DecoratorExpansionOptions,
+): readonly string[] =>
+  extractClassValidationInfo(classDecl, expansion).required;
 
 const collectHiddenProperties = (
   propertyConstraints: Record<string, ValidationConstraints>,
@@ -756,9 +649,44 @@ const cleanPropertyConstraints = (
   const {
     hidden: _hidden,
     isArray: _isArray,
+    schemaOverride: _schemaOverride,
+    keywords: _keywords,
+    enumComponent: _enumComponent,
     ...cleanConstraints
   } = constraints;
   return cleanConstraints;
+};
+
+// The declared type replaces the inferred one, as in @nestjs/swagger, but
+// an array property stays an array of it unless it is an array itself, and
+// `T | null` stays nullable
+const applySchemaOverride = (
+  propertySchema: JsonSchema,
+  constraints: ValidationConstraints,
+): JsonSchema => {
+  const override = constraints.schemaOverride!;
+  const keepsArray =
+    isArraySchema(propertySchema) &&
+    constraints.isArray !== false &&
+    override.type !== 'array';
+  const typed: JsonSchema = keepsArray
+    ? { type: 'array', items: override }
+    : override;
+  const {
+    type: _type,
+    enum: _enum,
+    ...rest
+  } = cleanPropertyConstraints(constraints);
+
+  return {
+    ...typed,
+    ...(allowsNull(propertySchema) ? { nullable: true } : {}),
+    ...(propertySchema.description && !rest.description
+      ? { description: propertySchema.description }
+      : {}),
+    ...rest,
+    ...(constraints.keywords ?? {}),
+  } as JsonSchema;
 };
 
 const hasNullableArraySchema = (schema: JsonSchema): boolean =>
@@ -848,18 +776,24 @@ const applyDirectPropertyConstraints = (
     ...(enumValues === undefined ? {} : { enum: enumValues }),
   }) as JsonSchema;
 
-const applyPropertyConstraintsToSchema = (
+export const applyPropertyConstraints = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints | undefined,
 ): JsonSchema =>
   Option.fromNullable(constraints).pipe(
     Option.map((propertyConstraints) => {
+      if (propertyConstraints.schemaOverride) {
+        return applySchemaOverride(propertySchema, propertyConstraints);
+      }
+
       const isArray = propertyConstraints.isArray;
       const {
         type: typeOverride,
         enum: enumValues,
         ...restConstraints
       } = cleanPropertyConstraints(propertyConstraints);
+      const keywords = propertyConstraints.keywords;
+      if (keywords) Object.assign(restConstraints, keywords);
 
       if (
         shouldApplyNullableArrayItemConstraints(
@@ -916,7 +850,7 @@ const buildUpdatedProperties = (
             .filter(([propertyName]) => !hiddenProperties.has(propertyName))
             .map(([propertyName, propertySchema]) => [
               propertyName,
-              applyPropertyConstraintsToSchema(
+              applyPropertyConstraints(
                 propertySchema,
                 propertyConstraints[propertyName],
               ),
@@ -931,22 +865,24 @@ const buildUpdatedRequired = (
   schema: JsonSchema,
   requiredProperties: readonly string[] | undefined,
   hiddenProperties: ReadonlySet<string>,
-): readonly string[] | undefined =>
-  Option.fromNullable(requiredProperties).pipe(
-    Option.filter((properties) => properties.length > 0),
-    Option.map((properties) =>
-      [...new Set([...(schema.required ?? []), ...properties])].filter(
-        (propertyName) => !hiddenProperties.has(propertyName),
-      ),
-    ),
-    Option.getOrElse(() =>
-      hiddenProperties.size > 0 && schema.required
-        ? schema.required.filter(
-            (propertyName) => !hiddenProperties.has(propertyName),
-          )
-        : undefined,
-    ),
-  );
+  optionalProperties: readonly string[] = [],
+): readonly string[] | undefined => {
+  const hasRequired = (requiredProperties?.length ?? 0) > 0;
+  if (
+    !hasRequired &&
+    hiddenProperties.size === 0 &&
+    optionalProperties.length === 0
+  ) {
+    return undefined;
+  }
+
+  // Decorators can make a property optional even when the TypeScript
+  // declaration has no `?`
+  const excluded = new Set([...hiddenProperties, ...optionalProperties]);
+  return [
+    ...new Set([...(schema.required ?? []), ...(requiredProperties ?? [])]),
+  ].filter((propertyName) => !excluded.has(propertyName));
+};
 
 /**
  * Apply validation constraints to a JSON Schema
@@ -955,6 +891,7 @@ export const applyConstraintsToSchema = (
   schema: JsonSchema,
   propertyConstraints: Record<string, ValidationConstraints>,
   requiredProperties?: readonly string[],
+  optionalProperties?: readonly string[],
 ): JsonSchema => {
   const hiddenProperties = collectHiddenProperties(propertyConstraints);
   const updatedProperties = buildUpdatedProperties(
@@ -966,7 +903,18 @@ export const applyConstraintsToSchema = (
     schema,
     requiredProperties,
     hiddenProperties,
+    optionalProperties,
   );
+
+  if (updatedRequired !== undefined && updatedRequired.length === 0) {
+    const { required: _required, ...withoutRequired } = schema;
+    return {
+      ...withoutRequired,
+      ...(updatedProperties === undefined
+        ? {}
+        : { properties: updatedProperties }),
+    } as JsonSchema;
+  }
 
   return {
     ...schema,
@@ -984,19 +932,38 @@ export const mergeValidationConstraints = (
   schemas: GeneratedSchemas,
   classConstraints: Map<string, Record<string, ValidationConstraints>>,
   classRequired: Map<string, readonly string[]>,
+  classOptional: Map<string, readonly string[]> = new Map(),
 ): GeneratedSchemas => {
-  const definitions = Object.fromEntries(
-    Object.entries(schemas.definitions).map(([name, schema]) => {
-      const constraints = classConstraints.get(name);
-      const required = classRequired.get(name);
+  const enumComponents = Object.fromEntries(
+    [...classConstraints.values()].flatMap((properties) =>
+      Object.values(properties).flatMap((constraints) =>
+        constraints.enumComponent
+          ? [[constraints.enumComponent.name, constraints.enumComponent.schema]]
+          : [],
+      ),
+    ),
+  ) as Record<string, JsonSchema>;
 
-      return [
-        name,
-        constraints || required
-          ? applyConstraintsToSchema(schema, constraints ?? {}, required)
-          : schema,
-      ];
-    }),
+  const definitions = Object.fromEntries(
+    Object.entries({ ...enumComponents, ...schemas.definitions }).map(
+      ([name, schema]) => {
+        const constraints = classConstraints.get(name);
+        const required = classRequired.get(name);
+        const optional = classOptional.get(name);
+
+        return [
+          name,
+          constraints || required || optional
+            ? applyConstraintsToSchema(
+                schema,
+                constraints ?? {},
+                required,
+                optional,
+              )
+            : schema,
+        ];
+      },
+    ),
   ) as Record<string, JsonSchema>;
 
   return { definitions };
@@ -1004,11 +971,15 @@ export const mergeValidationConstraints = (
 
 const serviceExtractClassValidationInfo = Effect.fn(
   'ValidationMapperService.extractClassValidationInfo',
-)(function* (classDecl: ClassDeclaration) {
+)(function* (
+  classDecl: ClassDeclaration,
+  expansion?: DecoratorExpansionOptions,
+  naming?: SchemaNaming,
+) {
   const className = classDecl.getName() ?? '<anonymous>';
   const filePath = classDecl.getSourceFile().getFilePath();
   const info = yield* Effect.try({
-    try: () => extractClassValidationInfo(classDecl),
+    try: () => extractClassValidationInfo(classDecl, expansion, naming),
     catch: (cause) => ValidationMappingError.create(className, filePath, cause),
   });
 
@@ -1032,11 +1003,13 @@ const serviceMergeValidationConstraints = Effect.fn(
   schemas: GeneratedSchemas,
   classConstraints: Map<string, Record<string, ValidationConstraints>>,
   classRequired: Map<string, readonly string[]>,
+  classOptional?: Map<string, readonly string[]>,
 ) {
   const merged = mergeValidationConstraints(
     schemas,
     classConstraints,
     classRequired,
+    classOptional,
   );
 
   yield* Effect.annotateCurrentSpan(

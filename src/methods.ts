@@ -14,14 +14,10 @@ import type {
   HttpMethod,
   ParameterLocation,
   OperationMetadata,
-  ResponseMetadata,
 } from './domain.js';
 import {
-  getControllerPrefix,
   getControllerName,
   getControllerTags,
-  getDecoratorName,
-  normalizePath,
   getHttpDecorator,
 } from './controllers.js';
 import {
@@ -30,30 +26,53 @@ import {
   hasMethodSecurityDecorators,
   combineSecurityRequirements,
 } from './security-decorators.js';
-import { extractPropertyValidationInfo } from './validation-mapper.js';
+import {
+  extractPropertyValidationInfo,
+  readEnumValues,
+} from './validation-mapper.js';
+import {
+  mergeDeclaredParameters,
+  readDeclaredParameters,
+} from './parameters.js';
+import {
+  DEFAULT_ENUM_STYLE,
+  DEFAULT_SCHEMA_NAMING,
+  type EnumStyle,
+} from './property-schema.js';
+import { getAwaitedReturnType, resolveDeclarations } from './ast.js';
+import type { StaticValue } from './static-value.js';
+import { Node } from 'ts-morph';
+import {
+  getDecoratorNames,
+  getEffectiveDecorators,
+  type DecoratorCall,
+  type DecoratorExpansionOptions,
+} from './decorators.js';
+import { extractRequestBody, extractResponses } from './responses.js';
+import { collectReferencedDeclarations } from './declaration-references.js';
+import { readStatusCode } from './http-status.js';
+import type { OptionsConfig } from './types.js';
+import {
+  asBoolean,
+  asNumber,
+  asString,
+  asStrings,
+  evaluate,
+  getProperty,
+  toPlain,
+  unwrapThunk,
+} from './static-value.js';
 
 // Caches for expensive operations to avoid repeated AST traversal
 const methodInfoCache = new WeakMap<
   MethodDeclaration,
-  Map<string, Option.Option<MethodInfo>>
+  Map<string, readonly MethodInfo[]>
 >();
 const returnTypeInfoCache = new WeakMap<MethodDeclaration, ReturnTypeInfo>();
 const parametersCache = new WeakMap<
   MethodDeclaration,
   Map<string, readonly ResolvedParameter[]>
 >();
-const operationMetadataCache = new WeakMap<
-  MethodDeclaration,
-  OperationMetadata
->();
-const apiResponsesCache = new WeakMap<
-  MethodDeclaration,
-  readonly ResponseMetadata[]
->();
-const httpCodeCache = new WeakMap<MethodDeclaration, Option.Option<number>>();
-const apiConsumesCache = new WeakMap<MethodDeclaration, readonly string[]>();
-const apiProducesCache = new WeakMap<MethodDeclaration, readonly string[]>();
-const decoratorNamesCache = new WeakMap<MethodDeclaration, readonly string[]>();
 
 const HTTP_METHOD_MAP: Record<string, HttpMethod> = {
   Get: 'GET',
@@ -80,11 +99,41 @@ export interface ExtractParametersOptions {
     /** How to represent query DTOs: "inline" (default) or "ref" */
     readonly style?: 'inline' | 'ref';
   };
+  readonly expansion?: DecoratorExpansionOptions;
+  readonly enums?: EnumStyle;
+  readonly versioning?: VersioningOptions;
 }
+
+type VersioningOptions = NonNullable<OptionsConfig['versioning']>;
+
+const expansionIds = new WeakMap<DecoratorExpansionOptions, number>();
+let nextExpansionId = 0;
+
+const getExpansionId = (expansion: DecoratorExpansionOptions | undefined) => {
+  if (!expansion) return 0;
+  let id = expansionIds.get(expansion);
+  if (id === undefined) {
+    id = ++nextExpansionId;
+    expansionIds.set(expansion, id);
+  }
+  return id;
+};
+
+const versioningIds = new WeakMap<VersioningOptions, number>();
+const getVersioningId = (versioning: VersioningOptions | undefined) => {
+  if (!versioning) return 0;
+  let id = versioningIds.get(versioning);
+  if (id === undefined) {
+    id = ++nextExpansionId;
+    versioningIds.set(versioning, id);
+  }
+  return id;
+};
 
 const getExtractParametersOptionsCacheKey = (
   options: ExtractParametersOptions = {},
-): string => (options.query?.style === 'ref' ? 'query:ref' : 'query:inline');
+): string =>
+  `${options.query?.style === 'ref' ? 'query:ref' : 'query:inline'}:${options.enums ?? DEFAULT_ENUM_STYLE}:${getExpansionId(options.expansion)}:${getVersioningId(options.versioning)}`;
 
 const getOrCreateMethodOptionsCacheBucket = <T>(
   cache: WeakMap<MethodDeclaration, Map<string, T>>,
@@ -116,25 +165,7 @@ const PRIMITIVE_TYPES = new Set([
   'Date',
 ]);
 
-const buildFullPath = (
-  controllerPrefix: string,
-  methodPath: string,
-): string => {
-  const prefix = controllerPrefix.replace(/\/+$/, '');
-  const normalizedPath = methodPath.replace(/^\/+/, '');
 
-  if (!prefix && !normalizedPath) return '/';
-  if (!normalizedPath) return prefix || '/';
-  if (!prefix) return `/${normalizedPath}`;
-
-  return `${prefix}/${normalizedPath}`.replace(/\/+/g, '/');
-};
-
-const getRoutePath = (decorator: Decorator): string => {
-  const arg = decorator.getArguments()[0];
-  const stringLit = arg?.asKind?.(ts.SyntaxKind.StringLiteral);
-  return normalizePath(stringLit?.getLiteralValue() ?? '/');
-};
 
 const parseTypeText = (
   text: string,
@@ -173,11 +204,7 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   const cached = returnTypeInfoCache.get(method);
   if (cached !== undefined) return cached;
 
-  const returnType = method.getReturnType();
-  const awaited =
-    (
-      returnType as { getAwaitedType?: () => typeof returnType }
-    ).getAwaitedType?.() ?? returnType;
+  const awaited = getAwaitedReturnType(method);
   const rawTypeText = awaited.getText(method);
 
   const symbol = awaited.getSymbol?.();
@@ -335,70 +362,35 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   return result;
 };
 
-const extractDescriptionFromDecorator = (
-  decorator: Decorator,
+const readDescription = (call: DecoratorCall): Option.Option<string> =>
+  Option.fromNullable(asString(getProperty(call.args[0], 'description')));
+
+const findDescriptionByName = (
+  calls: readonly DecoratorCall[],
+  decoratorName: string,
+  paramName: string,
 ): Option.Option<string> => {
-  for (const arg of decorator.getArguments()) {
-    const objLit = arg.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
-    if (!objLit) continue;
-
-    const descProperty = objLit.getProperty('description');
-    if (!descProperty) continue;
-
-    const propAssignment = descProperty.asKind?.(
-      ts.SyntaxKind.PropertyAssignment,
-    );
-    if (!propAssignment) continue;
-
-    const initializer = propAssignment.getInitializer();
-    const stringLit = initializer?.asKind?.(ts.SyntaxKind.StringLiteral);
-    if (!stringLit) continue;
-
-    return Option.some(stringLit.getLiteralValue());
+  for (const call of calls) {
+    if (call.name !== decoratorName) continue;
+    if (asString(getProperty(call.args[0], 'name')) !== paramName) continue;
+    const description = readDescription(call);
+    if (Option.isSome(description)) return description;
   }
   return Option.none();
 };
 
-/** Matches decorator by name property for method-level @ApiQuery, @ApiParam, etc. */
-const extractDescriptionByName = (
-  decorator: Decorator,
-  paramName: string,
-): Option.Option<string> => {
-  for (const arg of decorator.getArguments()) {
-    const objLit = arg.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
-    if (!objLit) continue;
+const API_PARAMETER_DECORATORS = new Set([
+  'ApiQuery',
+  'ApiParam',
+  'ApiBody',
+  'ApiHeader',
+]);
 
-    const nameProperty = objLit.getProperty('name');
-    if (!nameProperty) continue;
-
-    const namePropAssignment = nameProperty.asKind?.(
-      ts.SyntaxKind.PropertyAssignment,
-    );
-    if (!namePropAssignment) continue;
-
-    const nameInitializer = namePropAssignment.getInitializer();
-    const nameStringLit = nameInitializer?.asKind?.(
-      ts.SyntaxKind.StringLiteral,
-    );
-    if (nameStringLit?.getLiteralValue() !== paramName) continue;
-
-    const descProperty = objLit.getProperty('description');
-    if (!descProperty) continue;
-
-    const descPropAssignment = descProperty.asKind?.(
-      ts.SyntaxKind.PropertyAssignment,
-    );
-    if (!descPropAssignment) continue;
-
-    const descInitializer = descPropAssignment.getInitializer();
-    const descStringLit = descInitializer?.asKind?.(
-      ts.SyntaxKind.StringLiteral,
-    );
-    if (!descStringLit) continue;
-
-    return Option.some(descStringLit.getLiteralValue());
-  }
-  return Option.none();
+const API_PARAMETER_DECORATOR_BY_LOCATION: Record<string, string> = {
+  query: 'ApiQuery',
+  path: 'ApiParam',
+  header: 'ApiHeader',
+  body: 'ApiBody',
 };
 
 /** Checks param-level decorators first, then method-level @ApiQuery/@ApiParam */
@@ -407,33 +399,22 @@ const extractParameterDescription = (
   param: ParameterDeclaration,
   paramName: string,
   paramLocation: ParameterLocation,
+  expansion: DecoratorExpansionOptions | undefined,
 ): Option.Option<string> => {
-  const apiDecoratorNames = ['ApiQuery', 'ApiParam', 'ApiBody', 'ApiHeader'];
-
-  for (const decorator of param.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (apiDecoratorNames.includes(decoratorName)) {
-      const desc = extractDescriptionFromDecorator(decorator);
-      if (Option.isSome(desc)) return desc;
-    }
+  for (const call of getEffectiveDecorators(param, expansion)) {
+    if (!API_PARAMETER_DECORATORS.has(call.name)) continue;
+    const description = readDescription(call);
+    if (Option.isSome(description)) return description;
   }
 
-  const decoratorMap: Record<string, string> = {
-    query: 'ApiQuery',
-    path: 'ApiParam',
-    header: 'ApiHeader',
-    body: 'ApiBody',
-  };
-
-  for (const decorator of method.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (decoratorName === decoratorMap[paramLocation]) {
-      const desc = extractDescriptionByName(decorator, paramName);
-      if (Option.isSome(desc)) return desc;
-    }
-  }
-
-  return Option.none();
+  const decoratorName = API_PARAMETER_DECORATOR_BY_LOCATION[paramLocation];
+  return decoratorName
+    ? findDescriptionByName(
+        getEffectiveDecorators(method, expansion),
+        decoratorName,
+        paramName,
+      )
+    : Option.none();
 };
 
 /** Built-in utility types that need full generic signature preserved */
@@ -497,8 +478,8 @@ const isInlineObjectTypeText = (typeText: string): boolean => {
 /** Extract class properties as individual query parameters */
 const expandQueryDtoProperties = (
   method: MethodDeclaration,
-  param: ParameterDeclaration,
   paramType: ReturnType<ParameterDeclaration['getType']>,
+  expansion: DecoratorExpansionOptions | undefined,
 ): ResolvedParameter[] => {
   const expandedParams: ResolvedParameter[] = [];
   const properties = paramType.getProperties();
@@ -532,7 +513,10 @@ const expandQueryDtoProperties = (
           isInlineObjectTypeText(declaredPropTypeText);
 
         // Extract optionality and constraints in a single pass for performance
-        const validationInfo = extractPropertyValidationInfo(propDecl);
+        const validationInfo = extractPropertyValidationInfo(
+          propDecl,
+          expansion,
+        );
 
         // Check for optionality: ? token, initializer, OR @IsOptional() decorator
         isOptional =
@@ -562,9 +546,9 @@ const expandQueryDtoProperties = (
     }
 
     // Try to get description from @ApiQuery decorators on the method
-    const description = extractDescriptionByName(
-      method.getDecorators().find((d) => getDecoratorName(d) === 'ApiQuery') ??
-        param.getDecorators()[0],
+    const description = findDescriptionByName(
+      getEffectiveDecorators(method, expansion),
+      'ApiQuery',
       propName,
     );
 
@@ -671,8 +655,8 @@ const extractParameters = (
         // Expand DTO properties to individual query parameters
         const expandedParams = expandQueryDtoProperties(
           method,
-          param,
           paramType,
+          options.expansion,
         );
         if (expandedParams.length > 0) {
           params.push(...expandedParams);
@@ -691,6 +675,7 @@ const extractParameters = (
         param,
         paramName,
         location,
+        options.expansion,
       );
 
       params.push({
@@ -715,429 +700,353 @@ const extractParameters = (
 const extractDecoratorNames = (
   controller: ClassDeclaration,
   method: MethodDeclaration,
-): readonly string[] => {
-  // Check cache first
-  const cached = decoratorNamesCache.get(method);
-  if (cached !== undefined) return cached;
+  expansion: DecoratorExpansionOptions | undefined,
+): readonly string[] => [
+  ...getDecoratorNames(controller, expansion),
+  ...getDecoratorNames(method, expansion),
+];
 
-  const result = [
-    ...controller.getDecorators().map((d) => getDecoratorName(d)),
-    ...method.getDecorators().map((d) => getDecoratorName(d)),
-  ];
-  decoratorNamesCache.set(method, result);
-  return result;
-};
+const readStringArguments = (
+  calls: readonly DecoratorCall[],
+  name: string,
+): readonly string[] =>
+  calls
+    .filter((call) => call.name === name)
+    .flatMap((call) => asStrings(call.args));
 
-/** Extracts string arguments from a decorator (e.g., @ApiConsumes('application/json', 'multipart/form-data')) */
-const extractStringArguments = (decorator: Decorator): readonly string[] => {
-  const args = decorator.getArguments();
-  const results: string[] = [];
-  for (const arg of args) {
-    const stringLit = arg.asKind?.(ts.SyntaxKind.StringLiteral);
-    if (stringLit) {
-      results.push(stringLit.getLiteralValue());
-    }
-  }
-  return results;
-};
-
-/** Extracts content types from @ApiConsumes decorator */
-const extractApiConsumes = (method: MethodDeclaration): readonly string[] => {
-  // Check cache first
-  const cached = apiConsumesCache.get(method);
-  if (cached !== undefined) return cached;
-
-  for (const decorator of method.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (decoratorName === 'ApiConsumes') {
-      const result = extractStringArguments(decorator);
-      apiConsumesCache.set(method, result);
-      return result;
-    }
-  }
-  apiConsumesCache.set(method, []);
-  return [];
-};
-
-/** Extracts content types from @ApiProduces decorator */
-const extractApiProduces = (method: MethodDeclaration): readonly string[] => {
-  // Check cache first
-  const cached = apiProducesCache.get(method);
-  if (cached !== undefined) return cached;
-
-  for (const decorator of method.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (decoratorName === 'ApiProduces') {
-      const result = extractStringArguments(decorator);
-      apiProducesCache.set(method, result);
-      return result;
-    }
-  }
-  apiProducesCache.set(method, []);
-  return [];
-};
-
-/** Extracts a string property from an object literal expression */
-const extractStringPropertyFromObjectLiteral = (
-  decorator: Decorator,
-  propertyName: string,
-): Option.Option<string> => {
-  const arg = decorator.getArguments()[0];
-  const objLit = arg?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
-  if (!objLit) return Option.none();
-
-  const property = objLit.getProperty(propertyName);
-  if (!property) return Option.none();
-
-  const propAssignment = property.asKind?.(ts.SyntaxKind.PropertyAssignment);
-  if (!propAssignment) return Option.none();
-
-  const initializer = propAssignment.getInitializer();
-  const stringLit = initializer?.asKind?.(ts.SyntaxKind.StringLiteral);
-  if (stringLit) {
-    return Option.some(stringLit.getLiteralValue());
-  }
-  return Option.none();
-};
-
-/** Extracts a boolean property from a decorator's object literal argument */
-const extractBooleanPropertyFromDecorator = (
-  decorator: Decorator,
-  propertyName: string,
-): Option.Option<boolean> => {
-  const arg = decorator.getArguments()[0];
-  const objLit = arg?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
-  if (!objLit) return Option.none();
-
-  const property = objLit.getProperty(propertyName);
-  if (!property) return Option.none();
-
-  const propAssignment = property.asKind?.(ts.SyntaxKind.PropertyAssignment);
-  if (!propAssignment) return Option.none();
-
-  const initializer = propAssignment.getInitializer();
-  if (initializer?.getKind() === ts.SyntaxKind.TrueKeyword) {
-    return Option.some(true);
-  }
-  if (initializer?.getKind() === ts.SyntaxKind.FalseKeyword) {
-    return Option.some(false);
-  }
-  return Option.none();
-};
-
-/** HttpStatus enum values for resolving HttpStatus.XXX references */
-const HTTP_STATUS_MAP: Record<string, number> = {
-  CONTINUE: 100,
-  SWITCHING_PROTOCOLS: 101,
-  PROCESSING: 102,
-  EARLYHINTS: 103,
-  OK: 200,
-  CREATED: 201,
-  ACCEPTED: 202,
-  NON_AUTHORITATIVE_INFORMATION: 203,
-  NO_CONTENT: 204,
-  RESET_CONTENT: 205,
-  PARTIAL_CONTENT: 206,
-  AMBIGUOUS: 300,
-  MOVED_PERMANENTLY: 301,
-  FOUND: 302,
-  SEE_OTHER: 303,
-  NOT_MODIFIED: 304,
-  TEMPORARY_REDIRECT: 307,
-  PERMANENT_REDIRECT: 308,
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  PAYMENT_REQUIRED: 402,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  METHOD_NOT_ALLOWED: 405,
-  NOT_ACCEPTABLE: 406,
-  PROXY_AUTHENTICATION_REQUIRED: 407,
-  REQUEST_TIMEOUT: 408,
-  CONFLICT: 409,
-  GONE: 410,
-  LENGTH_REQUIRED: 411,
-  PRECONDITION_FAILED: 412,
-  PAYLOAD_TOO_LARGE: 413,
-  URI_TOO_LONG: 414,
-  UNSUPPORTED_MEDIA_TYPE: 415,
-  REQUESTED_RANGE_NOT_SATISFIABLE: 416,
-  EXPECTATION_FAILED: 417,
-  I_AM_A_TEAPOT: 418,
-  MISDIRECTED: 421,
-  UNPROCESSABLE_ENTITY: 422,
-  FAILED_DEPENDENCY: 424,
-  PRECONDITION_REQUIRED: 428,
-  TOO_MANY_REQUESTS: 429,
-  INTERNAL_SERVER_ERROR: 500,
-  NOT_IMPLEMENTED: 501,
-  BAD_GATEWAY: 502,
-  SERVICE_UNAVAILABLE: 503,
-  GATEWAY_TIMEOUT: 504,
-  HTTP_VERSION_NOT_SUPPORTED: 505,
-};
-
-/** Extracts a number property from a decorator's object literal argument */
-const extractNumberPropertyFromDecorator = (
-  decorator: Decorator,
-  propertyName: string,
-): Option.Option<number> => {
-  const arg = decorator.getArguments()[0];
-  const objLit = arg?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
-  if (!objLit) return Option.none();
-
-  const property = objLit.getProperty(propertyName);
-  if (!property) return Option.none();
-
-  const propAssignment = property.asKind?.(ts.SyntaxKind.PropertyAssignment);
-  if (!propAssignment) return Option.none();
-
-  const initializer = propAssignment.getInitializer();
-
-  // Handle numeric literal: status: 409
-  const numLit = initializer?.asKind?.(ts.SyntaxKind.NumericLiteral);
-  if (numLit) {
-    return Option.some(Number(numLit.getLiteralValue()));
-  }
-
-  // Handle HttpStatus.XXX: status: HttpStatus.CONFLICT
-  const propAccess = initializer?.asKind?.(
-    ts.SyntaxKind.PropertyAccessExpression,
-  );
-  if (propAccess) {
-    const statusName = propAccess.getName();
-    if (statusName && HTTP_STATUS_MAP[statusName] !== undefined) {
-      return Option.some(HTTP_STATUS_MAP[statusName]);
-    }
-  }
-
-  return Option.none();
-};
+// As in @nestjs/swagger, the controller's and the method's are combined
+const extractContentTypes = (
+  controllerCalls: readonly DecoratorCall[],
+  methodCalls: readonly DecoratorCall[],
+  name: 'ApiConsumes' | 'ApiProduces',
+): readonly string[] => [
+  ...new Set([
+    ...readStringArguments(controllerCalls, name),
+    ...readStringArguments(methodCalls, name),
+  ]),
+];
 
 /** Extracts @HttpCode decorator value */
-const extractHttpCode = (method: MethodDeclaration): Option.Option<number> => {
-  // Check cache first
-  const cached = httpCodeCache.get(method);
-  if (cached !== undefined) return cached;
-
-  for (const decorator of method.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (decoratorName === 'HttpCode') {
-      const arg = decorator.getArguments()[0];
-      if (!arg) continue;
-
-      // Handle numeric literal: @HttpCode(201)
-      const numLit = arg.asKind?.(ts.SyntaxKind.NumericLiteral);
-      if (numLit) {
-        const result = Option.some(Number(numLit.getLiteralValue()));
-        httpCodeCache.set(method, result);
-        return result;
-      }
-
-      // Handle HttpStatus.XXX: @HttpCode(HttpStatus.CREATED)
-      const propAccess = arg.asKind?.(ts.SyntaxKind.PropertyAccessExpression);
-      if (propAccess) {
-        const statusName = propAccess.getName();
-        if (statusName && HTTP_STATUS_MAP[statusName] !== undefined) {
-          const result = Option.some(HTTP_STATUS_MAP[statusName]);
-          httpCodeCache.set(method, result);
-          return result;
-        }
-      }
-    }
-  }
-  httpCodeCache.set(method, Option.none());
-  return Option.none();
-};
-
-/** Extracts type from @ApiResponse type property - handles both Dto and [Dto] syntax */
-const extractResponseType = (
-  decorator: Decorator,
-): { type: Option.Option<string>; isArray: boolean } => {
-  const arg = decorator.getArguments()[0];
-  const objLit = arg?.asKind?.(ts.SyntaxKind.ObjectLiteralExpression);
-  if (!objLit) return { type: Option.none(), isArray: false };
-
-  const typeProperty = objLit.getProperty('type');
-  if (!typeProperty) return { type: Option.none(), isArray: false };
-
-  const propAssignment = typeProperty.asKind?.(
-    ts.SyntaxKind.PropertyAssignment,
-  );
-  if (!propAssignment) return { type: Option.none(), isArray: false };
-
-  const initializer = propAssignment.getInitializer();
-  if (!initializer) return { type: Option.none(), isArray: false };
-
-  // Handle array syntax: type: [UserDto]
-  const arrayLit = initializer.asKind?.(ts.SyntaxKind.ArrayLiteralExpression);
-  if (arrayLit) {
-    const elements = arrayLit.getElements();
-    if (elements.length > 0) {
-      const firstElement = elements[0];
-      const identifier = firstElement.asKind?.(ts.SyntaxKind.Identifier);
-      if (identifier) {
-        return { type: Option.some(identifier.getText()), isArray: true };
-      }
-    }
-    return { type: Option.none(), isArray: true };
-  }
-
-  // Handle direct reference: type: UserDto
-  const identifier = initializer.asKind?.(ts.SyntaxKind.Identifier);
-  if (identifier) {
-    return { type: Option.some(identifier.getText()), isArray: false };
-  }
-
-  return { type: Option.none(), isArray: false };
-};
-
-/** Extracts all @ApiResponse decorators from a method */
-const extractApiResponses = (
-  method: MethodDeclaration,
-): readonly ResponseMetadata[] => {
-  // Check cache first
-  const cached = apiResponsesCache.get(method);
-  if (cached !== undefined) return cached;
-
-  const responses: ResponseMetadata[] = [];
-
-  for (const decorator of method.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (decoratorName === 'ApiResponse') {
-      const statusCode = extractNumberPropertyFromDecorator(
-        decorator,
-        'status',
-      );
-      if (Option.isNone(statusCode)) continue;
-
-      const description = extractStringPropertyFromObjectLiteral(
-        decorator,
-        'description',
-      );
-      const { type, isArray } = extractResponseType(decorator);
-
-      responses.push({
-        statusCode: statusCode.value,
-        description,
-        type,
-        isArray,
-      });
-    }
-  }
-
-  apiResponsesCache.set(method, responses);
-  return responses;
+const extractHttpCode = (
+  methodCalls: readonly DecoratorCall[],
+): Option.Option<number> => {
+  const call = methodCalls.find((candidate) => candidate.name === 'HttpCode');
+  const status = readStatusCode(call?.args[0]);
+  return typeof status === 'number' ? Option.some(status) : Option.none();
 };
 
 /** Extracts metadata from @ApiOperation decorator */
 const extractApiOperationMetadata = (
-  method: MethodDeclaration,
+  methodCalls: readonly DecoratorCall[],
 ): OperationMetadata => {
-  // Check cache first
-  const cached = operationMetadataCache.get(method);
-  if (cached !== undefined) return cached;
-
-  for (const decorator of method.getDecorators()) {
-    const decoratorName = getDecoratorName(decorator);
-    if (decoratorName === 'ApiOperation') {
-      const result = {
-        summary: extractStringPropertyFromObjectLiteral(decorator, 'summary'),
-        description: extractStringPropertyFromObjectLiteral(
-          decorator,
-          'description',
-        ),
-        operationId: extractStringPropertyFromObjectLiteral(
-          decorator,
-          'operationId',
-        ),
-        deprecated: extractBooleanPropertyFromDecorator(
-          decorator,
-          'deprecated',
-        ),
-      };
-      operationMetadataCache.set(method, result);
-      return result;
-    }
-  }
-  // Return empty metadata if no @ApiOperation found
-  const result = {
-    summary: Option.none(),
-    description: Option.none(),
-    operationId: Option.none(),
-    deprecated: Option.none(),
+  const options = methodCalls.find((call) => call.name === 'ApiOperation')
+    ?.args[0];
+  return {
+    summary: Option.fromNullable(asString(getProperty(options, 'summary'))),
+    description: Option.fromNullable(
+      asString(getProperty(options, 'description')),
+    ),
+    operationId: Option.fromNullable(
+      asString(getProperty(options, 'operationId')),
+    ),
+    deprecated: Option.fromNullable(
+      asBoolean(getProperty(options, 'deprecated')),
+    ),
   };
-  operationMetadataCache.set(method, result);
-  return result;
 };
 
-/** Returns None if the method has no HTTP decorator */
-const getMethodInfoInternal = (
+const hasExcludeDecorator = (
+  calls: readonly DecoratorCall[],
+  name: 'ApiExcludeEndpoint' | 'ApiExcludeController',
+) =>
+  calls.some((call) => call.name === name && asBoolean(call.args[0]) !== false);
+
+const expandDeclaredQueryType = (
+  method: MethodDeclaration,
+  type: StaticValue,
+  expansion: DecoratorExpansionOptions | undefined,
+): readonly ResolvedParameter[] => {
+  if (type.kind !== 'reference' || !type.node) return [];
+  const classDecl = resolveDeclarations(type.node).find(
+    (declaration) =>
+      Node.isClassDeclaration(declaration) ||
+      Node.isInterfaceDeclaration(declaration),
+  );
+  if (!classDecl) return [];
+  return expandQueryDtoProperties(method, classDecl.getType(), expansion);
+};
+
+// Method-level @ApiTags add to the controller's, as in @nestjs/swagger
+const extractTags = (
+  controller: ClassDeclaration,
+  methodCalls: readonly DecoratorCall[],
+  expansion: DecoratorExpansionOptions | undefined,
+): readonly string[] => [
+  ...new Set([
+    ...getControllerTags(controller, expansion),
+    ...readStringArguments(methodCalls, 'ApiTags'),
+  ]),
+];
+
+const readPathList = (value: StaticValue | undefined): readonly string[] => {
+  if (value?.kind !== 'array') return [asString(value) ?? ''];
+  const paths = asStrings(value.items);
+  return paths.length > 0 ? paths : [''];
+};
+
+const readControllerPaths = (controllerCalls: readonly DecoratorCall[]) => {
+  const options = controllerCalls.find((call) => call.name === 'Controller')
+    ?.args[0];
+  return readPathList(
+    options?.kind === 'object' ? options.properties['path'] : options,
+  );
+};
+
+const VERSION_NEUTRAL: unique symbol = Symbol('VERSION_NEUTRAL');
+type Version = string | typeof VERSION_NEUTRAL;
+
+const readVersion = (value: StaticValue | undefined): readonly Version[] | undefined => {
+  const unwrapped = unwrapThunk(value);
+  if (!unwrapped) return undefined;
+  if (unwrapped.kind === 'array') {
+    return unwrapped.items.flatMap((item) => readVersion(item) ?? []);
+  }
+  if (unwrapped.kind === 'reference' && unwrapped.name === 'VERSION_NEUTRAL') {
+    return [VERSION_NEUTRAL];
+  }
+  const text = asString(unwrapped) ?? asNumber(unwrapped)?.toString();
+  return text === undefined ? undefined : [text];
+};
+
+const fromConfigVersion = (value: VersioningOptions['defaultVersion']) => {
+  if (value === undefined) return undefined;
+  const list = (Array.isArray(value) ? value : [value]) as readonly (string | symbol)[];
+  return list.map((version) =>
+    typeof version === 'symbol' ? VERSION_NEUTRAL : version,
+  );
+};
+
+const joinPaths = (...fragments: readonly string[]) => {
+  const joined = fragments
+    .map((fragment) => fragment.replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean)
+    .join('/');
+  return `/${joined}`.replace(/\/+/g, '/');
+};
+
+// One path per version (URI versioning) and per controller and method path,
+// as Nest's RoutePathFactory builds them, with the `methodKey` of
+// @nestjs/swagger's default operationId: `findAll`, `findAll[1]`, `findAll_v1`
+const getRouteVariants = (
+  methodName: string,
+  controllerCalls: readonly DecoratorCall[],
+  methodCalls: readonly DecoratorCall[],
+  httpDecorator: Decorator,
+  versioning: VersioningOptions | undefined,
+) => {
+  const isUri = versioning?.type === 'uri';
+  const controllerOptions = controllerCalls.find(
+    (call) => call.name === 'Controller',
+  )?.args[0];
+  const versions =
+    readVersion(methodCalls.find((call) => call.name === 'Version')?.args[0]) ??
+    readVersion(
+      controllerOptions?.kind === 'object'
+        ? controllerOptions.properties['version']
+        : undefined,
+    ) ??
+    fromConfigVersion(versioning?.defaultVersion);
+
+  const prefix =
+    versioning?.prefix === false ? '' : (versioning?.prefix ?? 'v');
+  const versionSegments: readonly string[] =
+    isUri && versions
+      ? versions.map((version) =>
+          version === VERSION_NEUTRAL ? '' : `${prefix}${version}`,
+        )
+      : [''];
+  const pathVersions = versionSegments.filter(Boolean);
+
+  const methodPaths = readPathList(
+    httpDecorator.getArguments()[0]
+      ? evaluate(httpDecorator.getArguments()[0]!)
+      : undefined,
+  );
+  const paths = versionSegments.flatMap((versionSegment) =>
+    readControllerPaths(controllerCalls).flatMap((controllerPath) =>
+      methodPaths.map((methodPath) =>
+        joinPaths(versionSegment, controllerPath, methodPath),
+      ),
+    ),
+  );
+
+  const isAlias = paths.length > 1 && paths.length !== pathVersions.length;
+  return paths.map((path, index) => {
+    const pathVersion = pathVersions.find(
+      (version) => path.includes(`/${version}/`) || path.endsWith(`/${version}`),
+    );
+    const methodKey = isAlias ? `${methodName}[${index}]` : methodName;
+    return {
+      path,
+      operationKey: pathVersion ? `${methodKey}_${pathVersion}` : methodKey,
+    };
+  });
+};
+
+// `@All()` documents every method, as @nestjs/swagger does
+const ALL_METHODS: readonly HttpMethod[] = [
+  'GET',
+  'POST',
+  'PUT',
+  'DELETE',
+  'PATCH',
+  'OPTIONS',
+  'HEAD',
+];
+
+const getMethodInfoVariants = (
   controller: ClassDeclaration,
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
-): Option.Option<MethodInfo> => {
+): readonly MethodInfo[] => {
   // Cache by extraction options, since query style can change parameter output.
   const optionsKey = getExtractParametersOptionsCacheKey(options);
   const cached = methodInfoCache.get(method)?.get(optionsKey);
   if (cached !== undefined) return cached;
 
-  const httpDecorator = getHttpDecorator(method);
-  if (!httpDecorator) {
+  const remember = (variants: readonly MethodInfo[]) => {
     getOrCreateMethodOptionsCacheBucket(methodInfoCache, method).set(
       optionsKey,
-      Option.none(),
+      variants,
     );
-    return Option.none();
-  }
+    return variants;
+  };
+
+  const httpDecorator = getHttpDecorator(method);
+  if (!httpDecorator) return remember([]);
 
   const decoratorName = httpDecorator.getName();
   const httpMethod = HTTP_METHOD_MAP[decoratorName];
-  if (!httpMethod) {
-    getOrCreateMethodOptionsCacheBucket(methodInfoCache, method).set(
-      optionsKey,
-      Option.none(),
-    );
-    return Option.none();
-  }
+  if (!httpMethod) return remember([]);
 
-  const controllerPrefix = getControllerPrefix(controller);
-  const methodPath = getRoutePath(httpDecorator);
-  const fullPath = buildFullPath(controllerPrefix, methodPath);
+  const expansion = options.expansion;
+  const controllerCalls = getEffectiveDecorators(controller, expansion);
+  const methodCalls = getEffectiveDecorators(method, expansion);
+  const routes = getRouteVariants(
+    method.getName(),
+    controllerCalls,
+    methodCalls,
+    httpDecorator,
+    options.versioning,
+  );
 
   // Extract security requirements from controller and method decorators
-  const controllerSecurity = extractControllerSecurity(controller);
-  const methodSecurity = extractMethodSecurity(method);
-  const hasMethodSecurity = hasMethodSecurityDecorators(method);
+  const controllerSecurity = extractControllerSecurity(controller, expansion);
+  const methodSecurity = extractMethodSecurity(method, expansion);
+  const hasMethodSecurity = hasMethodSecurityDecorators(method, expansion);
   const security = combineSecurityRequirements(
     controllerSecurity,
     methodSecurity,
     hasMethodSecurity,
   );
 
-  const result = Option.some({
+  const requestBody = extractRequestBody(methodCalls);
+
+  const base = {
     httpMethod,
-    path: fullPath,
+    path: routes[0]!.path,
     methodName: method.getName(),
     controllerName: getControllerName(controller),
-    controllerTags: [...getControllerTags(controller)],
+    controllerFile: controller.getSourceFile().getFilePath(),
+    controllerTags: [...extractTags(controller, methodCalls, expansion)],
     returnType: getReturnTypeInfo(method),
-    parameters: extractParameters(method, options),
-    decorators: [...extractDecoratorNames(controller, method)],
-    operation: extractApiOperationMetadata(method),
-    responses: [...extractApiResponses(method)],
-    httpCode: extractHttpCode(method),
-    consumes: [...extractApiConsumes(method)],
-    produces: [...extractApiProduces(method)],
+    parameters: [
+      ...mergeDeclaredParameters(
+        extractParameters(method, options),
+        readDeclaredParameters(controllerCalls, methodCalls, readEnumValues, {
+          ...DEFAULT_SCHEMA_NAMING,
+          enums: options.enums ?? DEFAULT_ENUM_STYLE,
+        }),
+        (type) => expandDeclaredQueryType(method, type, expansion),
+      ),
+    ],
+    decorators: [...extractDecoratorNames(controller, method, expansion)],
+    excluded:
+      hasExcludeDecorator(controllerCalls, 'ApiExcludeController') ||
+      hasExcludeDecorator(methodCalls, 'ApiExcludeEndpoint'),
+    operation: extractApiOperationMetadata(methodCalls),
+    responses: [...extractResponses(controllerCalls, methodCalls)],
+    ...(requestBody ? { requestBody } : {}),
+    referencedDeclarations: [
+      ...collectReferencedDeclarations(
+        method,
+        [...controllerCalls, ...methodCalls],
+        expansion,
+      ),
+    ],
+    httpCode: extractHttpCode(methodCalls),
+    consumes: [
+      ...extractContentTypes(controllerCalls, methodCalls, 'ApiConsumes'),
+    ],
+    produces: [
+      ...extractContentTypes(controllerCalls, methodCalls, 'ApiProduces'),
+    ],
     security: [...security],
-  });
+    extensions: extractExtensions(controllerCalls, methodCalls),
+    extraModels: [
+      ...readExtraModelNames(controllerCalls),
+      ...readExtraModelNames(methodCalls),
+    ],
+  } satisfies MethodInfo;
 
-  getOrCreateMethodOptionsCacheBucket(methodInfoCache, method).set(
-    optionsKey,
-    result,
+  return remember(
+    routes.flatMap((route) =>
+      (httpMethod === 'ALL' ? ALL_METHODS : [httpMethod]).map((verb) => ({
+        ...base,
+        httpMethod: verb,
+        path: route.path,
+        // @nestjs/swagger names @All() operations after the bare method name
+        operationKey:
+          httpMethod === 'ALL'
+            ? `${method.getName()}_${verb.toLowerCase()}`
+            : route.operationKey,
+      })),
+    ),
   );
-  return result;
 };
+
+const getMethodInfoInternal = (
+  controller: ClassDeclaration,
+  method: MethodDeclaration,
+  options: ExtractParametersOptions = {},
+): Option.Option<MethodInfo> =>
+  Option.fromNullable(getMethodInfoVariants(controller, method, options)[0]);
+
+// @nestjs/swagger only reads @ApiExtension on methods; on a controller it
+// applies to all its methods, the method's own winning
+const extractExtensions = (
+  controllerCalls: readonly DecoratorCall[],
+  methodCalls: readonly DecoratorCall[],
+) =>
+  Object.fromEntries(
+    [...controllerCalls, ...methodCalls].flatMap((call) => {
+      if (call.name !== 'ApiExtension') return [];
+      const key = asString(call.args[0]);
+      return key?.startsWith('x-') && call.args[1]
+        ? [[key, toPlain(call.args[1])]]
+        : [];
+    }),
+  );
+
+const readExtraModelNames = (calls: readonly DecoratorCall[]) =>
+  calls
+    .filter((call) => call.name === 'ApiExtraModels')
+    .flatMap((call) =>
+      call.args.flatMap((arg) => {
+        const unwrapped = unwrapThunk(arg);
+        return unwrapped?.kind === 'reference' ? [unwrapped.name] : [];
+      }),
+    );
 
 export const getMethodInfo = (
   controller: ClassDeclaration,
@@ -1164,9 +1073,7 @@ export const getControllerMethodInfos = (
 ): readonly MethodInfo[] =>
   controller
     .getMethods()
-    .map((method) => getMethodInfoInternal(controller, method, options))
-    .filter(Option.isSome)
-    .map((opt) => opt.value);
+    .flatMap((method) => getMethodInfoVariants(controller, method, options));
 
 export const getControllerMethodInfosEffect = Effect.fn(
   'Methods.getControllerMethodInfos',
@@ -1174,13 +1081,7 @@ export const getControllerMethodInfosEffect = Effect.fn(
   controller: ClassDeclaration,
   options: ExtractParametersOptions = {},
 ) {
-  const methodInfos = yield* Effect.forEach(
-    controller.getMethods(),
-    (method) => getMethodInfoEffect(controller, method, options),
-    { concurrency: 'unbounded' },
-  );
-
-  return methodInfos.filter(Option.isSome).map((opt) => opt.value);
+  return yield* Effect.sync(() => getControllerMethodInfos(controller, options));
 });
 
 const serviceGetMethodInfo = Effect.fn('MethodExtractionService.getMethodInfo')(

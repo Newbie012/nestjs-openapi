@@ -7,10 +7,16 @@ import type {
   OpenApiPaths,
   OpenApiSchema,
   ParameterConstraints,
+  RequestBodyMetadata,
   ResolvedParameter,
   ResponseMetadata,
 } from './domain.js';
 import type { SecurityRequirement } from './types.js';
+import {
+  applyPropertyConstraints,
+  type ValidationConstraints,
+} from './validation-mapper.js';
+import type { JsonSchema } from './schema-generator.js';
 
 /**
  * Converts internal MethodSecurityRequirement[] to OpenAPI SecurityRequirement[] format.
@@ -331,24 +337,77 @@ const applyParameterConstraints = (
   };
 };
 
-const transformParameter = (param: ResolvedParameter): OpenApiParameter => {
-  // Build base schema from TypeScript type
-  const baseSchema = tsTypeToOpenApiSchema(param.tsType);
+const PARAMETER_LEVEL_KEYS = ['description', 'deprecated', 'examples'] as const;
 
-  // Merge validation constraints if present
-  const schema = param.constraints
-    ? applyParameterConstraints(baseSchema, param.constraints)
-    : baseSchema;
+const TYPE_DEFINING_KEYS = [
+  'type',
+  '$ref',
+  'items',
+  'enum',
+  'oneOf',
+  'anyOf',
+  'allOf',
+] as const;
+
+const liftParameterKeys = (schema: OpenApiSchema) => {
+  const record = schema as Record<string, unknown>;
+  const lifted = Object.fromEntries(
+    PARAMETER_LEVEL_KEYS.flatMap((key) =>
+      record[key] === undefined ? [] : [[key, record[key]]],
+    ),
+  );
+  if (Object.keys(lifted).length === 0) return { schema, lifted };
+  return {
+    schema: Object.fromEntries(
+      Object.entries(record).filter(
+        ([key]) => !(PARAMETER_LEVEL_KEYS as readonly string[]).includes(key),
+      ),
+    ) as OpenApiSchema,
+    lifted,
+  };
+};
+
+const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
+  const baseSchema = tsTypeToOpenApiSchema(param.tsType);
+  const constraints = param.constraints as ValidationConstraints | undefined;
+  if (!constraints) return baseSchema;
+  if (!constraints.schemaOverride && !constraints.keywords) {
+    return applyParameterConstraints(baseSchema, constraints);
+  }
+  return applyPropertyConstraints(
+    baseSchema as JsonSchema,
+    constraints,
+  ) as OpenApiSchema;
+};
+
+// As in @nestjs/swagger, what @ApiQuery/@ApiParam/@ApiHeader declare is
+// merged over the inferred schema, and a declared type replaces it
+const buildParameterSchema = (param: ResolvedParameter) => {
+  const inferred = liftParameterKeys(inferParameterSchema(param));
+  const declared = param.declaredSchema as Record<string, unknown> | undefined;
+  if (!declared) return inferred;
+
+  const declaresType = TYPE_DEFINING_KEYS.some((key) => key in declared);
+  const schema = declaresType ? declared : { ...inferred.schema, ...declared };
+  return { schema: schema as OpenApiSchema, lifted: inferred.lifted };
+};
+
+const transformParameter = (param: ResolvedParameter): OpenApiParameter => {
+  const { schema, lifted } = buildParameterSchema(param);
+  const description = Option.isSome(param.description)
+    ? param.description.value
+    : (lifted['description'] as string | undefined);
+  const { description: _description, ...liftedRest } = lifted;
 
   return {
     name: param.name,
     in: getParameterLocation(param.location),
-    ...(Option.isSome(param.description)
-      ? { description: param.description.value }
-      : {}),
+    ...(description !== undefined ? { description } : {}),
     required: param.location === 'path' ? true : param.required,
+    ...liftedRest,
+    ...(param.extra ?? {}),
     schema,
-  };
+  } as OpenApiParameter;
 };
 
 const isInlineOptionalBodyType = (tsType: string): boolean => {
@@ -399,17 +458,21 @@ const buildResponseSchema = (
   );
 };
 
-/** Builds schema from @ApiResponse type property */
-const buildResponseSchemaFromMetadata = (
-  response: ResponseMetadata,
-): OpenApiSchema | undefined =>
-  response.type.pipe(
+// As in @nestjs/swagger, an explicit `schema` wins over `type`
+const buildSchemaFromMetadata = (
+  metadata: ResponseMetadata | RequestBodyMetadata,
+): OpenApiSchema | undefined => {
+  if (metadata.schema && typeof metadata.schema === 'object') {
+    return metadata.schema as OpenApiSchema;
+  }
+  return metadata.type.pipe(
     Option.map((typeName) => {
       const schema = tsTypeToOpenApiSchema(typeName);
-      return response.isArray ? { type: 'array', items: schema } : schema;
+      return metadata.isArray ? { type: 'array', items: schema } : schema;
     }),
     Option.getOrUndefined,
   );
+};
 
 /** Determines the default success status code based on HTTP method and @HttpCode */
 const getDefaultSuccessCode = (methodInfo: MethodInfo): number =>
@@ -434,9 +497,13 @@ type ResponseObject = {
   content?: Record<string, { schema: OpenApiSchema }>;
 };
 
+const isSuccessStatus = (statusCode: ResponseMetadata['statusCode']) =>
+  typeof statusCode === 'number' && statusCode >= 200 && statusCode < 300;
+
 /** Check if status code is a success code (2xx) but not 204 No Content */
-const isSuccessWithContent = (statusCode: number): boolean =>
-  statusCode >= 200 && statusCode < 300 && statusCode !== 204;
+const isSuccessWithContent = (
+  statusCode: ResponseMetadata['statusCode'],
+): boolean => isSuccessStatus(statusCode) && statusCode !== 204;
 
 /** Build a single response entry */
 const buildResponseEntry = (
@@ -446,7 +513,7 @@ const buildResponseEntry = (
   contentTypes: readonly string[],
 ): ResponseObject => {
   const schema =
-    buildResponseSchemaFromMetadata(response) ??
+    buildSchemaFromMetadata(response) ??
     (hasReturnType && isSuccessWithContent(response.statusCode)
       ? buildResponseSchema(returnType)
       : undefined);
@@ -477,9 +544,7 @@ const buildDefaultResponseEntry = (
 const hasDeclaredSuccessResponse = (
   responses: readonly ResponseMetadata[],
 ): boolean =>
-  responses.some(
-    (response) => response.statusCode >= 200 && response.statusCode < 300,
-  );
+  responses.some((response) => isSuccessStatus(response.statusCode));
 
 const buildResponses = (
   methodInfo: MethodInfo,
@@ -511,6 +576,33 @@ const buildResponses = (
   };
 };
 
+// As in @nestjs/swagger, @ApiBody wins over the @Body() parameter, and
+// documents a body even without one
+const buildRequestBody = (
+  declared: RequestBodyMetadata | undefined,
+  bodyParam: ResolvedParameter | undefined,
+  contentTypes: readonly string[],
+): OpenApiOperation['requestBody'] | undefined => {
+  const declaredSchema = declared && buildSchemaFromMetadata(declared);
+  const schema =
+    declaredSchema ?? (bodyParam && tsTypeToOpenApiSchema(bodyParam.tsType));
+  if (!schema) return undefined;
+
+  const inferredRequired =
+    !bodyParam ||
+    (bodyParam.required && !isInlineOptionalBodyType(bodyParam.tsType));
+  const description = declared && Option.getOrUndefined(declared.description);
+  const required = declared
+    ? Option.getOrElse(declared.required, () => inferredRequired)
+    : inferredRequired;
+
+  return {
+    ...(description !== undefined ? { description } : {}),
+    required,
+    content: buildContentObject(contentTypes, schema),
+  };
+};
+
 /** Transforms :param to {param} syntax */
 const buildOpenApiPath = (path: string): string =>
   path.replace(/:([^/]+)/g, '{$1}') || '/';
@@ -526,24 +618,17 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
 
   const parameters = nonBodyParams.map(transformParameter);
 
-  const requestContentTypes = getRequestContentTypes(methodInfo);
-  const requestBody =
-    bodyParams.length > 0
-      ? {
-          required:
-            bodyParams[0].required &&
-            !isInlineOptionalBodyType(bodyParams[0].tsType),
-          content: buildContentObject(
-            requestContentTypes,
-            tsTypeToOpenApiSchema(bodyParams[0].tsType),
-          ),
-        }
-      : undefined;
+  const requestBody = buildRequestBody(
+    methodInfo.requestBody,
+    bodyParams[0],
+    getRequestContentTypes(methodInfo),
+  );
 
   // Use extracted operation metadata, falling back to generated defaults
   const operationId = Option.getOrElse(
     methodInfo.operation.operationId,
-    () => `${methodInfo.controllerName}_${methodInfo.methodName}`,
+    () =>
+      `${methodInfo.controllerName}_${methodInfo.operationKey ?? methodInfo.methodName}`,
   );
 
   // Only include summary if explicitly provided via @ApiOperation
@@ -568,6 +653,7 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
         ? [...methodInfo.controllerTags]
         : undefined,
     ...(security !== undefined ? { security } : {}),
+    ...(methodInfo.extensions ?? {}),
   };
 
   return {

@@ -35,6 +35,17 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
           "content": {
             "application/json": {
               "schema": {
+                "properties": {
+                  "delivered": {
+                    "type": "number",
+                  },
+                  "pending": {
+                    "type": "number",
+                  },
+                  "totalSent": {
+                    "type": "number",
+                  },
+                },
                 "type": "object",
               },
             },
@@ -59,6 +70,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
           "name": "id",
           "required": true,
           "schema": {
+            "example": "usr_123",
             "type": "string",
           },
         },
@@ -68,6 +80,17 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
           "content": {
             "application/json": {
               "schema": {
+                "properties": {
+                  "lastLogin": {
+                    "type": "string",
+                  },
+                  "preferences": {
+                    "type": "object",
+                  },
+                  "user": {
+                    "type": "object",
+                  },
+                },
                 "type": "object",
               },
             },
@@ -116,16 +139,14 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for api-
               "schema": {
                 "properties": {
                   "buildDate": {
+                    "example": "2025-09-18T14:00:00Z",
                     "type": "string",
                   },
                   "version": {
+                    "example": "1.0.0",
                     "type": "string",
                   },
                 },
-                "required": [
-                  "version",
-                  "buildDate",
-                ],
                 "type": "object",
               },
             },
@@ -816,6 +837,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
             },
           },
         },
+        "description": "User data",
         "required": true,
       },
       "responses": {
@@ -923,17 +945,12 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
           "name": "priority",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "object",
-              },
-              {
-                "type": "object",
-              },
-              {
-                "type": "object",
-              },
+            "enum": [
+              "low",
+              "medium",
+              "high",
             ],
+            "type": "string",
           },
         },
       ],
@@ -968,6 +985,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
             },
           },
         },
+        "description": "Todo data",
         "required": true,
       },
       "responses": {
@@ -1069,6 +1087,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for mono
             },
           },
         },
+        "description": "Updated todo data",
         "required": true,
       },
       "responses": {
@@ -1117,6 +1136,12 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "name": "type",
           "required": false,
           "schema": {
+            "enum": [
+              "email",
+              "push",
+              "sms",
+              "in_app",
+            ],
             "type": "string",
           },
         },
@@ -1126,6 +1151,13 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "name": "status",
           "required": false,
           "schema": {
+            "enum": [
+              "pending",
+              "sent",
+              "delivered",
+              "failed",
+              "read",
+            ],
             "type": "string",
           },
         },
@@ -1162,6 +1194,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
             },
           },
         },
+        "description": "Notification data",
         "required": true,
       },
       "responses": {
@@ -1216,6 +1249,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for noti
           "name": "id",
           "required": true,
           "schema": {
+            "example": "notif_abc123def456",
             "type": "string",
           },
         },
@@ -1257,17 +1291,12 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
           "name": "role",
           "required": false,
           "schema": {
-            "oneOf": [
-              {
-                "type": "object",
-              },
-              {
-                "type": "object",
-              },
-              {
-                "type": "object",
-              },
+            "enum": [
+              "admin",
+              "user",
+              "moderator",
             ],
+            "type": "string",
           },
         },
         {
@@ -1312,6 +1341,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
             },
           },
         },
+        "description": "User creation data",
         "required": true,
       },
       "responses": {
@@ -1346,6 +1376,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
           "name": "id",
           "required": true,
           "schema": {
+            "example": "usr_123456789",
             "type": "string",
           },
         },
@@ -1373,6 +1404,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
           "name": "id",
           "required": true,
           "schema": {
+            "example": "usr_123456789",
             "type": "string",
           },
         },
@@ -1407,6 +1439,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
           "name": "id",
           "required": true,
           "schema": {
+            "example": "usr_123456789",
             "type": "string",
           },
         },
@@ -1419,6 +1452,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
             },
           },
         },
+        "description": "User update data",
         "required": true,
       },
       "responses": {
@@ -1453,6 +1487,7 @@ exports[`OpenAPI generation for E2E apps > should generate OpenAPI spec for user
           "name": "id",
           "required": true,
           "schema": {
+            "example": "usr_123456789",
             "type": "string",
           },
         },

@@ -159,9 +159,10 @@ describe('validation-mapper', () => {
 
         const constraints = extractPropertyConstraints(property);
 
+        // The declared type replaces the inferred one, as in @nestjs/swagger
         expect(constraints).toMatchObject({
-          type: 'string',
           isArray: true,
+          schemaOverride: { type: 'array', items: { type: 'string' } },
         });
       });
 
@@ -507,9 +508,60 @@ describe('validation-mapper', () => {
 
       expect(required).toEqual(['id', 'tags']);
     });
+
+    it('should not require properties made optional by Swagger decorators', () => {
+      const sourceFile = createProjectWithCode(`
+        import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+        class ArticleDto {
+          @ApiProperty({ description: 'x', required: false })
+          summary: string | null;
+
+          @ApiPropertyOptional()
+          details: string | null;
+
+          @ApiProperty({ required: true })
+          priority?: string;
+
+          @ApiProperty()
+          id: string;
+        }
+      `);
+      const classDecl = sourceFile.getClass('ArticleDto')!;
+
+      const required = getRequiredProperties(classDecl);
+
+      expect(required).toEqual(['priority', 'id']);
+    });
   });
 
   describe('applyConstraintsToSchema', () => {
+    it('should remove decorator-optional properties from required', () => {
+      const schema = {
+        type: 'object',
+        properties: {
+          summary: { type: 'string' },
+          id: { type: 'string' },
+        },
+        required: ['summary', 'id'],
+      };
+
+      const result = applyConstraintsToSchema(schema, {}, ['id'], ['summary']);
+
+      expect(result.required).toEqual(['id']);
+    });
+
+    it('should drop required entirely when every property is optional', () => {
+      const schema = {
+        type: 'object',
+        properties: { summary: { type: 'string' } },
+        required: ['summary'],
+      };
+
+      const result = applyConstraintsToSchema(schema, {}, [], ['summary']);
+
+      expect(result).not.toHaveProperty('required');
+    });
+
     it('should apply enum constraints to schema properties', () => {
       const schema = {
         type: 'object',

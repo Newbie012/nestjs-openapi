@@ -1,5 +1,11 @@
 import type { ClassDeclaration, MethodDeclaration, Decorator } from 'ts-morph';
 import { ts } from 'ts-morph';
+import {
+  findDecorator,
+  findDecorators,
+  type DecoratorExpansionOptions,
+} from './decorators.js';
+import { asString, asStrings } from './static-value.js';
 
 const HTTP_DECORATORS = new Set([
   'Get',
@@ -19,14 +25,17 @@ export const normalizePath = (path: string): string => {
   return out;
 };
 
-export const getControllerPrefix = (controller: ClassDeclaration): string => {
-  const decorator = controller
-    .getDecorators()
-    .find((d) => d.getName() === 'Controller');
-  if (!decorator) return '/';
+export const getControllerPrefix = (
+  controller: ClassDeclaration,
+  expansion?: DecoratorExpansionOptions,
+): string => {
+  const call = findDecorator(controller, 'Controller', expansion);
+  if (!call) return '/';
 
-  const arg = decorator.getArguments()[0];
-  const value = arg?.asKind?.(ts.SyntaxKind.StringLiteral)?.getLiteralValue();
+  const [arg] = call.args;
+  const value =
+    asString(arg) ??
+    (arg?.kind === 'object' ? asString(arg.properties['path']) : undefined);
   return value ? normalizePath(value) : '/';
 };
 
@@ -54,21 +63,17 @@ export const getDecoratorName = (decorator: Decorator): string => {
 /** Falls back to controller name (minus 'Controller' suffix) if no @ApiTags */
 export const getControllerTags = (
   controller: ClassDeclaration,
+  expansion?: DecoratorExpansionOptions,
 ): readonly string[] => {
-  const apiTagsDecorator = controller
-    .getDecorators()
-    .find((d) => getDecoratorName(d) === 'ApiTags');
+  const apiTagsCalls = findDecorators(controller, 'ApiTags', expansion);
 
-  if (!apiTagsDecorator) {
+  if (apiTagsCalls.length === 0) {
     const name = getControllerName(controller);
     // Keep PascalCase, just remove 'Controller' suffix (matches NestJS Swagger behavior)
     return [name.replace(/Controller$/i, '')];
   }
 
-  const tags = apiTagsDecorator.getArguments().flatMap((arg) => {
-    const stringLit = arg.asKind?.(ts.SyntaxKind.StringLiteral);
-    return stringLit ? [stringLit.getLiteralValue()] : [];
-  });
+  const tags = apiTagsCalls.flatMap((call) => asStrings(call.args));
 
   return tags.length > 0
     ? tags

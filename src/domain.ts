@@ -1,4 +1,11 @@
 import { Schema } from 'effect';
+import type { CustomDecoratorMapping } from './decorators.js';
+import type { PathTransform } from './types.js';
+
+type CustomDecoratorMappingFunction = Extract<
+  CustomDecoratorMapping,
+  (...args: never[]) => unknown
+>;
 
 // Parameter Types
 
@@ -47,6 +54,8 @@ export interface ResolvedParameter extends Schema.Schema.Type<
 > {
   /** Validation constraints from decorators like @Min, @Max, @IsEnum, etc. */
   readonly constraints?: ParameterConstraints;
+  readonly declaredSchema?: object;
+  readonly extra?: Readonly<Record<string, unknown>>;
 }
 
 // Return Type
@@ -86,18 +95,39 @@ export const OperationMetadata = Schema.Struct({
 });
 export type OperationMetadata = typeof OperationMetadata.Type;
 
-/** Metadata extracted from @ApiResponse decorator */
+/** Metadata extracted from @ApiResponse and its shortcuts (@ApiOkResponse...) */
 export const ResponseMetadata = Schema.Struct({
-  /** HTTP status code (e.g., 200, 201, 400, 404) */
-  statusCode: Schema.Number,
+  /** HTTP status code (e.g., 200, 201, 400, 404), or "default" */
+  statusCode: Schema.Union(Schema.Number, Schema.Literal('default')),
   /** Response description */
   description: Schema.OptionFromNullOr(Schema.String),
   /** Response type name (e.g., "UserDto") */
   type: Schema.OptionFromNullOr(Schema.String),
   /** Whether the response type is an array */
   isArray: Schema.Boolean,
+  schema: Schema.optional(Schema.Unknown),
 });
 export type ResponseMetadata = typeof ResponseMetadata.Type;
+
+export const DeclarationRef = Schema.Struct({
+  name: Schema.String,
+  filePath: Schema.String,
+  exported: Schema.Boolean,
+  kind: Schema.Literal('class', 'interface', 'enum', 'type'),
+  topLevel: Schema.Boolean,
+  localNames: Schema.optional(Schema.Array(Schema.String)),
+  generic: Schema.optional(Schema.Boolean),
+});
+export type DeclarationRef = typeof DeclarationRef.Type;
+
+export const RequestBodyMetadata = Schema.Struct({
+  type: Schema.OptionFromNullOr(Schema.String),
+  isArray: Schema.Boolean,
+  description: Schema.OptionFromNullOr(Schema.String),
+  required: Schema.OptionFromNullOr(Schema.Boolean),
+  schema: Schema.optional(Schema.Unknown),
+});
+export type RequestBodyMetadata = typeof RequestBodyMetadata.Type;
 
 /**
  * Security requirement extracted from security decorators.
@@ -120,15 +150,24 @@ export const MethodInfo = Schema.Struct({
   path: Schema.String,
   methodName: Schema.String,
   controllerName: Schema.String,
+  controllerFile: Schema.optional(Schema.String),
   controllerTags: Schema.Array(Schema.String),
   returnType: ReturnTypeInfo,
   parameters: Schema.Array(ResolvedParameter),
   /** All decorator names on the controller and method (for filtering) */
   decorators: Schema.Array(Schema.String),
+  excluded: Schema.optional(Schema.Boolean),
   /** Metadata from @ApiOperation decorator */
   operation: OperationMetadata,
   /** Response metadata from @ApiResponse decorators */
   responses: Schema.Array(ResponseMetadata),
+  requestBody: Schema.optional(RequestBodyMetadata),
+  operationKey: Schema.optional(Schema.String),
+  extensions: Schema.optional(
+    Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  ),
+  extraModels: Schema.optional(Schema.Array(Schema.String)),
+  referencedDeclarations: Schema.optional(Schema.Array(DeclarationRef)),
   /** Custom HTTP code from @HttpCode decorator */
   httpCode: Schema.OptionFromNullOr(Schema.Number),
   /** Content types from @ApiConsumes decorator (request body content types) */
@@ -410,10 +449,56 @@ export const PathFilter = Schema.Union(
 );
 export type PathFilter = typeof PathFilter.Type;
 
+const functionSchema = <F>(identifier: string, description: string) =>
+  Schema.declare((input: unknown): input is F => typeof input === 'function', {
+    identifier,
+    description,
+  });
+
+const DecoratorSpecConfig = Schema.Struct({
+  name: Schema.String,
+  args: Schema.optional(Schema.Array(Schema.Unknown)),
+});
+
+const DecoratorMappingConfig = Schema.Union(
+  Schema.Array(DecoratorSpecConfig),
+  functionSchema<CustomDecoratorMappingFunction>(
+    'DecoratorMappingFunction',
+    'A function that takes a custom decorator use and returns the decorators it stands for',
+  ),
+);
+
 export const OptionsConfig = Schema.Struct({
   basePath: Schema.optional(Schema.String),
+  transformPath: Schema.optional(
+    functionSchema<PathTransform>(
+      'PathTransformFunction',
+      'A function that rewrites an operation path',
+    ),
+  ),
   extractValidation: Schema.optional(Schema.Boolean),
   excludeDecorators: Schema.optional(Schema.Array(Schema.String)),
+  decorators: Schema.optional(
+    Schema.Record({ key: Schema.String, value: DecoratorMappingConfig }),
+  ),
+  include: Schema.optional(Schema.Array(Schema.String)),
+  deepScanRoutes: Schema.optional(Schema.Boolean),
+  enums: Schema.optional(Schema.Literal('nest', 'ref')),
+  versioning: Schema.optional(
+    Schema.Struct({
+      type: Schema.Literal('uri', 'header', 'media-type', 'custom'),
+      prefix: Schema.optional(
+        Schema.Union(Schema.String, Schema.Literal(false)),
+      ),
+      defaultVersion: Schema.optional(
+        Schema.Union(
+          Schema.String,
+          Schema.SymbolFromSelf,
+          Schema.Array(Schema.Union(Schema.String, Schema.SymbolFromSelf)),
+        ),
+      ),
+    }),
+  ),
   query: Schema.optional(QueryOptionsConfig),
   schemas: Schema.optional(SchemaOptionsConfig),
   pathFilter: Schema.optional(PathFilter),

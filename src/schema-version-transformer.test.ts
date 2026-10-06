@@ -34,6 +34,36 @@ describe('schema-version-transformer', () => {
       expect(result.User.properties?.email.type).toBe('string');
     });
 
+    it('should move metadata beside $ref for 3.1.0', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        User: {
+          type: 'object',
+          properties: {
+            role: {
+              allOf: [{ $ref: '#/components/schemas/Role' }],
+              description: 'User role',
+            },
+            manager: {
+              allOf: [{ $ref: '#/components/schemas/User' }],
+              description: 'Manager, if any',
+              nullable: true,
+            },
+          },
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      expect(result.User.properties?.role).toEqual({
+        $ref: '#/components/schemas/Role',
+        description: 'User role',
+      });
+      expect(result.User.properties?.manager).toEqual({
+        anyOf: [{ $ref: '#/components/schemas/User' }, { type: 'null' }],
+        description: 'Manager, if any',
+      });
+    });
+
     it('should transform nullable for 3.2.0', () => {
       const schemas: Record<string, OpenApiSchema> = {
         Product: {

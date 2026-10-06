@@ -5,6 +5,27 @@
  * should be kept in domain.ts.
  */
 
+import type { CustomDecoratorMapping } from './decorators.js';
+
+export type {
+  CustomDecoratorMapping,
+  CustomDecoratorUse,
+  DecoratorSpec,
+} from './decorators.js';
+
+/** Rewrites an operation's documented path */
+export type PathTransform = (
+  path: string,
+  context: {
+    /** Controller class name */
+    readonly controller: string;
+    /** Method name */
+    readonly method: string;
+    /** Lowercase HTTP method, e.g. `get` */
+    readonly httpMethod: string;
+  },
+) => string;
+
 /**
  * Contact information for the API
  */
@@ -269,6 +290,19 @@ export interface OptionsConfig {
   readonly basePath?: string;
 
   /**
+   * Rewrites each operation's path, after `basePath`. Paths use OpenAPI
+   * syntax (`/users/{id}`). Pair it with `openapi.servers` to move part of the
+   * path into the server URL.
+   *
+   * @example
+   * ```typescript
+   * // Routes are served under /api, published as https://example.com/api
+   * transformPath: (path) => path.replace(/^\/api(?=\/|$)/, '') || '/',
+   * ```
+   */
+  readonly transformPath?: PathTransform;
+
+  /**
    * Extract validation constraints from class-validator decorators.
    * @default true
    */
@@ -279,6 +313,77 @@ export interface OptionsConfig {
    * @default ["ApiExcludeEndpoint", "ApiExcludeController"]
    */
   readonly excludeDecorators?: readonly string[];
+
+  /**
+   * What custom decorators mean, in terms of built-in ones.
+   *
+   * Wrappers written with `applyDecorators()` in your own code are followed
+   * automatically. Use this for decorators the generator cannot follow, such
+   * as wrappers from a compiled library or with conditional logic. A mapping
+   * is a list of decorators, or a function of the arguments the decorator was
+   * called with.
+   *
+   * @example
+   * ```typescript
+   * decorators: {
+   *   // @InternalPort() hides a controller
+   *   InternalPort: [{ name: 'ApiExcludeController' }],
+   *   // @FilterField(Dto) is an optional nested property of type Dto
+   *   FilterField: ({ args: [type] }) => [
+   *     { name: 'ApiPropertyOptional', args: [{ type: type ?? typeRef('FilterDto') }] },
+   *   ],
+   * }
+   * ```
+   */
+  readonly decorators?: Readonly<Record<string, CustomDecoratorMapping>>;
+
+  /**
+   * Names of the modules whose controllers are documented, like the `include`
+   * option of `SwaggerModule.createDocument()`. Only controllers declared
+   * directly in these modules are documented unless `deepScanRoutes` is set.
+   * By default, every controller reachable from the entry module is.
+   *
+   * @example ["ExternalApiModule"]
+   */
+  readonly include?: readonly string[];
+
+  /**
+   * With `include`, also document the controllers of every module the
+   * included modules import, like `deepScanRoutes` in
+   * `SwaggerModule.createDocument()`.
+   *
+   * @default false
+   */
+  readonly deepScanRoutes?: boolean;
+
+  /**
+   * How enums are emitted.
+   *
+   * - `'ref'`: every TypeScript enum (and `enum: Status` without `enumName`)
+   *   is a component named after it.
+   * - `'nest'`: like @nestjs/swagger, enum values are written in place,
+   *   unless `enumName` gives them a name: `@ApiProperty({ enum: Status,
+   *   enumName: 'Status' })` emits a `Status` component.
+   *
+   * @default 'ref'
+   */
+  readonly enums?: 'nest' | 'ref';
+
+  /**
+   * Versioning, as passed to `app.enableVersioning()`, which static analysis
+   * cannot see. With `type: 'uri'`, paths get the version of their method
+   * (`@Version()`) or controller (`@Controller({ version })`), or
+   * `defaultVersion`: `/v1/users`. `VERSION_NEUTRAL` (from @nestjs/common)
+   * adds no version. Other types do not change paths.
+   *
+   * @example { type: 'uri', defaultVersion: '1' }
+   */
+  readonly versioning?: {
+    readonly type: 'uri' | 'header' | 'media-type' | 'custom';
+    /** URI prefix; `false` for none. @default 'v' */
+    readonly prefix?: string | false;
+    readonly defaultVersion?: string | symbol | readonly (string | symbol)[];
+  };
 
   /**
    * Filter paths by regex or predicate function.

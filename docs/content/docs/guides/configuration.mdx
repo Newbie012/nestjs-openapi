@@ -216,6 +216,57 @@ options: {
 
 With this configuration, a route `GET /users` becomes `GET /api/v1/users`.
 
+### `transformPath`
+
+Rewrites each operation's path after `basePath`, with the operation's controller, method and HTTP method as context. Paths use OpenAPI syntax (`/users/{id}`). Combine it with `openapi.servers` to move part of the path into the server URL:
+
+```typescript
+openapi: {
+  // ...
+  servers: [{ url: 'https://app.example.com/api' }],
+},
+options: {
+  // @Controller('api/v1/audit-logs') is published as /v1/audit-logs
+  transformPath: (path, { controller, method, httpMethod }) =>
+    path.replace(/^\/api(?=\/|$)/, '') || '/',
+}
+```
+
+### `versioning`
+
+The versioning you pass to `app.enableVersioning()`, which static analysis cannot see. With `type: 'uri'`, paths get the version of their method (`@Version()`), else of their controller (`@Controller({ version })`), else `defaultVersion`, exactly as Nest builds them: `/v1/users`, one path per version for arrays, none for `VERSION_NEUTRAL`. Operation ids get the version too (`UsersController_findAll_v1`), as in @nestjs/swagger. Header, media-type and custom versioning do not change paths.
+
+```typescript
+import { VERSION_NEUTRAL } from '@nestjs/common';
+
+options: {
+  versioning: {
+    type: 'uri',
+    prefix: 'v', // default; false for none
+    defaultVersion: ['1', VERSION_NEUTRAL],
+  },
+}
+```
+
+### `enums`
+
+How enums are emitted (default: `"ref"`).
+
+| Value    | Behavior                                                                                                   |
+| -------- | ---------------------------------------------------------------------------------------------------------- |
+| `"ref"`  | Every TypeScript enum (and `enum: Status` without `enumName`) is a component named after it. |
+| `"nest"` | Like @nestjs/swagger: enum values are written in place, unless `enumName` gives them a component name.     |
+
+```typescript
+// 'nest': { type: 'string', enum: ['low', 'high'] }
+@ApiProperty({ enum: Priority })
+priority: Priority;
+
+// Both styles: { $ref: '#/components/schemas/Priority' }
+@ApiProperty({ enum: Priority, enumName: 'Priority' })
+priority: Priority;
+```
+
 ### `extractValidation`
 
 Extract validation constraints from class-validator decorators (default: `true`):
@@ -230,15 +281,61 @@ See the [Validation Guide](/docs/guides/validation) for details.
 
 ### `excludeDecorators`
 
-Decorator names that exclude endpoints from the spec:
+Names of your own decorators that exclude endpoints from the spec. Controller and method decorators both count, and so do decorators wrapped inside them:
 
 ```typescript
 options: {
-  // Default values
-  excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
+  excludeDecorators: ['Internal', 'AdminOnly'],
+}
+```
 
-  // Add custom decorators
-  excludeDecorators: ['ApiExcludeEndpoint', 'Internal', 'AdminOnly'],
+### `decorators`
+
+What your custom decorators mean, in terms of built-in ones. Wrappers written with `applyDecorators()` in your own code are followed automatically (see [Custom Decorators](/docs/guides/decorators#custom-decorators)), so this is only needed for decorators that cannot be followed, such as wrappers from a compiled library or with conditional logic.
+
+A mapping is either a list of decorators, or a function of the arguments the decorator was called with. Use `typeRef('Name')` to refer to a class or enum:
+
+```typescript
+import { defineConfig, typeRef } from 'nestjs-openapi';
+
+export default defineConfig({
+  // ...
+  options: {
+    decorators: {
+      // @InternalPort() hides a controller
+      InternalPort: [{ name: 'ApiExcludeController' }],
+
+      // @FilterField(Dto?) is an optional nested property
+      FilterField: ({ args: [type] }) => [
+        {
+          name: 'ApiPropertyOptional',
+          args: [{ type: type ?? typeRef('FilterDto') }],
+        },
+      ],
+
+      // @Paginated(Dto) documents a paged list response
+      Paginated: ({ args: [itemType] }) => [
+        { name: 'ApiOkResponse', args: [{ type: itemType, isArray: true }] },
+      ],
+    },
+  },
+});
+```
+
+In a mapping function, arguments are plain values: literals, arrays and objects as written, classes and enums as `TypeRef`, and `undefined` for anything that cannot be read statically.
+
+### `include` and `deepScanRoutes`
+
+Which modules' controllers are documented, like the options of the same name in `SwaggerModule.createDocument()`. By default, every controller reachable from the entry module is documented.
+
+```typescript
+options: {
+  // Only controllers declared directly in ExternalApiModule
+  include: ['ExternalApiModule'],
+
+  // Also controllers of the modules ExternalApiModule imports
+  // (one level, global modules excluded)
+  deepScanRoutes: true,
 }
 ```
 
@@ -387,7 +484,7 @@ export default defineConfig({
   options: {
     basePath: '/api/v1',
     extractValidation: true,
-    excludeDecorators: ['ApiExcludeEndpoint', 'Internal'],
+    excludeDecorators: ['Internal'],
     pathFilter: /^(?!.*\/internal\/).*/,
   },
 });

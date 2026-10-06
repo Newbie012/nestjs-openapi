@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
 import { generate } from '../src/generate.js';
@@ -17,24 +17,21 @@ describe('Query DTO Inlining E2E', () => {
     'openapi-schema-refs.generated.json',
   );
 
-  afterEach(() => {
-    // Clean up generated files
-    if (existsSync(inlineOutputPath)) {
-      unlinkSync(inlineOutputPath);
-    }
-    if (existsSync(schemaRefsOutputPath)) {
-      unlinkSync(schemaRefsOutputPath);
-    }
-  });
-
   describe('Default behavior (inlining enabled)', () => {
-    it('should inline PaginationQueryDto properties as individual parameters', async () => {
+    let spec: OpenApiSpec;
+
+    beforeAll(async () => {
       await generate(inlineConfigPath);
+      spec = JSON.parse(readFileSync(inlineOutputPath, 'utf-8'));
+    });
 
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
+    afterAll(() => {
+      if (existsSync(inlineOutputPath)) {
+        unlinkSync(inlineOutputPath);
+      }
+    });
 
+    it('should inline PaginationQueryDto properties as individual parameters', () => {
       const params = spec.paths['/items'].get?.parameters ?? [];
       const paramNames = params.map((p) => p.name);
 
@@ -53,13 +50,7 @@ describe('Query DTO Inlining E2E', () => {
       expect(pageParam?.required).toBe(false);
     });
 
-    it('should correctly mark required vs optional properties', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should correctly mark required vs optional properties', () => {
       // FilterQueryDto has 'search' as required, others as optional
       const params = spec.paths['/items/search'].get?.parameters ?? [];
 
@@ -77,13 +68,7 @@ describe('Query DTO Inlining E2E', () => {
       expect(statusParam?.required).toBe(false); // Optional field
     });
 
-    it('should handle mixed DTO and explicit named params', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should handle mixed DTO and explicit named params', () => {
       const params = spec.paths['/items/combined'].get?.parameters ?? [];
       const paramNames = params.map((p) => p.name);
 
@@ -100,13 +85,7 @@ describe('Query DTO Inlining E2E', () => {
       expect(params).toHaveLength(5);
     });
 
-    it('should NOT inline explicitly named params with DTO type', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should NOT inline explicitly named params with DTO type', () => {
       const params = spec.paths['/items/named'].get?.parameters ?? [];
       const paramNames = params.map((p) => p.name);
 
@@ -121,13 +100,7 @@ describe('Query DTO Inlining E2E', () => {
       );
     });
 
-    it('should NOT affect primitive query params', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should NOT affect primitive query params', () => {
       const params = spec.paths['/items/primitive'].get?.parameters ?? [];
       const paramNames = params.map((p) => p.name);
 
@@ -143,13 +116,7 @@ describe('Query DTO Inlining E2E', () => {
       }
     });
 
-    it('should respect @IsOptional decorator for required status', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should respect @IsOptional decorator for required status', () => {
       // ValidatedQueryDto: search is required, page has @IsOptional without ?, limit has @IsOptional with ?
       const params = spec.paths['/items/validated'].get?.parameters ?? [];
 
@@ -175,13 +142,7 @@ describe('Query DTO Inlining E2E', () => {
       expect(sortOrderParam?.required).toBe(false);
     });
 
-    it('should preserve validation constraints from decorators', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should preserve validation constraints from decorators', () => {
       const params = spec.paths['/items/validated'].get?.parameters ?? [];
 
       // search has @MinLength(1)
@@ -199,13 +160,7 @@ describe('Query DTO Inlining E2E', () => {
       expect(limitParam?.schema?.maximum).toBe(1000);
     });
 
-    it('should extract enum values from @IsEnum decorator', async () => {
-      await generate(inlineConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(inlineOutputPath, 'utf-8'),
-      );
-
+    it('should extract enum values from @IsEnum decorator', () => {
       const params = spec.paths['/items/validated'].get?.parameters ?? [];
 
       // sortOrder has @IsEnum(SortOrder) where SortOrder = { ASC: 'asc', DESC: 'desc' }
@@ -215,13 +170,20 @@ describe('Query DTO Inlining E2E', () => {
   });
 
   describe('query.style: "ref" (schema refs mode)', () => {
-    it('should keep query DTOs as single schema ref parameters', async () => {
+    let spec: OpenApiSpec;
+
+    beforeAll(async () => {
       await generate(schemaRefsConfigPath);
+      spec = JSON.parse(readFileSync(schemaRefsOutputPath, 'utf-8'));
+    });
 
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(schemaRefsOutputPath, 'utf-8'),
-      );
+    afterAll(() => {
+      if (existsSync(schemaRefsOutputPath)) {
+        unlinkSync(schemaRefsOutputPath);
+      }
+    });
 
+    it('should keep query DTOs as single schema ref parameters', () => {
       const params = spec.paths['/items'].get?.parameters ?? [];
       const paramNames = params.map((p) => p.name);
 
@@ -236,13 +198,7 @@ describe('Query DTO Inlining E2E', () => {
       );
     });
 
-    it('should still NOT expand explicitly named params', async () => {
-      await generate(schemaRefsConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(schemaRefsOutputPath, 'utf-8'),
-      );
-
+    it('should still NOT expand explicitly named params', () => {
       const params = spec.paths['/items/named'].get?.parameters ?? [];
 
       // Should still be a single 'filter' param
@@ -253,13 +209,7 @@ describe('Query DTO Inlining E2E', () => {
       );
     });
 
-    it('should still handle primitive params correctly', async () => {
-      await generate(schemaRefsConfigPath);
-
-      const spec: OpenApiSpec = JSON.parse(
-        readFileSync(schemaRefsOutputPath, 'utf-8'),
-      );
-
+    it('should still handle primitive params correctly', () => {
       const params = spec.paths['/items/primitive'].get?.parameters ?? [];
       const paramNames = params.map((p) => p.name);
 

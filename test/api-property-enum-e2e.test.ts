@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate } from '../src/generate.js';
+import { generate, type GenerateResult } from '../src/generate.js';
 import type { OpenApiSpec } from '../src/types.js';
 
 describe('@ApiProperty extraction E2E', () => {
@@ -14,35 +14,31 @@ describe('@ApiProperty extraction E2E', () => {
     'e2e-applications/api-property-enum/openapi.generated.json',
   );
 
+  let result: GenerateResult;
   let spec: OpenApiSpec;
 
-  afterEach(() => {
+  beforeAll(async () => {
+    result = await generate(configPath);
+    spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  });
+
+  afterAll(() => {
     if (existsSync(outputPath)) {
       unlinkSync(outputPath);
     }
   });
 
-  /** Helper: generate once and return schemas */
-  const getSchemas = async () => {
-    await generate(configPath);
-    spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-    return spec.components?.schemas ?? {};
-  };
+  const getSchemas = () => spec.components?.schemas ?? {};
 
-  /** Helper: get a property from ItemDto */
-  const itemProp = async (name: string) => {
-    const schemas = await getSchemas();
+  const itemProp = (name: string) => {
+    const schemas = getSchemas();
     return schemas['ItemDto']?.properties?.[name] as
       | Record<string, unknown>
       | undefined;
   };
 
-  it('should generate the spec successfully', async () => {
-    const result = await generate(configPath);
+  it('should generate the spec successfully', () => {
     expect(result.outputPath).toBe(outputPath);
-    expect(existsSync(outputPath)).toBe(true);
-
-    spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
     expect(spec.openapi).toBe('3.0.3');
     expect(spec.paths['/items']).toBeDefined();
     expect(spec.paths['/tasks']).toBeDefined();
@@ -53,7 +49,11 @@ describe('@ApiProperty extraction E2E', () => {
   describe('enum', () => {
     it('should extract string enum from TS enum ref', async () => {
       const color = await itemProp('color');
-      expect(color).toEqual({ $ref: '#/components/schemas/Color' });
+      // The description is kept by wrapping the ref, as @nestjs/swagger does
+      expect(color).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Color' }],
+        description: 'Item color',
+      });
     });
 
     it('should extract inline string enum array', async () => {
@@ -62,25 +62,33 @@ describe('@ApiProperty extraction E2E', () => {
     });
 
     it('should extract numeric enum', async () => {
-      const schemas = await getSchemas();
+      const schemas = getSchemas();
       const priority = schemas['TaskDto']?.properties?.['priority'] as Record<
         string,
         unknown
       >;
-      expect(priority.enum).toEqual([0, 1, 2, 3, 4]);
+      // 'ref' style: an enum referenced by name is a component
+      expect(priority).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Priority' }],
+        description: 'Task priority',
+      });
+      expect(schemas['Priority']?.enum).toEqual([0, 1, 2, 3, 4]);
     });
 
     it('should extract enum from @ApiPropertyOptional', async () => {
-      const schemas = await getSchemas();
+      const schemas = getSchemas();
       const estimate = schemas['TaskDto']?.properties?.['estimate'] as Record<
         string,
         unknown
       >;
-      expect(estimate).toEqual({ $ref: '#/components/schemas/Size' });
+      expect(estimate).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Size' }],
+        description: 'T-shirt size estimate',
+      });
     });
 
     it('should produce array type with enum items for isArray', async () => {
-      const schemas = await getSchemas();
+      const schemas = getSchemas();
       const sizes = schemas['SearchDto']?.properties?.['sizes'] as Record<
         string,
         unknown
@@ -117,11 +125,12 @@ describe('@ApiProperty extraction E2E', () => {
     });
 
     it('should ref a single-member enum from DTO properties', async () => {
-      const schemas = await getSchemas();
+      const schemas = getSchemas();
       const props = schemas['SearchDto']?.properties ?? {};
 
       expect(props['channel']).toEqual({
-        $ref: '#/components/schemas/Channel',
+        allOf: [{ $ref: '#/components/schemas/Channel' }],
+        description: 'Delivery channel',
       });
       expect(props['fallbackChannel']).toEqual({
         $ref: '#/components/schemas/Channel',
@@ -129,7 +138,7 @@ describe('@ApiProperty extraction E2E', () => {
     });
 
     it('should extract two-value inline enum', async () => {
-      const schemas = await getSchemas();
+      const schemas = getSchemas();
       const sortOrder = schemas['SearchDto']?.properties?.[
         'sortOrder'
       ] as Record<string, unknown>;
@@ -203,13 +212,9 @@ describe('@ApiProperty extraction E2E', () => {
   // ── example & default ─────────────────────────────────
 
   describe('example and default', () => {
-    it('should extract example from @ApiProperty', async () => {
+    it('should extract example and default from @ApiProperty', async () => {
       const currency = await itemProp('currency');
       expect(currency!.example).toBe('USD');
-    });
-
-    it('should extract default from @ApiProperty', async () => {
-      const currency = await itemProp('currency');
       expect(currency!.default).toBe('USD');
     });
   });
@@ -226,14 +231,9 @@ describe('@ApiProperty extraction E2E', () => {
   // ── readOnly / writeOnly ──────────────────────────────
 
   describe('readOnly and writeOnly', () => {
-    it('should extract readOnly', async () => {
-      const id = await itemProp('id');
-      expect(id!.readOnly).toBe(true);
-    });
-
-    it('should extract writeOnly', async () => {
-      const pw = await itemProp('password');
-      expect(pw!.writeOnly).toBe(true);
+    it('should extract readOnly and writeOnly', async () => {
+      expect((await itemProp('id'))!.readOnly).toBe(true);
+      expect((await itemProp('password'))!.writeOnly).toBe(true);
     });
   });
 
@@ -259,7 +259,7 @@ describe('@ApiProperty extraction E2E', () => {
 
   describe('@ApiHideProperty', () => {
     it('should exclude properties decorated with @ApiHideProperty', async () => {
-      const schemas = await getSchemas();
+      const schemas = getSchemas();
       const props = Object.keys(schemas['ItemDto']?.properties ?? {});
       expect(props).not.toContain('internalSecret');
     });

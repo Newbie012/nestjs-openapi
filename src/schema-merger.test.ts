@@ -186,7 +186,7 @@ describe('schema-merger', () => {
       expect(result.schemas['UserFilter']).toBeDefined();
     });
 
-    it('should keep $ref properties as ref-only schemas', () => {
+    it('should wrap $ref properties that carry metadata in allOf, like @nestjs/swagger', () => {
       const paths: OpenApiPaths = {
         '/users': {
           get: {
@@ -227,7 +227,89 @@ describe('schema-merger', () => {
       const result = mergeSchemas(paths, schemas);
 
       expect(result.schemas['User'].properties?.role).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Role' }],
+        description: 'User role',
+      });
+    });
+
+    it('should keep bare $ref properties as ref-only schemas', () => {
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: { role: { $ref: '#/definitions/Role' } },
+          },
+          Role: { type: 'string', enum: ['admin'] },
+        },
+      };
+
+      const result = mergeSchemas(
+        {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              responses: {
+                '200': {
+                  description: 'Success',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/User' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        schemas,
+      );
+
+      expect(result.schemas['User'].properties?.role).toEqual({
         $ref: '#/components/schemas/Role',
+      });
+    });
+
+    it('should turn a null branch of anyOf into nullable for a $ref', () => {
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          User: {
+            type: 'object',
+            properties: {
+              manager: {
+                anyOf: [{ $ref: '#/definitions/Manager' }, { type: 'null' }],
+                description: 'Manager, if any',
+              },
+            },
+          },
+          Manager: { type: 'object', properties: {} },
+        },
+      };
+
+      const result = mergeSchemas(
+        {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              responses: {
+                '200': {
+                  description: 'Success',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/User' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        schemas,
+      );
+
+      expect(result.schemas['User'].properties?.manager).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Manager' }],
+        description: 'Manager, if any',
+        nullable: true,
       });
     });
   });

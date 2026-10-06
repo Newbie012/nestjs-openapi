@@ -1,11 +1,14 @@
 import { Option } from 'effect';
+import { readFileSync } from 'node:fs';
 import type {
   ClassDeclaration,
   Expression,
+  MethodDeclaration,
   ObjectLiteralExpression,
   Symbol,
+  Type,
 } from 'ts-morph';
-import { ts } from 'ts-morph';
+import { Node, ts } from 'ts-morph';
 
 const classFromSymbolCache = new WeakMap<Symbol, ClassDeclaration | null>();
 const symbolFromIdentifierCache = new WeakMap<Expression, Symbol | null>();
@@ -72,3 +75,92 @@ export const getSymbolFromIdentifier = (
   symbolFromIdentifierCache.set(expr, symbol ?? null);
   return Option.fromNullable(symbol);
 };
+
+export const resolveDeclarations = (node: Node): readonly Node[] => {
+  const target = Node.isPropertyAccessExpression(node)
+    ? node.getNameNode()
+    : node;
+  const symbol = target.getSymbol();
+  if (!symbol) return [];
+  const aliased = symbol.isAlias() ? symbol.getAliasedSymbol() : undefined;
+  return (aliased ?? symbol).getDeclarations();
+};
+
+export const getCalleeName = (callee: Node) => {
+  if (Node.isIdentifier(callee)) return callee.getText();
+  if (Node.isPropertyAccessExpression(callee)) return callee.getName();
+  return undefined;
+};
+
+export const getReturnedExpression = (fn: Node): Expression | undefined => {
+  if (
+    !Node.isFunctionDeclaration(fn) &&
+    !Node.isArrowFunction(fn) &&
+    !Node.isFunctionExpression(fn)
+  ) {
+    return undefined;
+  }
+  const body = fn.getBody();
+  if (!body) return undefined;
+  if (Node.isExpression(body)) return body;
+  if (!Node.isBlock(body)) return undefined;
+  const [onlyStatement, ...rest] = body.getStatements();
+  if (
+    rest.length > 0 ||
+    !onlyStatement ||
+    !Node.isReturnStatement(onlyStatement)
+  ) {
+    return undefined;
+  }
+  return onlyStatement.getExpression();
+};
+
+export const isUserCode = (node: Node) => {
+  const sourceFile = node.getSourceFile();
+  return !sourceFile.isDeclarationFile() && !sourceFile.isInNodeModules();
+};
+
+export const getLiteralValues = (type: Type) => {
+  const nonNullable = type.getNonNullableType();
+  const element = nonNullable.getArrayElementType() ?? nonNullable;
+  const members = element.isUnion() ? element.getUnionTypes() : [element];
+  const values = members.map((member) => member.getLiteralValue());
+  const literal = values.every(
+    (value) => typeof value === 'string' || typeof value === 'number',
+  );
+  if (!literal) return undefined;
+  return values as (string | number)[];
+};
+
+export const getAwaitedReturnType = (method: MethodDeclaration) => {
+  const returnType = method.getReturnType();
+  return (
+    (
+      returnType as { getAwaitedType?: () => typeof returnType }
+    ).getAwaitedType?.() ?? returnType
+  );
+};
+
+export const getTopLevelTypeNames = (filePath: string) =>
+  ts
+    .createSourceFile(
+      filePath,
+      readFileSync(filePath, 'utf-8'),
+      ts.ScriptTarget.Latest,
+      false,
+    )
+    .statements.flatMap((statement) =>
+      (ts.isClassDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isEnumDeclaration(statement)) &&
+      statement.name
+        ? [statement.name.text]
+        : [],
+    );
+
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const identifierPattern = (name: string, flags?: string) =>
+  new RegExp(`(?<![\\w$])${escapeRegExp(name)}(?![\\w$])`, flags);

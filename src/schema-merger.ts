@@ -140,10 +140,69 @@ const extractNestedReferences = (
   return refs;
 };
 
+const REF_SIBLING_KEYS = [
+  'description',
+  'title',
+  'example',
+  'default',
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+  'nullable',
+] as const;
+
+const BOOLEAN_FLAG_KEYS = new Set([
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+  'nullable',
+]);
+
+// OpenAPI 3.0 ignores keywords beside `$ref`, so a reference with a
+// description, nullability... is wrapped as `{ allOf: [{ $ref }], ...}`, as
+// @nestjs/swagger emits it
+const convertRefSchema = (schema: JsonSchema, ref: string): OpenApiSchema => {
+  const siblings = Object.fromEntries(
+    REF_SIBLING_KEYS.flatMap((key) => {
+      const value = schema[key];
+      if (value === undefined) return [];
+      if (BOOLEAN_FLAG_KEYS.has(key) && value !== true) return [];
+      return [[key, value]];
+    }),
+  );
+  const refSchema = {
+    $ref: ref.replace('#/definitions/', '#/components/schemas/'),
+  };
+  if (Object.keys(siblings).length === 0) return refSchema;
+  return { allOf: [refSchema], ...siblings } as OpenApiSchema;
+};
+
+const isNullSchema = (schema: JsonSchema) => schema.type === 'null';
+
+// The generator emits `T | null` as `anyOf: [T, { type: 'null' }]`, and
+// OpenAPI 3.0 has no null type
+const collapseNullVariants = (schema: JsonSchema): JsonSchema | undefined => {
+  const key = schema.anyOf ? 'anyOf' : schema.oneOf ? 'oneOf' : undefined;
+  const variants = key ? schema[key] : undefined;
+  if (!key || !variants || !variants.some(isNullSchema)) return undefined;
+
+  const nonNull = variants.filter((variant) => !isNullSchema(variant));
+  const { [key]: _variants, ...outer } = schema;
+
+  if (nonNull.length === 0) return { ...outer, nullable: true };
+  if (nonNull.length === 1) {
+    return { ...nonNull[0], ...outer, nullable: true } as JsonSchema;
+  }
+  return { ...outer, [key]: nonNull, nullable: true } as JsonSchema;
+};
+
 /**
  * Convert JsonSchema to OpenApiSchema format
  */
 const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
+  const withoutNullVariants = collapseNullVariants(schema);
+  if (withoutNullVariants) return convertToOpenApiSchema(withoutNullVariants);
+
   // Build result object incrementally
   const result: Record<string, unknown> = {};
 
@@ -159,11 +218,7 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   }
   if (schema.format) result['format'] = schema.format;
   if (schema.$ref) {
-    // OpenAPI 3.0 tooling may ignore sibling fields on $ref objects.
-    // Keep ref schemas as $ref-only for compatibility.
-    return {
-      $ref: schema.$ref.replace('#/definitions/', '#/components/schemas/'),
-    };
+    return convertRefSchema(schema, schema.$ref);
   }
   if (schema.description) result['description'] = schema.description;
   if (schema.enum) result['enum'] = schema.enum;
@@ -248,7 +303,43 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
     result['required'] = [...schema.required];
   }
 
+  for (const key of PASSTHROUGH_KEYS) {
+    if (schema[key] !== undefined)
+      result[key] = convertRefsInValue(schema[key]);
+  }
+  if (schema.not && typeof schema.not === 'object') {
+    result['not'] = convertToOpenApiSchema(schema.not as JsonSchema);
+  }
+  for (const [key, value] of Object.entries(schema)) {
+    if (key.startsWith('x-')) result[key] = value;
+  }
+
   return result as OpenApiSchema;
+};
+
+const PASSTHROUGH_KEYS = [
+  'examples',
+  'discriminator',
+  'externalDocs',
+  'xml',
+  'minProperties',
+  'maxProperties',
+] as const;
+
+const convertRefsInValue = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    return value.replace(/^#\/definitions\//, '#/components/schemas/');
+  }
+  if (Array.isArray(value)) return value.map(convertRefsInValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        convertRefsInValue(item),
+      ]),
+    );
+  }
+  return value;
 };
 
 /**
@@ -262,9 +353,13 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
 const mergeSchemasInternal = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
+  extraRoots: readonly string[] = [],
 ): MergedResult => {
-  // Find all schemas referenced in paths
-  const referencedSchemas = extractReferencedSchemas(paths);
+  // Find all schemas referenced in paths, plus @ApiExtraModels
+  const referencedSchemas = new Set([
+    ...extractReferencedSchemas(paths),
+    ...extraRoots,
+  ]);
 
   // Build the schema collection, starting with referenced schemas
   const schemas: Record<string, OpenApiSchema> = {};
@@ -304,11 +399,18 @@ const mergeSchemasInternal = (
 export const mergeSchemas = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
-): MergedResult => mergeSchemasInternal(paths, generatedSchemas);
+  extraRoots?: readonly string[],
+): MergedResult => mergeSchemasInternal(paths, generatedSchemas, extraRoots);
 
 export const mergeSchemasEffect = Effect.fn('SchemaMerger.mergeSchemas')(
-  function* (paths: OpenApiPaths, generatedSchemas: GeneratedSchemas) {
-    return yield* Effect.succeed(mergeSchemasInternal(paths, generatedSchemas));
+  function* (
+    paths: OpenApiPaths,
+    generatedSchemas: GeneratedSchemas,
+    extraRoots?: readonly string[],
+  ) {
+    return yield* Effect.succeed(
+      mergeSchemasInternal(paths, generatedSchemas, extraRoots),
+    );
   },
 );
 

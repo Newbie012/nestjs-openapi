@@ -9,10 +9,14 @@
  * - @ApiCookieAuth(name?)    -> Cookie-based auth
  */
 
-import type { ClassDeclaration, MethodDeclaration, Decorator } from 'ts-morph';
-import { ts } from 'ts-morph';
+import type { ClassDeclaration, MethodDeclaration } from 'ts-morph';
 import type { MethodSecurityRequirement } from './domain.js';
-import { getDecoratorName } from './controllers.js';
+import {
+  getEffectiveDecorators,
+  type DecoratorCall,
+  type DecoratorExpansionOptions,
+} from './decorators.js';
+import { asString, asStrings, type StaticValue } from './static-value.js';
 
 /** Default scheme names for security decorators */
 const DEFAULT_SCHEME_NAMES: Record<string, string> = {
@@ -31,108 +35,37 @@ const SECURITY_DECORATORS = new Set([
   'ApiCookieAuth',
 ]);
 
-/**
- * Extracts the first string argument from a decorator.
- * Used for scheme name in @ApiBearerAuth('jwt'), @ApiSecurity('api-key'), etc.
- */
-const extractFirstStringArg = (decorator: Decorator): string | undefined => {
-  const args = decorator.getArguments();
-  if (args.length === 0) return undefined;
-
-  const firstArg = args[0];
-  const stringLit = firstArg.asKind?.(ts.SyntaxKind.StringLiteral);
-  return stringLit?.getLiteralValue();
-};
-
-/**
- * Extracts string array from an array literal expression.
- * Used for scopes in @ApiOAuth2(['read:users', 'write:users']).
- */
-const extractStringArray = (decorator: Decorator): readonly string[] => {
-  const args = decorator.getArguments();
-  if (args.length === 0) return [];
-
-  const firstArg = args[0];
-  const arrayLit = firstArg.asKind?.(ts.SyntaxKind.ArrayLiteralExpression);
-  if (!arrayLit) return [];
-
-  const scopes: string[] = [];
-  for (const element of arrayLit.getElements()) {
-    const stringLit = element.asKind?.(ts.SyntaxKind.StringLiteral);
-    if (stringLit) {
-      scopes.push(stringLit.getLiteralValue());
-    }
-  }
-  return scopes;
-};
-
-/**
- * Extracts the second string argument from a decorator.
- * Used for scheme name in @ApiOAuth2(scopes, 'oauth2-custom').
- */
-const extractSecondStringArg = (decorator: Decorator): string | undefined => {
-  const args = decorator.getArguments();
-  if (args.length < 2) return undefined;
-
-  const secondArg = args[1];
-  const stringLit = secondArg.asKind?.(ts.SyntaxKind.StringLiteral);
-  return stringLit?.getLiteralValue();
-};
+const readStringArray = (value: StaticValue | undefined) =>
+  value?.kind === 'array' ? asStrings(value.items) : [];
 
 /**
  * Parses a single security decorator into a MethodSecurityRequirement.
  */
 const parseSecurityDecorator = (
-  decorator: Decorator,
+  call: DecoratorCall,
 ): MethodSecurityRequirement | undefined => {
-  const decoratorName = getDecoratorName(decorator);
-
-  if (!SECURITY_DECORATORS.has(decoratorName)) {
-    return undefined;
-  }
-
-  switch (decoratorName) {
+  switch (call.name) {
     case 'ApiBearerAuth':
     case 'ApiBasicAuth':
     case 'ApiCookieAuth': {
       // @ApiBearerAuth() or @ApiBearerAuth('jwt')
       const schemeName =
-        extractFirstStringArg(decorator) ?? DEFAULT_SCHEME_NAMES[decoratorName];
+        asString(call.args[0]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
       return { schemeName, scopes: [] };
     }
 
     case 'ApiOAuth2': {
       // @ApiOAuth2(['scope1', 'scope2']) or @ApiOAuth2(['scope1'], 'oauth2-custom')
-      const scopes = extractStringArray(decorator);
       const schemeName =
-        extractSecondStringArg(decorator) ??
-        DEFAULT_SCHEME_NAMES[decoratorName];
-      return { schemeName, scopes: [...scopes] };
+        asString(call.args[1]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
+      return { schemeName, scopes: readStringArray(call.args[0]) };
     }
 
     case 'ApiSecurity': {
       // @ApiSecurity('api-key') or @ApiSecurity('api-key', ['scope'])
-      const schemeName = extractFirstStringArg(decorator);
+      const schemeName = asString(call.args[0]);
       if (!schemeName) return undefined; // ApiSecurity requires a scheme name
-
-      // Check if second argument is an array of scopes
-      const args = decorator.getArguments();
-      const scopes: string[] = [];
-      if (args.length >= 2) {
-        const secondArg = args[1];
-        const arrayLit = secondArg.asKind?.(
-          ts.SyntaxKind.ArrayLiteralExpression,
-        );
-        if (arrayLit) {
-          for (const element of arrayLit.getElements()) {
-            const stringLit = element.asKind?.(ts.SyntaxKind.StringLiteral);
-            if (stringLit) {
-              scopes.push(stringLit.getLiteralValue());
-            }
-          }
-        }
-      }
-      return { schemeName, scopes };
+      return { schemeName, scopes: readStringArray(call.args[1]) };
     }
 
     default:
@@ -140,23 +73,13 @@ const parseSecurityDecorator = (
   }
 };
 
-/**
- * Extracts all security requirements from a list of decorators.
- */
-const extractSecurityFromDecorators = (
-  decorators: readonly Decorator[],
-): readonly MethodSecurityRequirement[] => {
-  const requirements: MethodSecurityRequirement[] = [];
-
-  for (const decorator of decorators) {
-    const requirement = parseSecurityDecorator(decorator);
-    if (requirement) {
-      requirements.push(requirement);
-    }
-  }
-
-  return requirements;
-};
+const extractSecurityFromCalls = (
+  calls: readonly DecoratorCall[],
+): readonly MethodSecurityRequirement[] =>
+  calls.flatMap((call) => {
+    const requirement = parseSecurityDecorator(call);
+    return requirement ? [requirement] : [];
+  });
 
 /**
  * Extracts security requirements from a controller class.
@@ -164,8 +87,9 @@ const extractSecurityFromDecorators = (
  */
 export const extractControllerSecurity = (
   controller: ClassDeclaration,
+  expansion?: DecoratorExpansionOptions,
 ): readonly MethodSecurityRequirement[] =>
-  extractSecurityFromDecorators(controller.getDecorators());
+  extractSecurityFromCalls(getEffectiveDecorators(controller, expansion));
 
 /**
  * Extracts security requirements from a method.
@@ -173,18 +97,20 @@ export const extractControllerSecurity = (
  */
 export const extractMethodSecurity = (
   method: MethodDeclaration,
+  expansion?: DecoratorExpansionOptions,
 ): readonly MethodSecurityRequirement[] =>
-  extractSecurityFromDecorators(method.getDecorators());
+  extractSecurityFromCalls(getEffectiveDecorators(method, expansion));
 
 /**
  * Checks if a method has any security decorators.
  */
 export const hasMethodSecurityDecorators = (
   method: MethodDeclaration,
+  expansion?: DecoratorExpansionOptions,
 ): boolean =>
-  method
-    .getDecorators()
-    .some((d) => SECURITY_DECORATORS.has(getDecoratorName(d)));
+  getEffectiveDecorators(method, expansion).some((call) =>
+    SECURITY_DECORATORS.has(call.name),
+  );
 
 /**
  * Combines controller-level and method-level security requirements.

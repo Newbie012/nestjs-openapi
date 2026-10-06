@@ -6,6 +6,7 @@
  */
 
 import { Project } from 'ts-morph';
+import { getTopLevelTypeNames } from './ast.js';
 
 /**
  * Resolves missing type names to their source file paths using ts-morph.
@@ -89,6 +90,24 @@ function buildTypeIndex(project: Project): Map<string, string> {
   return index;
 }
 
+export function resolveLocalTypeLocations(
+  filePaths: readonly string[],
+  missingTypes: ReadonlySet<string>,
+): Map<string, string> {
+  const resolved = new Map<string, string>();
+  if (missingTypes.size === 0) return resolved;
+
+  for (const filePath of filePaths) {
+    for (const name of getTopLevelTypeNames(filePath)) {
+      if (missingTypes.has(name) && !resolved.has(name)) {
+        resolved.set(name, filePath);
+      }
+    }
+  }
+
+  return resolved;
+}
+
 /**
  * Creates a ts-morph Project configured for type resolution.
  * Uses minimal compiler options for performance.
@@ -120,6 +139,9 @@ function hasRipgrep(): boolean {
   }
 }
 
+const DECLARATION_PREFIX =
+  '((abstract|declare|default|const)\\s+)*(class|interface|type|enum)\\s+';
+
 /**
  * Fast type resolution using simple file content search.
  * Uses ripgrep if available (much faster), falls back to grep.
@@ -139,7 +161,7 @@ export function resolveTypeLocationsFast(
 
   // Build a single pattern for all types: (Type1|Type2|Type3)
   const typePattern = typeNames.join('|');
-  const pattern = `export\\s+(class|interface|type|enum)\\s+(${typePattern})\\b`;
+  const pattern = `export\\s+${DECLARATION_PREFIX}(${typePattern})\\b`;
 
   // Common directories to exclude for performance
   const excludeDirs = [
@@ -189,7 +211,7 @@ export function resolveTypeLocationsFast(
       // Extract the type name from the match
       for (const typeName of typeNames) {
         const typeRegex = new RegExp(
-          `export\\s+(class|interface|type|enum)\\s+${typeName}\\b`,
+          `export\\s+${DECLARATION_PREFIX}${typeName}\\b`,
         );
         if (typeRegex.test(line) && !resolved.has(typeName)) {
           resolved.set(typeName, filePath);
