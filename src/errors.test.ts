@@ -7,8 +7,6 @@ import {
   ConfigValidationError,
   DtoGlobResolutionError,
   InvalidMethodError,
-  MissingGenericSchemaTempFileCleanupError,
-  MissingGenericSchemaTempFileWriteError,
   OutputDirectoryCreationError,
   OutputSerializationError,
   OutputWriteError,
@@ -153,40 +151,6 @@ describe('Error Classes', () => {
       expect(error.message).toBe(
         'Invalid method UserController.getUser: Missing return type',
       );
-    });
-  });
-
-  describe('MissingGenericSchemaTempFileWriteError', () => {
-    it('should create temporary file write error', () => {
-      const cause = new Error('write failed');
-      const error = MissingGenericSchemaTempFileWriteError.create(
-        '/tmp/.openapi-temp.ts',
-        cause,
-      );
-
-      expect(error._tag).toBe('MissingGenericSchemaTempFileWriteError');
-      expect(error.filePath).toBe('/tmp/.openapi-temp.ts');
-      expect(error.message).toBe(
-        'Failed to write temporary schema file: /tmp/.openapi-temp.ts',
-      );
-      expect(error.cause).toBe(cause);
-    });
-  });
-
-  describe('MissingGenericSchemaTempFileCleanupError', () => {
-    it('should create temporary file cleanup error', () => {
-      const cause = new Error('unlink failed');
-      const error = MissingGenericSchemaTempFileCleanupError.create(
-        '/tmp/.openapi-temp.ts',
-        cause,
-      );
-
-      expect(error._tag).toBe('MissingGenericSchemaTempFileCleanupError');
-      expect(error.filePath).toBe('/tmp/.openapi-temp.ts');
-      expect(error.message).toBe(
-        'Failed to remove temporary schema file: /tmp/.openapi-temp.ts',
-      );
-      expect(error.cause).toBe(cause);
     });
   });
 

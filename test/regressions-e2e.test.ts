@@ -110,4 +110,33 @@ describe('Regressions E2E', () => {
       expect(warnings.join('\n')).not.toContain('statically');
     });
   });
+
+  describe('a generic whose declaration collides', () => {
+    it('inlines its instantiations', () => {
+      expect(
+        Object.keys(spec.components?.schemas ?? {}).filter((name) =>
+          name.includes('FilterOption'),
+        ),
+      ).toEqual([]);
+      expect(propertiesOf('SearchFiltersDto')['dateRange']).toMatchObject({
+        type: 'object',
+        properties: {
+          value: { $ref: '#/components/schemas/DateRangeOptions' },
+        },
+      });
+    });
+
+    it('inlines them with raw generic names too', async () => {
+      const raw = await generateWithWarnings(
+        'openapi.raw.config.ts',
+        'openapi.raw.generated.json',
+      );
+      expect(
+        Object.keys(raw.spec.components?.schemas ?? {}).filter((name) =>
+          name.includes('FilterOption'),
+        ),
+      ).toEqual([]);
+      expect(raw.brokenRefCount).toBe(0);
+    });
+  });
 });

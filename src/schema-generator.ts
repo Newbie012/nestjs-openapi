@@ -239,6 +239,9 @@ type IsolatedProperty = {
   readonly reason: string;
 };
 
+// Strips the suffix schema identity gives renamed declarations
+const publicTypeName = (name: string) => name.replace(/__oapi\d+/g, '');
+
 const trySchemaForNodes = (
   handle: SchemaGeneratorHandle,
   nodes: readonly TypeScript.Node[],
@@ -283,7 +286,8 @@ const describeError = (error: unknown) => {
     }
     current = (current as { cause?: unknown }).cause;
   }
-  const reason = [...new Set(messages)].join(': ') || 'unknown error';
+  const reason =
+    publicTypeName([...new Set(messages)].join(': ')) || 'unknown error';
   return location ? `${reason} (at ${location})` : reason;
 };
 
@@ -303,7 +307,7 @@ const generateTypeIn = (options: SchemaProgramOptions, target: TypeTarget) =>
     if (!node) {
       return yield* Effect.fail(
         new SchemaGenerationError({
-          message: `Type ${target.name} not found in ${target.filePath}`,
+          message: `Type ${publicTypeName(target.name)} not found in ${target.filePath}`,
         }),
       );
     }
@@ -588,7 +592,7 @@ const generateInProgram = (
     for (const { target } of unrecovered) definitions[target.name] = {};
     yield* Effect.forEach(unrecovered, ({ target, error }) =>
       Effect.logWarning(
-        `Could not generate a schema for ${target.name}; it is documented as any value`,
+        `Could not generate a schema for ${publicTypeName(target.name)}; it is documented as any value`,
       ).pipe(
         Effect.annotateLogs({
           filePath: target.filePath,
@@ -599,7 +603,9 @@ const generateInProgram = (
     if (missing.length > 0) {
       yield* Effect.logDebug('Types not found in their files').pipe(
         Effect.annotateLogs({
-          types: missing.map((target) => target.name).join(', '),
+          types: missing
+            .map((target) => publicTypeName(target.name))
+            .join(', '),
         }),
       );
     }
@@ -686,7 +692,7 @@ const referencesAnyOf = (
 const warnIsolatedProperties = (isolated: readonly IsolatedProperty[]) =>
   Effect.forEach(isolated, (entry) =>
     Effect.logWarning(
-      `Generated ${entry.typeName} without the type of its "${entry.property}" property, which the schema generator cannot handle`,
+      `Generated ${publicTypeName(entry.typeName)} without the type of its "${entry.property}" property, which the schema generator cannot handle`,
     ).pipe(
       Effect.annotateLogs({ filePath: entry.filePath, reason: entry.reason }),
     ),

@@ -45,10 +45,11 @@ export default defineConfig({
     decorators: { InternalPort: [{ name: 'ApiExcludeController' }] },
     include: ['ExternalApiModule'], // like SwaggerModule.createDocument()
     deepScanRoutes: false,
+    schemaNameCollision: 'inline', // 'rename' | 'error' | (collision) => name
     enums: 'ref', // or 'nest' (inline, like @nestjs/swagger)
     versioning: { type: 'uri', defaultVersion: '1' }, // as in app.enableVersioning()
     transformPath: (path, { controller, method, httpMethod }) => path,
-    schemas: { aliasRefs: 'collapse' },
+    schemas: { aliasRefs: 'collapse', genericNames: 'sanitized' },
   },
 });
 ```

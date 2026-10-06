@@ -47,15 +47,43 @@ describe('Schema Refs E2E', () => {
     expect(spec.info.title).toBe('Complex Generics API');
   });
 
-  it('should NOT URL-encode angle brackets in schema refs', () => {
-    // These patterns should NOT appear (URL-encoded angle brackets)
-    expect(rawContent).not.toContain('%3C'); // URL-encoded <
-    expect(rawContent).not.toContain('%3E'); // URL-encoded >
+  describe('raw generic names', () => {
+    const rawConfigPath = resolve(
+      process.cwd(),
+      'e2e-applications/complex-generics/openapi.raw.config.ts',
+    );
+    const rawOutputPath = resolve(
+      process.cwd(),
+      'e2e-applications/complex-generics/openapi.raw.generated.json',
+    );
 
-    // These patterns SHOULD appear (clean generic refs)
-    expect(rawContent).toContain('PaginatedResponse<');
-    expect(rawContent).toContain('ApiResponse<');
-    expect(rawContent).toContain('BatchResult<');
+    let rawGenericContent: string;
+
+    beforeAll(async () => {
+      await generate(rawConfigPath);
+      rawGenericContent = readFileSync(rawOutputPath, 'utf-8');
+    });
+
+    afterAll(() => {
+      if (existsSync(rawOutputPath)) unlinkSync(rawOutputPath);
+    });
+
+    it('should NOT URL-encode angle brackets in raw generic names', () => {
+      // These patterns should NOT appear (URL-encoded angle brackets)
+      expect(rawGenericContent).not.toContain('%3C'); // URL-encoded <
+      expect(rawGenericContent).not.toContain('%3E'); // URL-encoded >
+
+      // These patterns SHOULD appear (clean generic refs)
+      expect(rawGenericContent).toContain('PaginatedResponse<');
+      expect(rawGenericContent).toContain('ApiResponse<');
+      expect(rawGenericContent).toContain('BatchResult<');
+    });
+  });
+
+  it('should give generic instantiations valid component names by default', () => {
+    for (const name of Object.keys(spec.components?.schemas ?? {})) {
+      expect(name).toMatch(/^[a-zA-Z0-9._-]+$/);
+    }
   });
 
   it('should have valid schema refs with generic types', () => {
@@ -64,14 +92,14 @@ describe('Schema Refs E2E', () => {
     expect(
       articlesGet?.responses['200']?.content?.['application/json']?.schema,
     ).toEqual({
-      $ref: '#/components/schemas/PaginatedResponse<ArticleEntity>',
+      $ref: '#/components/schemas/PaginatedResponse_ArticleEntity',
     });
 
     const articlesPost = spec.paths['/articles']?.post;
     expect(
       articlesPost?.responses['201']?.content?.['application/json']?.schema,
     ).toEqual({
-      $ref: '#/components/schemas/ApiResponse<ArticleEntity>',
+      $ref: '#/components/schemas/ApiResponse_ArticleEntity',
     });
   });
 

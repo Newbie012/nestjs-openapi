@@ -38,13 +38,14 @@ src/
 ├── parameters.ts         # @ApiQuery / @ApiParam / @ApiHeader(s), merged with inferred params
 ├── property-schema.ts    # @ApiProperty options → declared schema (Nest precedence)
 ├── run-project.ts        # One ts-morph project per tsconfig per run
-├── spec-compliance.ts    # Version-specific `examples`
+├── spec-compliance.ts    # Valid component names, version-specific `examples`
 ├── schema-inliner.ts     # Writes referenced components in place
 ├── http-status.ts        # HttpStatus codes and response shortcut statuses
 ├── schema-program.ts     # TypeScript programs for ts-json-schema-generator (in-memory transforms)
 ├── schema-generator.ts   # JSON Schema generation
 ├── mapped-types.ts       # PartialType / PickType / OmitType / IntersectionType schemas
 ├── declaration-references.ts # Declarations each operation reaches, by symbol
+├── schema-identity.ts    # One schema per declaration: collision strategies, in-memory renames
 ├── schema-merger.ts      # Schema merging and deduplication
 ├── schema-normalizer.ts  # Schema name normalization
 ├── schema-version-transformer.ts # OpenAPI version transforms

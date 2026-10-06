@@ -75,6 +75,8 @@ export type {
   CustomDecoratorMapping,
   CustomDecoratorUse,
   DecoratorSpec,
+  SchemaNameCollision,
+  SchemaNameCollisionStrategy,
   PathTransform,
 } from './types.js';
 
@@ -137,8 +139,7 @@ export {
   ConfigNotFoundError,
   ConfigLoadError,
   ConfigValidationError,
-  MissingGenericSchemaTempFileCleanupError,
-  MissingGenericSchemaTempFileWriteError,
+  SchemaNameCollisionError,
   DtoGlobResolutionError,
   InvalidMethodError,
   PublicApiError,
