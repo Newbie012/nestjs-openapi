@@ -339,6 +339,37 @@ options: {
 }
 ```
 
+### `schemaNameCollision`
+
+Schemas are components named after their types, but different declarations can share a name: two files each declaring their own `AddressDto`, or two libraries exporting a `PluginStateDto`. References always resolve to the declaration they point to; this option only decides how such schemas are named. Only declarations reached from the documented routes count, so an unused class with the same name is not a collision.
+
+| Value      | Behavior                                                                                       |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `'inline'` | Default. Each colliding schema is written in place where it is used, with a warning per name. |
+| `'rename'` | Each colliding declaration gets its own component, named after its file (see below).          |
+| `'error'`  | Generation fails, listing every colliding name and the files declaring it.                    |
+| function   | Returns the component name for each colliding declaration. Names must be unique.              |
+
+`'rename'` names a component `<File>_<Type>`: the declaring file's name without `.ts` and `.dto`, in PascalCase. If two colliding declarations come from files with the same name, parent folders are prepended until they differ:
+
+| Declaration                                           | Component                     |
+| ----------------------------------------------------- | ----------------------------- |
+| `AddressDto` in `shipping/shipping.dto.ts`            | `Shipping_AddressDto`         |
+| `AddressDto` in `orders/dto/get-order-summary.dto.ts` | `GetOrderSummary_AddressDto`  |
+| `PluginStateDto` in `libs/a/plugin-state.dto.ts`      | `APluginState_PluginStateDto` |
+| `PluginStateDto` in `libs/b/plugin-state.dto.ts`      | `BPluginState_PluginStateDto` |
+
+A function receives each colliding declaration:
+
+```typescript
+options: {
+  schemaNameCollision: ({ name, relativePath, exported, declarations }) =>
+    `${relativePath.split('/')[1]}_${name}`,
+}
+```
+
+`relativePath` is relative to the config file. If a function returns the same name twice, or the name of another schema, generation fails with a message naming both declarations.
+
 ### `pathFilter`
 
 Filter paths by regex or predicate function. Paths matching the regex (or returning `true`) are **included**:
@@ -426,6 +457,15 @@ options: {
   },
 }
 ```
+
+#### `schemas.genericNames`
+
+Names of generic instantiations (default: `"sanitized"`). OpenAPI only allows letters, digits, `.`, `-` and `_` in component names.
+
+| Value         | Example                                                                         |
+| ------------- | ------------------------------------------------------------------------------- |
+| `"sanitized"` | `Page<User>` → `Page_User`, `Page<User[]>` → `Page_UserArray`, `Result<A \| B>` → `Result_A_Or_B` |
+| `"raw"`       | `Page<User>` as is; not valid OpenAPI, though some tools accept it              |
 
 ## `extends`
 

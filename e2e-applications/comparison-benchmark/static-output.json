@@ -203,7 +203,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse<UserDto>"
+                  "$ref": "#/components/schemas/PaginatedResponse_UserDto"
                 }
               }
             },
@@ -330,7 +330,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponse<UserDto>"
+                  "$ref": "#/components/schemas/ApiResponse_UserDto"
                 }
               }
             },
@@ -365,7 +365,7 @@
         ],
         "type": "object"
       },
-      "ApiResponse<UserDto>": {
+      "ApiResponse_UserDto": {
         "anyOf": [
           {
             "additionalProperties": false,
@@ -553,7 +553,7 @@
         ],
         "type": "string"
       },
-      "PaginatedResponse<UserDto>": {
+      "PaginatedResponse_UserDto": {
         "additionalProperties": false,
         "properties": {
           "items": {

@@ -8,7 +8,8 @@ import { generateNamedSchemas } from '../src/schema-generator.js';
 import type { OpenApiSpec } from '../src/types.js';
 
 /**
- * A non-exported interface, and nested classes referencing it.
+ * A class whose name collides with another file's, a non-exported
+ * interface, and nested classes referencing both.
  */
 describe('Fallback naming E2E', () => {
   const fixtureDir = resolve(process.cwd(), 'e2e-applications/fallback-naming');
@@ -40,7 +41,6 @@ describe('Fallback naming E2E', () => {
     expect(Object.keys(spec.components?.schemas ?? {}).sort()).toEqual([
       'ProductReviewDto',
       'RatingInProductReviewDto',
-      'ReviewerDto',
       'VariantInProductReviewDto',
     ]);
     expect(

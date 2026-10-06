@@ -13,6 +13,25 @@ export type {
   DecoratorSpec,
 } from './decorators.js';
 
+/** A declaration whose schema name another reachable declaration shares */
+export interface SchemaNameCollision {
+  /** The shared name, e.g. `AddressDto` */
+  readonly name: string;
+  /** Absolute path of the file declaring this one */
+  readonly filePath: string;
+  /** The same path, relative to the config file's directory */
+  readonly relativePath: string;
+  /** Whether the declaration is exported */
+  readonly exported: boolean;
+  readonly kind: 'class' | 'interface' | 'enum' | 'type';
+  /** Every declaration sharing the name, this one included */
+  readonly declarations: readonly {
+    readonly filePath: string;
+    readonly relativePath: string;
+    readonly exported: boolean;
+  }[];
+}
+
 /** Rewrites an operation's documented path */
 export type PathTransform = (
   path: string,
@@ -25,6 +44,12 @@ export type PathTransform = (
     readonly httpMethod: string;
   },
 ) => string;
+
+export type SchemaNameCollisionStrategy =
+  | 'inline'
+  | 'rename'
+  | 'error'
+  | ((collision: SchemaNameCollision) => string);
 
 /**
  * Contact information for the API
@@ -357,6 +382,23 @@ export interface OptionsConfig {
   readonly deepScanRoutes?: boolean;
 
   /**
+   * What to do when different declarations reached from the documented
+   * routes share a name, e.g. two files each declaring their own
+   * `AddressDto`. Every reference always points to the declaration it
+   * actually uses; this only decides how they are named:
+   *
+   * - `'inline'`: colliding schemas are written in place instead of as named
+   *   components, with a warning listing the declarations.
+   * - `'rename'`: each gets its own component, named after its file:
+   *   `GetOrderSummary_AddressDto` for `get-order-summary.dto.ts`.
+   * - `'error'`: generation fails, listing the colliding declarations.
+   * - A function returning the component name for each declaration.
+   *
+   * @default 'inline'
+   */
+  readonly schemaNameCollision?: SchemaNameCollisionStrategy;
+
+  /**
    * How enums are emitted.
    *
    * - `'ref'`: every TypeScript enum (and `enum: Status` without `enumName`)
@@ -423,6 +465,17 @@ export interface SchemaOptions {
    * @default "collapse"
    */
   readonly aliasRefs?: 'collapse' | 'preserve';
+
+  /**
+   * Names of generic instantiations. OpenAPI only allows letters, digits,
+   * `.`, `-` and `_` in component names.
+   * - `"sanitized"`: `Page<User>` → `Page_User`, `Page<User[]>` →
+   *   `Page_UserArray`, `Result<A | B>` → `Result_A_Or_B`
+   * - `"raw"`: keep `Page<User>` (not valid OpenAPI, but some tools accept it)
+   *
+   * @default "sanitized"
+   */
+  readonly genericNames?: 'sanitized' | 'raw';
 }
 
 /**

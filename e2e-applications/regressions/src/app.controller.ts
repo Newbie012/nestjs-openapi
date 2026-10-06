@@ -4,6 +4,8 @@ import {
   NotificationSettingsDto,
   UpdateThemeDto,
 } from './notifications/notification.dto';
+import { SearchFiltersDto } from './search/models/filters';
+import { ActiveFiltersDto } from './active/active-filters';
 
 @Controller()
 export class AppController {
@@ -20,5 +22,15 @@ export class AppController {
   @Put('settings/theme')
   updateTheme(@Body() body: UpdateThemeDto): UpdateThemeDto {
     return body;
+  }
+
+  @Get('filters')
+  filters(): SearchFiltersDto {
+    return new SearchFiltersDto();
+  }
+
+  @Get('filters/active')
+  activeFilters(): ActiveFiltersDto {
+    return new ActiveFiltersDto();
   }
 }

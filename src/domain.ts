@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 import type { CustomDecoratorMapping } from './decorators.js';
-import type { PathTransform } from './types.js';
+import type { PathTransform, SchemaNameCollision } from './types.js';
 
 type CustomDecoratorMappingFunction = Extract<
   CustomDecoratorMapping,
@@ -429,6 +429,7 @@ export type QueryOptionsConfig = typeof QueryOptionsConfig.Type;
 
 export const SchemaOptionsConfig = Schema.Struct({
   aliasRefs: Schema.optional(Schema.Literal('collapse', 'preserve')),
+  genericNames: Schema.optional(Schema.Literal('sanitized', 'raw')),
 });
 export type SchemaOptionsConfig = typeof SchemaOptionsConfig.Type;
 
@@ -498,6 +499,15 @@ export const OptionsConfig = Schema.Struct({
         ),
       ),
     }),
+  ),
+  schemaNameCollision: Schema.optional(
+    Schema.Union(
+      Schema.Literal('inline', 'rename', 'error'),
+      functionSchema<(collision: SchemaNameCollision) => string>(
+        'SchemaNameCollisionFunction',
+        'A function that returns the component name for a colliding declaration',
+      ),
+    ),
   ),
   query: Schema.optional(QueryOptionsConfig),
   schemas: Schema.optional(SchemaOptionsConfig),

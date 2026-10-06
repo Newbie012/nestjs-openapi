@@ -521,9 +521,10 @@ export default defineConfig({
         readFileSync(outputPath, 'utf-8'),
       ) as Record<string, any>;
       const schemas = spec.components?.schemas ?? {};
-      expect(schemas['Relation<UserDto>']).toBeDefined();
+      // Generic instantiations get valid component names
+      expect(schemas['Relation_UserDto']).toBeDefined();
       expect(schemas['PostDto']?.properties?.author?.$ref).toBe(
-        '#/components/schemas/Relation<UserDto>',
+        '#/components/schemas/Relation_UserDto',
       );
     });
 

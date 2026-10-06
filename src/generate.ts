@@ -58,16 +58,28 @@ import {
 import { runtimeLayerFor } from './runtime-layer.js';
 import { generatorServicesLayer } from './service-layer.js';
 import { SchemaService } from './schema-service.js';
+import {
+  EMPTY_PLAN,
+  applyPlanToMethods,
+  collisionInlinedNames,
+  namingForPlan,
+  planSchemaNames,
+  regenerateDeclarations,
+} from './schema-identity.js';
+import { declarationKey } from './declaration-references.js';
 import { inlineSchemas } from './schema-inliner.js';
+import type { DeclarationRef } from './domain.js';
 import {
   DEFAULT_ENUM_STYLE,
-  DEFAULT_SCHEMA_NAMING,
   NAMED_ENUM_REF,
   type SchemaNaming,
 } from './property-schema.js';
 import type { DecoratorExpansionOptions } from './decorators.js';
 import { clearSchemaProgramCache } from './schema-program.js';
-import { adaptExamplesForVersion } from './spec-compliance.js';
+import {
+  adaptExamplesForVersion,
+  sanitizeComponentNames,
+} from './spec-compliance.js';
 import type { MethodInfo } from './domain.js';
 import type { PathTransform } from './types.js';
 import { clearRunProjects, getRunProject } from './run-project.js';
@@ -468,9 +480,18 @@ const indexSchemaClasses = (
   project: Project,
   sourceFiles: ReadonlySet<string>,
   schemaNames: ReadonlySet<string>,
+  plannedSources: ReadonlyMap<string, DeclarationRef>,
 ) => {
   const index = new Map<string, ClassDeclaration>();
   const rank = (filePath: string) => (sourceFiles.has(filePath) ? 0 : 1);
+
+  for (const [name, ref] of plannedSources) {
+    if (ref.kind !== 'class' || !schemaNames.has(name)) continue;
+    const classDecl =
+      project.getSourceFile(ref.filePath)?.getClass(ref.name) ??
+      project.addSourceFileAtPathIfExists(ref.filePath)?.getClass(ref.name);
+    if (classDecl) index.set(name, classDecl);
+  }
 
   for (const sourceFile of project.getSourceFiles()) {
     if (sourceFile.isDeclarationFile() || sourceFile.isInNodeModules()) {
@@ -480,7 +501,7 @@ const indexSchemaClasses = (
 
     for (const classDecl of sourceFile.getClasses()) {
       const name = classDecl.getName();
-      if (!name || !schemaNames.has(name)) continue;
+      if (!name || !schemaNames.has(name) || plannedSources.has(name)) continue;
 
       const current = index.get(name);
       if (
@@ -500,6 +521,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
     sourceFilePaths: readonly string[],
     tsconfig: string,
     inputSchemas: GeneratedSchemas,
+    plannedSources: ReadonlyMap<string, DeclarationRef>,
     expansion: DecoratorExpansionOptions,
     withValidation: boolean,
     naming: SchemaNaming,
@@ -521,6 +543,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
       project,
       new Set(sourceFilePaths),
       new Set(Object.keys(schemas.definitions)),
+      plannedSources,
     );
 
     // Base classes of mapped types are needed even when nothing else
@@ -984,22 +1007,33 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       filteredMethodInfos.length,
     );
 
+    // One schema per declaration: plan names for the declarations the
+    // documented operations reach, and point the operations at them
     const dtoFiles = yield* resolveDtoFilesEffect(dtoGlobArray, configDir);
+    const schemaNamePlan = initialSchemas
+      ? yield* planSchemaNames(
+          filteredMethodInfos,
+          dtoFiles,
+          options.schemaNameCollision ?? 'inline',
+          configDir,
+        )
+      : EMPTY_PLAN;
+    const documentedMethods = applyPlanToMethods(
+      filteredMethodInfos,
+      schemaNamePlan,
+    );
     // @ApiExtraModels adds schemas even when no operation references them
     const extraModelRoots = [
       ...new Set(
-        filteredMethodInfos.flatMap((method) => method.extraModels ?? []),
+        documentedMethods.flatMap((method) => method.extraModels ?? []),
       ),
     ];
     const enumStyle = options.enums ?? DEFAULT_ENUM_STYLE;
-    const schemaNaming: SchemaNaming = {
-      ...DEFAULT_SCHEMA_NAMING,
-      enums: enumStyle,
-    };
+    const schemaNaming = namingForPlan(schemaNamePlan, enumStyle);
     // Enums named with `enumName` stay components in 'nest' style
     const namedEnums = new Set<string>();
 
-    const routedMethods = filteredMethodInfos.map((method) => ({
+    const routedMethods = documentedMethods.map((method) => ({
       ...method,
       path: finalizePath(method, options.basePath, options.transformPath),
     }));
@@ -1032,7 +1066,19 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     let schemas: Record<string, OpenApiSchema> = {};
 
     if (initialSchemas) {
-      let generatedSchemas: GeneratedSchemas = initialSchemas;
+      const regenerated = yield* regenerateDeclarations(
+        schemaNamePlan,
+        filteredMethodInfos,
+        tsconfig,
+      );
+      const plannedSources = regenerated.sources;
+      let generatedSchemas: GeneratedSchemas = {
+        definitions: {
+          ...regenerated.extra.definitions,
+          ...initialSchemas.definitions,
+          ...regenerated.forced.definitions,
+        },
+      };
 
       // Files schemas were generated from; decorator metadata is read from
       // the classes declared in them and in the files they import.
@@ -1044,6 +1090,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       for (const method of filteredMethodInfos) {
         for (const ref of method.referencedDeclarations ?? []) {
           if (ref.generic) continue;
+          if (schemaNamePlan.declarations.has(declarationKey(ref))) continue;
           if (!generatedSchemas.definitions[ref.name]) {
             reachedWithoutSchema.set(ref.name, ref.filePath);
           }
@@ -1191,6 +1238,13 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
               definitions: {
                 ...generatedSchemas.definitions,
                 ...normalizedAdditional.definitions,
+                // Keep schemas generated from their planned declarations
+                ...Object.fromEntries(
+                  [...plannedSources.keys()].flatMap((name) => {
+                    const schema = generatedSchemas.definitions[name];
+                    return schema ? [[name, schema]] : [];
+                  }),
+                ),
               },
             };
             generatedSchemas = combinedSchemas;
@@ -1286,6 +1340,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           [...schemaSourceFiles],
           tsconfig,
           generatedSchemas,
+          plannedSources,
           expansion,
           shouldExtractValidation,
           schemaNaming,
@@ -1316,6 +1371,26 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = inlined.schemas;
     }
 
+    // 'inline' collision strategy: colliding schemas are written in place
+    const inlineNames = collisionInlinedNames(
+      Object.keys(schemas),
+      schemaNamePlan,
+    );
+    if (inlineNames.size > 0) {
+      const inlined = inlineSchemas(
+        paths as OpenApiPaths,
+        schemas,
+        inlineNames,
+      );
+      paths = inlined.paths as typeof paths;
+      schemas = inlined.schemas;
+      for (const name of inlined.kept) {
+        yield* Effect.logWarning(
+          `Schema "${name}" refers to itself and cannot be inlined; it stays a component under its file-based name`,
+        );
+      }
+    }
+
     if (aliasRefsMode === 'collapse' && Object.keys(schemas).length > 0) {
       const collapsed = collapseAliasRefs(paths as OpenApiPaths, schemas);
       paths = collapsed.paths as typeof paths;
@@ -1326,6 +1401,14 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     // Get OpenAPI version from config (default to 3.0.3)
     const openApiVersion = openapi.version ?? '3.0.3';
     yield* Effect.annotateCurrentSpan('openApiVersion', openApiVersion);
+
+    // Component names must match ^[a-zA-Z0-9._-]+$; generic instantiations
+    // such as `Page<User>` become `Page_User` unless raw names are asked for
+    if ((options.schemas?.genericNames ?? 'sanitized') === 'sanitized') {
+      const sanitized = sanitizeComponentNames(paths as OpenApiPaths, schemas);
+      paths = sanitized.paths as typeof paths;
+      schemas = sanitized.schemas;
+    }
 
     // `examples` in schemas: 3.0 has only `example`, 3.1 wants an array
     const adapted = adaptExamplesForVersion(

@@ -206,46 +206,6 @@ export class ValidationMappingError extends Schema.TaggedError<ValidationMapping
   }
 }
 
-export class MissingGenericSchemaTempFileWriteError extends Schema.TaggedError<MissingGenericSchemaTempFileWriteError>()(
-  'MissingGenericSchemaTempFileWriteError',
-  {
-    filePath: Schema.String,
-    message: Schema.String,
-    cause: Schema.optional(Schema.Unknown),
-  },
-) {
-  static create(
-    filePath: string,
-    cause?: unknown,
-  ): MissingGenericSchemaTempFileWriteError {
-    return new MissingGenericSchemaTempFileWriteError({
-      filePath,
-      message: `Failed to write temporary schema file: ${filePath}`,
-      cause,
-    });
-  }
-}
-
-export class MissingGenericSchemaTempFileCleanupError extends Schema.TaggedError<MissingGenericSchemaTempFileCleanupError>()(
-  'MissingGenericSchemaTempFileCleanupError',
-  {
-    filePath: Schema.String,
-    message: Schema.String,
-    cause: Schema.optional(Schema.Unknown),
-  },
-) {
-  static create(
-    filePath: string,
-    cause?: unknown,
-  ): MissingGenericSchemaTempFileCleanupError {
-    return new MissingGenericSchemaTempFileCleanupError({
-      filePath,
-      message: `Failed to remove temporary schema file: ${filePath}`,
-      cause,
-    });
-  }
-}
-
 export class DtoGlobResolutionError extends Schema.TaggedError<DtoGlobResolutionError>()(
   'DtoGlobResolutionError',
   {
@@ -434,14 +394,21 @@ export class OutputWriteError extends Schema.TaggedError<OutputWriteError>()(
   }
 }
 
+export class SchemaNameCollisionError extends Schema.TaggedError<SchemaNameCollisionError>()(
+  'SchemaNameCollisionError',
+  {
+    message: Schema.String,
+    names: Schema.Array(Schema.String),
+  },
+) {}
+
 export type GeneratorError =
+  | SchemaNameCollisionError
   | ProjectError
   | ConfigError
   | AnalysisError
   | SchemaGenerationError
   | ValidationMappingError
-  | MissingGenericSchemaTempFileWriteError
-  | MissingGenericSchemaTempFileCleanupError
   | DtoGlobResolutionError
   | PublicApiError
   | SpecFileNotFoundError
