@@ -48,6 +48,11 @@ export type { GenerateResult } from './generate.js';
 export { defineConfig } from './config.js';
 
 /**
+ * Reference a class or enum by name in a custom decorator mapping
+ */
+export { typeRef, TypeRef } from './decorators.js';
+
+/**
  * Public types for configuration
  */
 export type {
@@ -67,6 +72,10 @@ export type {
   OpenApiRequestBody,
   OpenApiResponse,
   OpenApiSchema,
+  CustomDecoratorMapping,
+  CustomDecoratorUse,
+  DecoratorSpec,
+  PathTransform,
 } from './types.js';
 
 /**
@@ -128,10 +137,10 @@ export {
   ConfigNotFoundError,
   ConfigLoadError,
   ConfigValidationError,
-  DtoGlobResolutionError,
-  InvalidMethodError,
   MissingGenericSchemaTempFileCleanupError,
   MissingGenericSchemaTempFileWriteError,
+  DtoGlobResolutionError,
+  InvalidMethodError,
   PublicApiError,
   SpecFileNotFoundError,
   SpecFileReadError,

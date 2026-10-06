@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync, writeFileSync } from 'fs';
-import { generate } from '../src/generate.js';
+import { generate, type GenerateResult } from '../src/generate.js';
 import type { OpenApiSpec } from '../src/types.js';
 
 describe('Security Decorators E2E', () => {
@@ -22,26 +22,23 @@ describe('Security Decorators E2E', () => {
     'e2e-applications/security-decorators/openapi.global-merge.generated.json',
   );
 
-  afterEach(() => {
-    // Clean up generated file
+  let result: GenerateResult;
+  let spec: OpenApiSpec;
+
+  beforeAll(async () => {
+    result = await generate(configPath);
+    spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  });
+
+  afterAll(() => {
     if (existsSync(outputPath)) {
       unlinkSync(outputPath);
     }
-    if (existsSync(mergedOutputPath)) {
-      unlinkSync(mergedOutputPath);
-    }
-    if (existsSync(mergedConfigPath)) {
-      unlinkSync(mergedConfigPath);
-    }
   });
 
-  it('should generate OpenAPI spec with security schemes from config', async () => {
-    const result = await generate(configPath);
-
+  it('should generate OpenAPI spec with security schemes from config', () => {
     expect(result.outputPath).toBe(outputPath);
     expect(existsSync(outputPath)).toBe(true);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
 
     // Verify security schemes from config are present
     expect(spec.components?.securitySchemes).toBeDefined();
@@ -56,10 +53,7 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('Public endpoints (no security decorators)', () => {
-    it('should not have per-operation security on public endpoints', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should not have per-operation security on public endpoints', () => {
       // Public endpoints should NOT have operation-level security
       const healthOp = spec.paths['/public/health']?.get;
       expect(healthOp).toBeDefined();
@@ -72,10 +66,7 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('@ApiBearerAuth at controller level', () => {
-    it('should apply bearer security to all methods in BearerController', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should apply bearer security to all methods in BearerController', () => {
       // All endpoints in /users should have bearer security
       const findAllOp = spec.paths['/users']?.get;
       expect(findAllOp?.security).toBeDefined();
@@ -92,47 +83,32 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('Mixed security decorators per method', () => {
-    it('should have no security on public method', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have no security on public method', () => {
       // GET /articles has no security decorator
       const findAllOp = spec.paths['/articles']?.get;
       expect(findAllOp).toBeDefined();
       expect(findAllOp?.security).toBeUndefined();
     });
 
-    it('should have JWT security on bearer-protected method', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have JWT security on bearer-protected method', () => {
       // GET /articles/:id uses @ApiBearerAuth('jwt')
       const findOneOp = spec.paths['/articles/{id}']?.get;
       expect(findOneOp?.security).toEqual([{ jwt: [] }]);
     });
 
-    it('should have basic auth on basic-protected method', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have basic auth on basic-protected method', () => {
       // POST /articles uses @ApiBasicAuth()
       const createOp = spec.paths['/articles']?.post;
       expect(createOp?.security).toEqual([{ basic: [] }]);
     });
 
-    it('should have api-key security on admin method', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have api-key security on admin method', () => {
       // DELETE /articles/:id uses @ApiSecurity('admin-key')
       const deleteOp = spec.paths['/articles/{id}']?.delete;
       expect(deleteOp?.security).toEqual([{ 'admin-key': [] }]);
     });
 
-    it('should have cookie auth on preview method', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have cookie auth on preview method', () => {
       // GET /articles/:id/preview uses @ApiCookieAuth()
       const previewOp = spec.paths['/articles/{id}/preview']?.get;
       expect(previewOp?.security).toEqual([{ cookie: [] }]);
@@ -140,10 +116,7 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('@ApiOAuth2 with scopes', () => {
-    it('should apply controller-level OAuth2 scopes to methods without overrides', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should apply controller-level OAuth2 scopes to methods without overrides', () => {
       // GET /projects inherits @ApiOAuth2(['read:projects']) from controller
       const findAllOp = spec.paths['/projects']?.get;
       expect(findAllOp?.security).toEqual([{ oauth2: ['read:projects'] }]);
@@ -152,10 +125,7 @@ describe('Security Decorators E2E', () => {
       expect(findOneOp?.security).toEqual([{ oauth2: ['read:projects'] }]);
     });
 
-    it('should use method-level OAuth2 scopes when specified', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should use method-level OAuth2 scopes when specified', () => {
       // POST /projects has @ApiOAuth2(['read:projects', 'write:projects'])
       const createOp = spec.paths['/projects']?.post;
       expect(createOp?.security).toEqual([
@@ -173,10 +143,7 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('Multiple security decorators (AND logic)', () => {
-    it('should combine multiple controller-level security decorators', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should combine multiple controller-level security decorators', () => {
       // AdminController has both @ApiBearerAuth('jwt') and @ApiSecurity('admin-key')
       const actionsOp = spec.paths['/admin/actions']?.get;
       expect(actionsOp?.security).toBeDefined();
@@ -186,10 +153,7 @@ describe('Security Decorators E2E', () => {
       expect(security).toHaveProperty('admin-key');
     });
 
-    it('should allow method to override controller security', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should allow method to override controller security', () => {
       // GET /admin/public-stats has only @ApiSecurity('stats-key'), overriding controller
       const statsOp = spec.paths['/admin/public-stats']?.get;
       expect(statsOp?.security).toEqual([{ 'stats-key': [] }]);
@@ -197,10 +161,7 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('Path and operation structure', () => {
-    it('should generate all expected paths', async () => {
-      const result = await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should generate all expected paths', () => {
       // Check path count
       expect(result.pathCount).toBeGreaterThan(0);
 
@@ -212,10 +173,7 @@ describe('Security Decorators E2E', () => {
       expect(spec.paths['/admin/actions']).toBeDefined();
     });
 
-    it('should have correct tags from @ApiTags decorator', async () => {
-      await generate(configPath);
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have correct tags from @ApiTags decorator', () => {
       expect(spec.paths['/public/health']?.get?.tags).toContain('Public');
       expect(spec.paths['/users']?.get?.tags).toContain('Users');
       expect(spec.paths['/articles']?.get?.tags).toContain('Articles');
@@ -225,6 +183,15 @@ describe('Security Decorators E2E', () => {
   });
 
   describe('Global + decorator merge semantics', () => {
+    afterAll(() => {
+      if (existsSync(mergedOutputPath)) {
+        unlinkSync(mergedOutputPath);
+      }
+      if (existsSync(mergedConfigPath)) {
+        unlinkSync(mergedConfigPath);
+      }
+    });
+
     it('should preserve global OR alternatives when merging with operation security', async () => {
       writeFileSync(
         mergedConfigPath,

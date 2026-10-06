@@ -5,23 +5,21 @@
  */
 
 import { Effect } from 'effect';
-import {
-  createGenerator,
-  type Config as TsJsonSchemaConfig,
-  type Schema as TsJsonSchema,
-} from 'ts-json-schema-generator';
-import { ts } from 'ts-morph';
-import { join, dirname, resolve as resolvePath, basename } from 'node:path';
+import type { Schema as TsJsonSchema } from 'ts-json-schema-generator';
+import { join, resolve as resolvePath } from 'node:path';
 import { globSync } from 'glob';
-import {
-  readFileSync,
-  writeFileSync,
-  unlinkSync,
-  existsSync,
-} from 'node:fs';
-import { randomUUID } from 'node:crypto';
-import { createRequire } from 'node:module';
+import type * as TypeScript from 'typescript';
+import { identifierPattern } from './ast.js';
 import { SchemaGenerationError } from './errors.js';
+import {
+  createSchemaGenerator,
+  createSchemaGeneratorForProgram,
+  eraseFailingPropertyType,
+  findPropertyTypePositions,
+  readProgramSource,
+  type SchemaGeneratorHandle,
+  type SchemaProgramOptions,
+} from './schema-program.js';
 
 // Error types
 
@@ -69,106 +67,9 @@ export interface SchemaGeneratorOptions {
   readonly reuseProgram?: unknown;
 }
 
-const MAX_SCHEMA_FILES_PER_BATCH = 16;
-
-const chunkArray = <T>(items: readonly T[], chunkSize: number): T[][] => {
-  if (items.length === 0) return [];
-  if (items.length <= chunkSize) return [[...items]];
-
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize));
-  }
-  return chunks;
-};
-
 const toSortedUniquePaths = (filePaths: readonly string[]): readonly string[] =>
-  [...new Set(filePaths)].sort();
+  [...new Set(filePaths.map((filePath) => resolvePath(filePath)))].sort();
 
-const extractDiagnosticFilePathFromCause = (
-  cause: unknown,
-): string | undefined => {
-  if (!cause || typeof cause !== 'object') {
-    return undefined;
-  }
-
-  if ('diagnostic' in cause && cause.diagnostic && typeof cause.diagnostic === 'object') {
-    const diagnostic = cause.diagnostic as {
-      readonly file?: { readonly fileName?: unknown };
-    };
-    if (
-      diagnostic.file &&
-      typeof diagnostic.file === 'object' &&
-      typeof diagnostic.file.fileName === 'string'
-    ) {
-      return diagnostic.file.fileName;
-    }
-  }
-
-  if ('cause' in cause) {
-    return extractDiagnosticFilePathFromCause(
-      (cause as { readonly cause?: unknown }).cause,
-    );
-  }
-
-  return undefined;
-};
-
-const resolveFailedBatchFilePath = (
-  error: SchemaGenerationError,
-  filePaths: readonly string[],
-): string | undefined => {
-  const diagnosticPath = extractDiagnosticFilePathFromCause(error.cause);
-  if (!diagnosticPath) {
-    return undefined;
-  }
-
-  const normalizedDiagnosticPath = resolvePath(diagnosticPath);
-  for (const filePath of filePaths) {
-    if (resolvePath(filePath) === normalizedDiagnosticPath) {
-      return filePath;
-    }
-  }
-
-  const diagnosticFileName = basename(normalizedDiagnosticPath);
-  return filePaths.find((filePath) => basename(filePath) === diagnosticFileName);
-};
-
-const createSchemaGenerator = (
-  config: TsJsonSchemaConfig,
-  reuseProgram?: unknown,
-): { createSchema: (type: string) => TsJsonSchema } => {
-  if (!reuseProgram) {
-    return createGenerator(config);
-  }
-
-  const require = createRequire(import.meta.url);
-  const tsj = require('ts-json-schema-generator') as {
-    createParser: (program: unknown, config: unknown) => unknown;
-    createFormatter: (config: unknown) => unknown;
-    DEFAULT_CONFIG: Record<string, unknown>;
-    SchemaGenerator: new (
-      program: unknown,
-      parser: unknown,
-      formatter: unknown,
-      config: unknown,
-    ) => { createSchema: (type: string) => TsJsonSchema };
-  };
-
-  const completedConfig = { ...tsj.DEFAULT_CONFIG, ...config };
-  const parser = tsj.createParser(reuseProgram, completedConfig);
-  const formatter = tsj.createFormatter(completedConfig);
-  return new tsj.SchemaGenerator(
-    reuseProgram,
-    parser,
-    formatter,
-    completedConfig,
-  );
-};
-
-/**
- * Generate JSON Schema definitions from TypeScript DTO files
- */
 export const generateSchemas = Effect.fn('SchemaGenerator.generate')(function* (
   options: SchemaGeneratorOptions,
 ) {
@@ -293,27 +194,12 @@ const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
       return { definitions: {} } as GeneratedSchemas;
     }
 
+    const generator = reuseProgram
+      ? createSchemaGeneratorForProgram(reuseProgram as TypeScript.Program)
+      : yield* createSchemaGenerator({ tsconfig, rootFiles: matchedFiles });
+
     return yield* Effect.try({
-      try: () => {
-        const config: TsJsonSchemaConfig = {
-          path: absolutePattern,
-          tsconfig,
-          type: '*', // Generate schemas for all exported types
-          skipTypeCheck: true,
-          // Note: topRef must NOT be set to false, as it prevents interface schemas from being generated
-          expose: 'export', // Only export explicitly exported types
-          jsDoc: 'extended', // Include JSDoc comments
-          sortProps: true,
-          strictTuples: false,
-          encodeRefs: false,
-          additionalProperties: false,
-        };
-
-        const generator = createSchemaGenerator(config, reuseProgram);
-        const schema = generator.createSchema(config.type ?? '*');
-
-        return convertToGeneratedSchemas(schema);
-      },
+      try: () => convertToGeneratedSchemas(generator.createSchema('*')),
       catch: (error) =>
         SchemaGenerationError.fromError(error, `pattern: ${pattern}`),
     });
@@ -339,386 +225,523 @@ const convertToGeneratedSchemas = (schema: TsJsonSchema): GeneratedSchemas => {
   return { definitions };
 };
 
+type TypeTarget = {
+  readonly filePath: string;
+  readonly name: string;
+};
+
+type Failure = { readonly target: TypeTarget; readonly error: unknown };
+
+type IsolatedProperty = {
+  readonly typeName: string;
+  readonly property: string;
+  readonly filePath: string;
+  readonly reason: string;
+};
+
+const trySchemaForNodes = (
+  handle: SchemaGeneratorHandle,
+  nodes: readonly TypeScript.Node[],
+) =>
+  Effect.either(
+    Effect.try({
+      try: () => convertToGeneratedSchemas(handle.createSchemaForNodes(nodes)),
+      catch: (error) => error,
+    }),
+  );
+
+const findErrorPosition = (error: unknown) => {
+  let current: unknown = error;
+  while (current && typeof current === 'object') {
+    const diagnostic = (current as { diagnostic?: unknown }).diagnostic as
+      | { file?: { fileName?: string }; start?: number }
+      | undefined;
+    if (diagnostic?.file?.fileName && typeof diagnostic.start === 'number') {
+      return { fileName: diagnostic.file.fileName, start: diagnostic.start };
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
+};
+
+const describeError = (error: unknown) => {
+  const messages: string[] = [];
+  let current: unknown = error;
+  let location: string | undefined;
+  while (current && typeof current === 'object') {
+    const message = (current as { message?: unknown }).message;
+    if (typeof message === 'string')
+      messages.push(message.split('\n')[0]!.trim());
+    const diagnostic = (current as { diagnostic?: unknown }).diagnostic as
+      | { file?: TypeScript.SourceFile; start?: number }
+      | undefined;
+    if (!location && diagnostic?.file && typeof diagnostic.start === 'number') {
+      const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(
+        diagnostic.start,
+      );
+      location = `${diagnostic.file.fileName}:${line + 1}:${character + 1}`;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  const reason = [...new Set(messages)].join(': ') || 'unknown error';
+  return location ? `${reason} (at ${location})` : reason;
+};
+
+const MAX_ISOLATED_PROPERTIES = 5;
+const MAX_SCANNED_PROPERTIES = 40;
+
+type Recovered = {
+  readonly definitions: Record<string, JsonSchema>;
+  readonly isolated: readonly IsolatedProperty[];
+  readonly options: SchemaProgramOptions;
+};
+
+const generateTypeIn = (options: SchemaProgramOptions, target: TypeTarget) =>
+  Effect.gen(function* () {
+    const handle = yield* createSchemaGenerator(options);
+    const node = handle.findType(target.filePath, target.name);
+    if (!node) {
+      return yield* Effect.fail(
+        new SchemaGenerationError({
+          message: `Type ${target.name} not found in ${target.filePath}`,
+        }),
+      );
+    }
+    const result = yield* trySchemaForNodes(handle, [node]);
+    if (result._tag === 'Left') return yield* Effect.fail(result.left);
+    return result.right.definitions;
+  });
+
+const withVirtualFile = (
+  options: SchemaProgramOptions,
+  filePath: string,
+  text: string,
+): SchemaProgramOptions => ({
+  ...options,
+  virtualFiles: new Map([
+    ...(options.virtualFiles ?? new Map<string, string>()),
+    [filePath, text],
+  ]),
+});
+
+// For errors without a source position: the failing node was synthesized,
+// as for `z.infer<typeof schema>`
+const recoverByScanningProperties = (
+  options: SchemaProgramOptions,
+  target: TypeTarget,
+  error: unknown,
+): Effect.Effect<Recovered | undefined> =>
+  Effect.gen(function* () {
+    const text = readProgramSource(target.filePath, options);
+    if (text === undefined) return undefined;
+    const positions = findPropertyTypePositions(
+      target.filePath,
+      text,
+      target.name,
+    );
+    if (positions.length === 0 || positions.length > MAX_SCANNED_PROPERTIES) {
+      return undefined;
+    }
+
+    const attempt = (erasedPositions: readonly number[]) =>
+      Effect.gen(function* () {
+        let edited = text;
+        const properties: string[] = [];
+        // Last position first, so earlier positions stay valid
+        for (const position of [...erasedPositions].sort((a, b) => b - a)) {
+          const erased = eraseFailingPropertyType(
+            target.filePath,
+            edited,
+            position,
+          );
+          if (!erased) return undefined;
+          edited = erased.text;
+          properties.unshift(erased.property);
+        }
+        const editedOptions = withVirtualFile(options, target.filePath, edited);
+        const result = yield* Effect.either(
+          generateTypeIn(editedOptions, target),
+        );
+        return result._tag === 'Right'
+          ? {
+              definitions: result.right,
+              options: editedOptions,
+              isolated: properties.map((property) => ({
+                typeName: target.name,
+                property,
+                filePath: target.filePath,
+                reason: describeError(error),
+              })),
+            }
+          : undefined;
+      });
+
+    for (const position of positions) {
+      const single = yield* attempt([position]);
+      if (single) return single;
+    }
+    for (let count = 2; count <= positions.length; count++) {
+      const cumulative = yield* attempt(positions.slice(0, count));
+      if (cumulative) return cumulative;
+    }
+    return undefined;
+  });
+
+const inlineExternalTypesIn = (
+  options: SchemaProgramOptions,
+  target: TypeTarget,
+) =>
+  Effect.map(Effect.either(createSchemaGenerator(options)), (handle) =>
+    handle._tag === 'Right'
+      ? handle.right.inlineExternalTypes(target.filePath, target.name)
+      : undefined,
+  );
+
+// A failure inside library typings cannot be pinned on one property, so
+// before giving up the library types the declaration references are inlined
+const nextRecoveryEdit = (
+  options: SchemaProgramOptions,
+  target: TypeTarget,
+  error: unknown,
+  position: { readonly fileName: string; readonly start: number },
+  inlined: boolean,
+) =>
+  Effect.gen(function* () {
+    const filePath = resolvePath(position.fileName);
+    const text = readProgramSource(filePath, options);
+    const erased =
+      text === undefined
+        ? undefined
+        : eraseFailingPropertyType(filePath, text, position.start);
+    if (erased) {
+      return {
+        options: withVirtualFile(options, filePath, erased.text),
+        isolated: {
+          typeName: target.name,
+          property: erased.property,
+          filePath,
+          reason: describeError(error),
+        },
+      };
+    }
+    if (inlined) return undefined;
+    const inlinedText = yield* inlineExternalTypesIn(options, target);
+    if (inlinedText === undefined) return undefined;
+    return {
+      options: withVirtualFile(
+        options,
+        resolvePath(target.filePath),
+        inlinedText,
+      ),
+      isolated: undefined,
+    };
+  });
+
+const recoverFailedType = (
+  options: SchemaProgramOptions,
+  target: TypeTarget,
+  initialError: unknown,
+): Effect.Effect<Recovered | undefined> =>
+  Effect.gen(function* () {
+    let current = options;
+    let error = initialError;
+    let inlined = false;
+    const isolated: IsolatedProperty[] = [];
+
+    for (let attempt = 0; attempt < MAX_ISOLATED_PROPERTIES; attempt++) {
+      const position = findErrorPosition(error);
+      if (!position) {
+        if (isolated.length === 0) {
+          const scanned = yield* recoverByScanningProperties(
+            current,
+            target,
+            error,
+          );
+          if (scanned) return scanned;
+        }
+        break;
+      }
+      const edit = yield* nextRecoveryEdit(
+        current,
+        target,
+        error,
+        position,
+        inlined,
+      );
+      if (!edit) break;
+
+      if (edit.isolated) isolated.push(edit.isolated);
+      else inlined = true;
+      current = edit.options;
+      const result = yield* Effect.either(generateTypeIn(current, target));
+      if (result._tag === 'Right') {
+        return { definitions: result.right, isolated, options: current };
+      }
+      error = result.left;
+    }
+
+    // Last resort: without the class's `extends` clauses (for this type only)
+    const withoutHeritage = yield* Effect.either(
+      generateTypeIn(
+        {
+          ...options,
+          stripHeritageIn: new Set([
+            ...(options.stripHeritageIn ?? []),
+            resolvePath(target.filePath),
+          ]),
+        },
+        target,
+      ),
+    );
+    return withoutHeritage._tag === 'Right'
+      ? { definitions: withoutHeritage.right, isolated: [], options }
+      : undefined;
+  });
+
+const generateInProgram = (
+  options: SchemaProgramOptions,
+  targets: 'all' | readonly TypeTarget[],
+): Effect.Effect<GeneratedSchemas, SchemaError> =>
+  Effect.gen(function* () {
+    const handle = yield* createSchemaGenerator(options);
+
+    const missing: TypeTarget[] = [];
+    const roots =
+      targets === 'all'
+        ? handle.rootTypes()
+        : targets.flatMap((target) => {
+            const node = handle.findType(target.filePath, target.name);
+            if (!node) {
+              missing.push(target);
+              return [];
+            }
+            return [{ ...target, node }];
+          });
+    if (roots.length === 0) return { definitions: {} } as GeneratedSchemas;
+
+    const whole = yield* trySchemaForNodes(
+      handle,
+      roots.map((root) => root.node),
+    );
+    if (whole._tag === 'Right') {
+      return targets === 'all'
+        ? whole.right
+        : nameRequestedTypes(whole.right, roots, handle);
+    }
+
+    const definitions: Record<string, JsonSchema> = {};
+    const failed: Failure[] = [];
+    for (const root of roots) {
+      const single = yield* trySchemaForNodes(handle, [root.node]);
+      if (single._tag === 'Right') {
+        Object.assign(definitions, single.right.definitions);
+      } else {
+        failed.push({ target: root, error: single.left });
+      }
+    }
+
+    // A type that fails often only references one that does: recover the
+    // types in dependency order and share the edits, so dependents generate
+    // untouched once what they reference does. Each round retries every
+    // pending type in one program built with the edits so far.
+    const isolated: IsolatedProperty[] = [];
+    const unrecovered: Failure[] = [];
+    let shared = options;
+    let pending: readonly Failure[] = failed;
+    let edited = false;
+    while (pending.length > 0) {
+      if (edited) {
+        const retried = yield* retryInProgram(
+          shared,
+          pending.map(({ target }) => target),
+        );
+        Object.assign(definitions, retried.definitions);
+        pending = retried.failed;
+        if (pending.length === 0) break;
+      }
+
+      const pendingNames = new Set(pending.map(({ target }) => target.name));
+      const next =
+        pending.find(
+          ({ target }) => !referencesAnyOf(shared, target, pendingNames),
+        ) ?? pending[0]!;
+      pending = pending.filter((entry) => entry !== next);
+
+      const recovered = yield* recoverFailedType(
+        shared,
+        next.target,
+        next.error,
+      );
+      if (recovered) {
+        Object.assign(definitions, recovered.definitions);
+        isolated.push(...recovered.isolated);
+        edited = recovered.options !== shared;
+        shared = recovered.options;
+      } else {
+        unrecovered.push(next);
+        edited = false;
+      }
+    }
+
+    yield* warnIsolatedProperties(isolated);
+    // An empty schema keeps references valid
+    for (const { target } of unrecovered) definitions[target.name] = {};
+    yield* Effect.forEach(unrecovered, ({ target, error }) =>
+      Effect.logWarning(
+        `Could not generate a schema for ${target.name}; it is documented as any value`,
+      ).pipe(
+        Effect.annotateLogs({
+          filePath: target.filePath,
+          reason: describeError(error),
+        }),
+      ),
+    );
+    if (missing.length > 0) {
+      yield* Effect.logDebug('Types not found in their files').pipe(
+        Effect.annotateLogs({
+          types: missing.map((target) => target.name).join(', '),
+        }),
+      );
+    }
+
+    return { definitions } as GeneratedSchemas;
+  });
+
+// The generator only names exported types: a non-exported interface
+// requested by name gets a `def-interface-...` key instead
+const nameRequestedTypes = (
+  schemas: GeneratedSchemas,
+  roots: readonly (TypeTarget & { readonly node: TypeScript.Node })[],
+  handle: SchemaGeneratorHandle,
+) => {
+  const definitions = { ...schemas.definitions };
+  for (const root of roots) {
+    if (definitions[root.name]) continue;
+    let single: (TsJsonSchema & { $ref?: string }) | undefined;
+    try {
+      single = handle.createSchemaForNodes([root.node]);
+    } catch {
+      continue;
+    }
+    const rootKey = single?.$ref?.replace(/^#\/definitions\//, '');
+    const rootSchema = rootKey
+      ? (single?.definitions as Record<string, JsonSchema> | undefined)?.[
+          rootKey
+        ]
+      : undefined;
+    if (rootSchema) definitions[root.name] = rootSchema;
+  }
+  return { definitions };
+};
+
+const retryInProgram = (
+  options: SchemaProgramOptions,
+  targets: readonly TypeTarget[],
+) =>
+  Effect.gen(function* () {
+    const definitions: Record<string, JsonSchema> = {};
+    const failed: Failure[] = [];
+    const handle = yield* Effect.either(createSchemaGenerator(options));
+    if (handle._tag === 'Left') {
+      return {
+        definitions,
+        failed: targets.map((target) => ({ target, error: handle.left })),
+      };
+    }
+    for (const target of targets) {
+      const node = handle.right.findType(target.filePath, target.name);
+      const result = node
+        ? yield* trySchemaForNodes(handle.right, [node])
+        : undefined;
+      if (result?._tag === 'Right')
+        Object.assign(definitions, result.right.definitions);
+      else
+        failed.push({
+          target,
+          error: result?._tag === 'Left' ? result.left : undefined,
+        });
+    }
+    return { definitions, failed };
+  });
+
+const referencesAnyOf = (
+  options: SchemaProgramOptions,
+  target: TypeTarget,
+  names: ReadonlySet<string>,
+) => {
+  const text = readProgramSource(target.filePath, options);
+  if (text === undefined) return false;
+  const typeTexts = findPropertyTypePositions(
+    target.filePath,
+    text,
+    target.name,
+  ).map((position) => text.slice(position, text.indexOf(';', position) >>> 0));
+  return [...names].some(
+    (name) =>
+      name !== target.name &&
+      typeTexts.some((typeText) => identifierPattern(name).test(typeText)),
+  );
+};
+
+const warnIsolatedProperties = (isolated: readonly IsolatedProperty[]) =>
+  Effect.forEach(isolated, (entry) =>
+    Effect.logWarning(
+      `Generated ${entry.typeName} without the type of its "${entry.property}" property, which the schema generator cannot handle`,
+    ).pipe(
+      Effect.annotateLogs({ filePath: entry.filePath, reason: entry.reason }),
+    ),
+  );
+
 /**
- * Generate schemas from a specific list of file paths.
- * This is used for the hybrid approach to generate schemas for
- * types that weren't covered by the initial dtoGlob patterns.
- *
- * Uses a temporary tsconfig with only the specified files for better performance.
- * Falls back to individual file processing if the batched approach fails.
+ * Generate schemas for every exported type of the given files.
  */
 export const generateSchemasFromFiles = Effect.fn(
   'SchemaGenerator.generateFromFiles',
 )(function* (filePaths: readonly string[], tsconfig: string) {
-  const uniqueFilePaths = toSortedUniquePaths(filePaths);
-
-  if (uniqueFilePaths.length === 0) {
-    return { definitions: {} } as GeneratedSchemas;
-  }
-
-  yield* Effect.logDebug('Generating schemas from resolved files').pipe(
-    Effect.annotateLogs({
-      fileCount: uniqueFilePaths.length,
-    }),
-  );
-
-  const batches = chunkArray(uniqueFilePaths, MAX_SCHEMA_FILES_PER_BATCH);
-
-  const batchResults = yield* Effect.forEach(batches, (batch) =>
-    generateSchemasFromFilesBatchWithFallback(batch, tsconfig),
-  );
-
-  const batchedResult = {
-    definitions: batchResults.reduce<Record<string, JsonSchema>>(
-      (acc, schemas) => ({ ...acc, ...schemas.definitions }),
-      {},
-    ),
-  } as GeneratedSchemas;
-
-  yield* Effect.logDebug('Additional schema generation complete').pipe(
-    Effect.annotateLogs({
-      definitionCount: Object.keys(batchedResult.definitions).length,
-    }),
-  );
-
-  return batchedResult;
+  const rootFiles = toSortedUniquePaths(filePaths);
+  if (rootFiles.length === 0) return { definitions: {} } as GeneratedSchemas;
+  return yield* generateInProgram({ tsconfig, rootFiles }, 'all');
 });
 
-const generateSchemasFromFilesBatchWithFallback = (
-  filePaths: readonly string[],
+export const generateNamedSchemas = Effect.fn(
+  'SchemaGenerator.generateNamedSchemas',
+)(function* (
+  locations: ReadonlyMap<string, string>,
   tsconfig: string,
-): Effect.Effect<GeneratedSchemas, never, never> =>
-  Effect.gen(function* () {
-  const directBatch = yield* generateSchemasWithTempTsconfig(
-    filePaths,
-    tsconfig,
-  ).pipe(Effect.either);
-
-  if (directBatch._tag === 'Right') {
-    return directBatch.right;
-  }
-
-  const failedBatch = directBatch.left;
-  const failedFilePath = resolveFailedBatchFilePath(failedBatch, filePaths);
-
-  if (failedFilePath && filePaths.length > 1) {
-    yield* Effect.logDebug('Schema batch failed, isolating problematic file').pipe(
-      Effect.annotateLogs({
-        fileCount: filePaths.length,
-        filePath: failedFilePath,
-      }),
-    );
-
-    const remainingFilePaths = filePaths.filter(
-      (filePath) => filePath !== failedFilePath,
-    );
-
-    const [remainingSchemas, failedFileSchemas]: readonly [
-      GeneratedSchemas,
-      GeneratedSchemas,
-    ] = yield* Effect.all(
-      [
-        remainingFilePaths.length > 0
-          ? generateSchemasFromFilesBatchWithFallback(
-              remainingFilePaths,
-              tsconfig,
-            )
-          : Effect.succeed({ definitions: {} } as GeneratedSchemas),
-        generateSchemasFromFilesIndividual([failedFilePath], tsconfig),
-      ],
-      { concurrency: 2 },
-    );
-
-    return {
-      definitions: {
-        ...remainingSchemas.definitions,
-        ...failedFileSchemas.definitions,
-      },
-    } as GeneratedSchemas;
-  }
-
-  yield* Effect.logDebug('Schema batch failed, splitting fallback').pipe(
-    Effect.annotateLogs({
-      fileCount: filePaths.length,
-    }),
-  );
-
-  if (filePaths.length <= 1) {
-    return yield* generateSchemasFromFilesIndividual(filePaths, tsconfig);
-  }
-
-  const middle = Math.ceil(filePaths.length / 2);
-  const left = filePaths.slice(0, middle);
-  const right = filePaths.slice(middle);
-
-  const [leftSchemas, rightSchemas]: readonly [GeneratedSchemas, GeneratedSchemas] =
-    yield* Effect.all(
-      [
-        generateSchemasFromFilesBatchWithFallback(left, tsconfig),
-        generateSchemasFromFilesBatchWithFallback(right, tsconfig),
-      ],
-      { concurrency: 2 },
-    );
-
-  return {
-    definitions: {
-      ...leftSchemas.definitions,
-      ...rightSchemas.definitions,
+  virtualFiles?: ReadonlyMap<string, string>,
+) {
+  const targets = [...locations].map(([name, filePath]) => ({
+    name,
+    filePath: resolvePath(filePath),
+  }));
+  if (targets.length === 0) return { definitions: {} } as GeneratedSchemas;
+  return yield* generateInProgram(
+    {
+      tsconfig,
+      rootFiles: toSortedUniquePaths(targets.map((target) => target.filePath)),
+      virtualFiles,
     },
-  } as GeneratedSchemas;
+    targets,
+  );
 });
 
-/**
- * Generate schemas using a temporary tsconfig that only includes the specified files.
- * This avoids loading the entire project and is much faster.
- */
-const generateSchemasWithTempTsconfig = (
-  filePaths: readonly string[],
-  tsconfig: string,
-): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.gen(function* () {
-    const context = `files: ${filePaths.slice(0, 3).join(', ')}${
-      filePaths.length > 3 ? ` (+${filePaths.length - 3} more)` : ''
-    }`;
-
-    const rawConfig = yield* Effect.try({
-      try: () => readFileSync(tsconfig, 'utf-8'),
-      catch: (error) => SchemaGenerationError.fromError(error, context),
-    });
-
-    const parsed = ts.parseConfigFileTextToJson(tsconfig, rawConfig);
-    if (!parsed.config || parsed.error) {
-      const message = parsed.error
-        ? ts.flattenDiagnosticMessageText(parsed.error.messageText, '\n')
-        : 'Failed to parse tsconfig';
-      return yield* Effect.fail(
-        new SchemaGenerationError({
-          message: `${message} (${context})`,
-        }),
-      );
-    }
-
-    const originalConfig = parsed.config as Record<string, unknown>;
-    const originalCompilerOptions =
-      typeof originalConfig.compilerOptions === 'object' &&
-      originalConfig.compilerOptions
-        ? (originalConfig.compilerOptions as Record<string, unknown>)
-        : {};
-
-    const tempConfig = {
-      ...originalConfig,
-      compilerOptions: {
-        ...originalCompilerOptions,
-        skipLibCheck: true,
-        skipDefaultLibCheck: true,
-        noEmit: true,
-      },
-      files: [...filePaths],
-      // Prevent loading other files from the project
-      include: undefined,
-      exclude: undefined,
-    };
-
-    const tempTsconfigPath = join(
-      dirname(tsconfig),
-      `.tsconfig.schema-gen.${randomUUID()}.json`,
-    );
-
-    return yield* Effect.try({
-      try: () => {
-        try {
-          writeFileSync(tempTsconfigPath, JSON.stringify(tempConfig, null, 2));
-          const pattern =
-            filePaths.length === 1
-              ? filePaths[0]!
-              : `{${filePaths.join(',')}}`;
-
-          const config: TsJsonSchemaConfig = {
-            path: pattern,
-            tsconfig: tempTsconfigPath,
-            type: '*',
-            skipTypeCheck: true,
-            expose: 'export',
-            jsDoc: 'extended',
-            sortProps: true,
-            strictTuples: false,
-            encodeRefs: false,
-            additionalProperties: false,
-          };
-
-          const generator = createGenerator(config);
-          const schema = generator.createSchema(config.type);
-
-          return convertToGeneratedSchemas(schema);
-        } finally {
-          // Clean up temporary file
-          if (existsSync(tempTsconfigPath)) {
-            unlinkSync(tempTsconfigPath);
-          }
-        }
-      },
-      catch: (error) => SchemaGenerationError.fromError(error, context),
-    });
-  });
-
-/**
- * Generate schemas from files individually with error resilience.
- * Fallback when batched approach fails.
- */
-const generateSchemasFromFilesIndividual = Effect.fn(
-  'SchemaGenerator.generateFromFilesIndividual',
-)(function* (filePaths: readonly string[], tsconfig: string) {
-  const schemaResults = yield* Effect.all(
-    filePaths.map((filePath) =>
-      generateSchemasFromFile(filePath, tsconfig).pipe(
-        // Intentional: continue even if individual files fail
-        Effect.catchTag('SchemaGenerationError', () =>
-          Effect.succeed({ definitions: {} } as GeneratedSchemas),
-        ),
-      ),
-    ),
-    { concurrency: 'unbounded' },
-  );
-
-  const allDefinitions = schemaResults.reduce<Record<string, JsonSchema>>(
-    (acc, schemas) => ({ ...acc, ...schemas.definitions }),
-    {},
-  );
-
-  return { definitions: allDefinitions } as GeneratedSchemas;
-});
-
-/**
- * Generate schemas from a single file
- */
-const generateSchemasFromFile = Effect.fn('SchemaGenerator.generateFromFile')(
-  function* (filePath: string, tsconfig: string) {
-    const generateFromPath = (
-      path: string,
-      context: string,
-    ): Effect.Effect<GeneratedSchemas, SchemaError> =>
-      Effect.try({
-        try: () => {
-          const config: TsJsonSchemaConfig = {
-            path,
-            tsconfig,
-            type: '*',
-            skipTypeCheck: true,
-            expose: 'export',
-            jsDoc: 'extended',
-            sortProps: true,
-            strictTuples: false,
-            encodeRefs: false,
-            additionalProperties: false,
-          };
-
-          const generator = createGenerator(config);
-          const schema = generator.createSchema(config.type);
-
-          return convertToGeneratedSchemas(schema);
-        },
-        catch: (error) =>
-          SchemaGenerationError.fromError(error, context),
-      });
-
-    return yield* generateFromPath(filePath, `file: ${filePath}`).pipe(
-      Effect.catchTag('SchemaGenerationError', (originalError) =>
-        generateSchemasFromSanitizedFile(filePath, tsconfig).pipe(
-          Effect.catchTag('SchemaGenerationError', () =>
-            Effect.fail(originalError),
-          ),
-        ),
-      ),
-    );
-  },
-);
-
-const stripClassHeritageClauses = (source: string, filePath: string): string => {
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
-
-  const ranges: Array<readonly [start: number, end: number]> = [];
-
-  const visit = (node: ts.Node): void => {
-    if (ts.isClassDeclaration(node) && node.heritageClauses) {
-      for (const clause of node.heritageClauses) {
-        ranges.push([clause.pos, clause.end] as const);
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-
-  visit(sourceFile);
-
-  if (ranges.length === 0) {
-    return source;
-  }
-
-  let sanitized = source;
-  for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) {
-    sanitized = `${sanitized.slice(0, start)}${sanitized.slice(end)}`;
-  }
-
-  return sanitized;
-};
-
-const generateSchemasFromSanitizedFile = (
+export const generateSchemasFromVirtualFile = Effect.fn(
+  'SchemaGenerator.generateFromVirtualFile',
+)(function* (
   filePath: string,
+  content: string,
   tsconfig: string,
-): Effect.Effect<GeneratedSchemas, SchemaError> =>
-  Effect.gen(function* () {
-    const context = `file (sanitized): ${filePath}`;
-    const originalSource = yield* Effect.try({
-      try: () => readFileSync(filePath, 'utf-8'),
-      catch: (error) => SchemaGenerationError.fromError(error, context),
-    });
-    const sanitizedSource = stripClassHeritageClauses(originalSource, filePath);
-
-    if (sanitizedSource === originalSource) {
-      return yield* Effect.fail(
-        new SchemaGenerationError({
-          message: `No class heritage clauses to sanitize (${context})`,
-        }),
-      );
-    }
-
-    const tempSanitizedPath = join(
-      dirname(filePath),
-      `.schema-sanitized.${randomUUID()}.ts`,
-    );
-
-    return yield* Effect.try({
-      try: () => {
-        try {
-          writeFileSync(tempSanitizedPath, sanitizedSource, 'utf-8');
-
-          const config: TsJsonSchemaConfig = {
-            path: tempSanitizedPath,
-            tsconfig,
-            type: '*',
-            skipTypeCheck: true,
-            expose: 'export',
-            jsDoc: 'extended',
-            sortProps: true,
-            strictTuples: false,
-            encodeRefs: false,
-            additionalProperties: false,
-          };
-
-          const generator = createGenerator(config);
-          const schema = generator.createSchema(config.type);
-          return convertToGeneratedSchemas(schema);
-        } finally {
-          if (existsSync(tempSanitizedPath)) {
-            unlinkSync(tempSanitizedPath);
-          }
-        }
-      },
-      catch: (error) => SchemaGenerationError.fromError(error, context),
-    });
-  });
+  overlay?: ReadonlyMap<string, string>,
+) {
+  return yield* generateInProgram(
+    {
+      tsconfig,
+      rootFiles: [filePath],
+      virtualFiles: new Map([
+        ...(overlay ?? new Map<string, string>()),
+        [resolvePath(filePath), content],
+      ]),
+    },
+    'all',
+  );
+});

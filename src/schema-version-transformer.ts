@@ -42,6 +42,23 @@ const unwrapSingleRefAllOf = (schema: OpenApiSchema): OpenApiSchema => {
     : schema;
 };
 
+const getSingleRefAllOf = (schema: OpenApiSchema) => {
+  const onlyMember = schema.allOf?.length === 1 ? schema.allOf[0] : undefined;
+  if (onlyMember?.$ref === undefined || Object.keys(onlyMember).length !== 1) {
+    return undefined;
+  }
+  return onlyMember.$ref;
+};
+
+// From 3.1 on, `$ref` takes sibling keywords, so the 3.0 wrapper
+// `{ allOf: [{ $ref }], description }` becomes `{ $ref, description }`
+const hoistSingleRefAllOf = (schema: OpenApiSchema): OpenApiSchema => {
+  const ref = getSingleRefAllOf(schema);
+  if (ref === undefined) return schema;
+  const { allOf: _allOf, ...rest } = schema;
+  return { $ref: ref, ...rest };
+};
+
 /**
  * JSON Schema 2020-12 dropped the `binary` and `byte` formats that 3.0 used to
  * mark payloads as bytes, so 3.1 states the same thing with content keywords.
@@ -98,7 +115,7 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
     ...(transformedProperties && { properties: transformedProperties }),
   };
 
-  if (!nullable) return transformedSchema;
+  if (!nullable) return hoistSingleRefAllOf(transformedSchema);
 
   // Nullability is already encoded in type array form.
   if (schema.type && typeof schema.type === 'string') {
@@ -122,6 +139,14 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
         ? transformedSchema.anyOf
         : [...transformedSchema.anyOf, NULL_SCHEMA],
     };
+  }
+
+  // A wrapped reference keeps its metadata beside the null union:
+  // { anyOf: [{ $ref }, { type: 'null' }], description }
+  const ref = getSingleRefAllOf(transformedSchema);
+  if (ref !== undefined) {
+    const { allOf: _allOf, ...metadata } = transformedSchema;
+    return { ...metadata, anyOf: [{ $ref: ref }, NULL_SCHEMA] };
   }
 
   // allOf/$ref/other schema forms need an outer union to keep nullability.

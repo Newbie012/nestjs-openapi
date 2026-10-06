@@ -8,7 +8,7 @@ This tool performs static AST analysis to emit OpenAPI 3.0/3.1/3.2 specs from Ne
 
 1. Create a ts-morph project from `files.entry` using the provided `tsconfig`
 2. Traverse `@Module` graphs to collect controllers and HTTP methods
-3. Extract routing + Swagger metadata into `MethodInfo` objects
+3. Extract routing + Swagger metadata into `MethodInfo` objects. Every reader goes through `getEffectiveDecorators()` (decorators.ts), which expands `applyDecorators()` wrappers and `options.decorators` mappings into built-in decorator calls
 4. Generate DTO schemas with `ts-json-schema-generator`, normalize names, merge `class-validator` constraints
 5. Apply filters, prefix `basePath`, build OpenAPI paths, merge schemas + security, write output
 6. Optional: `OpenApiModule` serves the generated spec and Swagger UI at runtime
@@ -32,7 +32,19 @@ src/
 ├── filter.ts             # Path/decorator filtering
 ├── security.ts           # Security scheme building
 ├── security-decorators.ts # Security decorator extraction
+├── decorators.ts         # Effective decorators: expands applyDecorators() wrappers and config mappings
+├── static-value.ts       # Static evaluation of decorator arguments
+├── responses.ts          # @ApiResponse / shortcuts / @ApiBody metadata
+├── parameters.ts         # @ApiQuery / @ApiParam / @ApiHeader(s), merged with inferred params
+├── property-schema.ts    # @ApiProperty options → declared schema (Nest precedence)
+├── run-project.ts        # One ts-morph project per tsconfig per run
+├── spec-compliance.ts    # Version-specific `examples`
+├── schema-inliner.ts     # Writes referenced components in place
+├── http-status.ts        # HttpStatus codes and response shortcut statuses
+├── schema-program.ts     # TypeScript programs for ts-json-schema-generator (in-memory transforms)
 ├── schema-generator.ts   # JSON Schema generation
+├── mapped-types.ts       # PartialType / PickType / OmitType / IntersectionType schemas
+├── declaration-references.ts # Declarations each operation reaches, by symbol
 ├── schema-merger.ts      # Schema merging and deduplication
 ├── schema-normalizer.ts  # Schema name normalization
 ├── schema-version-transformer.ts # OpenAPI version transforms

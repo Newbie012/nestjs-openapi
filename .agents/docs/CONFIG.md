@@ -40,8 +40,15 @@ export default defineConfig({
   options: {
     basePath: '/api',
     extractValidation: true,
-    excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
+    excludeDecorators: ['Internal'],
     pathFilter: /^(?!.*\/internal\/).*/,
+    decorators: { InternalPort: [{ name: 'ApiExcludeController' }] },
+    include: ['ExternalApiModule'], // like SwaggerModule.createDocument()
+    deepScanRoutes: false,
+    enums: 'ref', // or 'nest' (inline, like @nestjs/swagger)
+    versioning: { type: 'uri', defaultVersion: '1' }, // as in app.enableVersioning()
+    transformPath: (path, { controller, method, httpMethod }) => path,
+    schemas: { aliasRefs: 'collapse' },
   },
 });
 ```

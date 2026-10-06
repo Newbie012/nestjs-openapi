@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate } from '../src/generate.js';
+import { generate, type GenerateResult } from '../src/generate.js';
 import type { OpenApiSpec } from '../src/types.js';
 
 describe('Exclude Decorators E2E', () => {
@@ -14,20 +14,23 @@ describe('Exclude Decorators E2E', () => {
     'e2e-applications/exclude-decorators/openapi.generated.json',
   );
 
-  afterEach(() => {
-    // Clean up generated file
+  let result: GenerateResult;
+  let spec: OpenApiSpec;
+
+  beforeAll(async () => {
+    result = await generate(configPath);
+    spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  });
+
+  afterAll(() => {
     if (existsSync(outputPath)) {
       unlinkSync(outputPath);
     }
   });
 
-  it('should generate OpenAPI spec with filtered endpoints', async () => {
-    const result = await generate(configPath);
-
+  it('should generate OpenAPI spec with filtered endpoints', () => {
     expect(result.outputPath).toBe(outputPath);
     expect(existsSync(outputPath)).toBe(true);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
 
     // Verify basic spec structure
     expect(spec.openapi).toBe('3.0.3');
@@ -36,11 +39,7 @@ describe('Exclude Decorators E2E', () => {
   });
 
   describe('Public endpoints', () => {
-    it('should include public ItemsController endpoints', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should include public ItemsController endpoints', () => {
       // Public endpoints should be included
       expect(spec.paths['/items']).toBeDefined();
       expect(spec.paths['/items'].get).toBeDefined();
@@ -50,21 +49,13 @@ describe('Exclude Decorators E2E', () => {
       expect(spec.paths['/items/{id}'].get).toBeDefined();
     });
 
-    it('should include public AdminController endpoint', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should include public AdminController endpoint', () => {
       // Public admin endpoint should be included
       expect(spec.paths['/admin/config']).toBeDefined();
       expect(spec.paths['/admin/config'].get).toBeDefined();
     });
 
-    it('should include PublicApiController endpoints', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should include PublicApiController endpoints', () => {
       // Public API endpoints should be included
       expect(spec.paths['/api/public/info']).toBeDefined();
       expect(spec.paths['/api/public/info'].get).toBeDefined();
@@ -75,11 +66,7 @@ describe('Exclude Decorators E2E', () => {
   });
 
   describe('@Internal decorator filtering', () => {
-    it('should exclude endpoints with @Internal decorator', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should exclude endpoints with @Internal decorator', () => {
       // Endpoints with @Internal should be excluded
       expect(spec.paths['/items/internal/stats']).toBeUndefined();
       expect(spec.paths['/admin/health']).toBeUndefined();
@@ -88,21 +75,13 @@ describe('Exclude Decorators E2E', () => {
   });
 
   describe('controller-level decorator filtering', () => {
-    it('should exclude all endpoints from controllers with excluded decorators', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should exclude all endpoints from controllers with excluded decorators', () => {
       expect(spec.paths['/internal-port/secret']).toBeUndefined();
     });
   });
 
   describe('@ApiExcludeEndpoint decorator filtering', () => {
-    it('should exclude endpoints with @ApiExcludeEndpoint', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should exclude endpoints with @ApiExcludeEndpoint', () => {
       // DELETE endpoint should be excluded due to @ApiExcludeEndpoint
       // The path /items/{id} should exist (for GET) but not have DELETE
       expect(spec.paths['/items/{id}']).toBeDefined();
@@ -111,11 +90,7 @@ describe('Exclude Decorators E2E', () => {
   });
 
   describe('pathFilter filtering', () => {
-    it('should exclude versioned paths matching the filter', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should exclude versioned paths matching the filter', () => {
       // Versioned paths like /v2/legacy/* should be excluded
       expect(spec.paths['/v2/legacy/data']).toBeUndefined();
 
@@ -126,11 +101,7 @@ describe('Exclude Decorators E2E', () => {
   });
 
   describe('Operation metadata', () => {
-    it('should have correct operation metadata for included endpoints', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should have correct operation metadata for included endpoints', () => {
       // Check operation metadata
       const getItemsOp = spec.paths['/items'].get;
       expect(getItemsOp.summary).toBe('Get all items');
@@ -147,11 +118,7 @@ describe('Exclude Decorators E2E', () => {
   });
 
   describe('Tags', () => {
-    it('should only include tags for non-excluded endpoints', async () => {
-      await generate(configPath);
-
-      const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+    it('should only include tags for non-excluded endpoints', () => {
       // Get all tags from the paths
       const pathTags = new Set<string>();
       for (const pathObj of Object.values(spec.paths)) {

@@ -4,3 +4,4 @@ output.*
 coverage
 *.generated.json
 .bench-baseline
+.bench-*

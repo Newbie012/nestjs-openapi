@@ -353,8 +353,9 @@ describe('transformMethod', () => {
         (param) => param.name === 'entries',
       );
 
+      // The description belongs to the parameter, as in @nestjs/swagger
+      expect(parameter?.description).toBe('Entry filters');
       expect(parameter?.schema).toEqual({
-        description: 'Entry filters',
         items: {
           type: 'string',
         },

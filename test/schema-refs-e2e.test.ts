@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate } from '../src/generate.js';
+import { generate, type GenerateResult } from '../src/generate.js';
 import type { OpenApiSpec } from '../src/types.js';
 
 /**
@@ -21,33 +21,33 @@ describe('Schema Refs E2E', () => {
     'e2e-applications/complex-generics/openapi.generated.json',
   );
 
-  afterEach(() => {
-    // Clean up generated file
+  let result: GenerateResult;
+  let rawContent: string;
+  let spec: OpenApiSpec;
+
+  beforeAll(async () => {
+    result = await generate(configPath);
+    rawContent = readFileSync(outputPath, 'utf-8');
+    spec = JSON.parse(rawContent);
+  });
+
+  afterAll(() => {
     if (existsSync(outputPath)) {
       unlinkSync(outputPath);
     }
   });
 
-  it('should generate OpenAPI spec with generic type refs', async () => {
-    const result = await generate(configPath);
-
+  it('should generate OpenAPI spec with generic type refs', () => {
     expect(result.outputPath).toBe(outputPath);
     expect(existsSync(outputPath)).toBe(true);
     expect(result.validation.valid).toBe(true);
     expect(result.validation.brokenRefCount).toBe(0);
 
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
     expect(spec.openapi).toBe('3.0.3');
     expect(spec.info.title).toBe('Complex Generics API');
   });
 
-  it('should NOT URL-encode angle brackets in schema refs', async () => {
-    await generate(configPath);
-
-    // Read raw file content to check for URL encoding
-    const rawContent = readFileSync(outputPath, 'utf-8');
-
+  it('should NOT URL-encode angle brackets in schema refs', () => {
     // These patterns should NOT appear (URL-encoded angle brackets)
     expect(rawContent).not.toContain('%3C'); // URL-encoded <
     expect(rawContent).not.toContain('%3E'); // URL-encoded >
@@ -58,11 +58,7 @@ describe('Schema Refs E2E', () => {
     expect(rawContent).toContain('BatchResult<');
   });
 
-  it('should have valid schema refs with generic types', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should have valid schema refs with generic types', () => {
     // Check paths have refs with generic types
     const articlesGet = spec.paths['/articles']?.get;
     expect(
@@ -79,10 +75,7 @@ describe('Schema Refs E2E', () => {
     });
   });
 
-  it('should include schemas for DTOs', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  it('should include schemas for DTOs', () => {
     const schemas = spec.components?.schemas ?? {};
     const schemaNames = Object.keys(schemas);
 
@@ -94,11 +87,7 @@ describe('Schema Refs E2E', () => {
     expect(schemaNames).toContain('UserEntity');
   });
 
-  it('should have properly formatted $ref values without URL encoding', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should have properly formatted $ref values without URL encoding', () => {
     // Find all $ref values in paths and schemas
     const allRefs: string[] = [];
     const collectRefs = (obj: unknown): void => {
@@ -127,11 +116,7 @@ describe('Schema Refs E2E', () => {
     }
   });
 
-  it('should normalize structure refs to readable names', async () => {
-    await generate(configPath);
-
-    const rawContent = readFileSync(outputPath, 'utf-8');
-    const spec: OpenApiSpec = JSON.parse(rawContent);
+  it('should normalize structure refs to readable names', () => {
     const schemaNames = Object.keys(spec.components?.schemas ?? {});
 
     // Verify NO raw structure-XXX patterns in the output

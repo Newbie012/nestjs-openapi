@@ -8,74 +8,108 @@ A concise view of what the generator reads today. For details, see the full [Dec
 
 ## Routing
 
-| Feature                          | Status        | Notes                                                                                             |
-| -------------------------------- | ------------- | ------------------------------------------------------------------------------------------------- |
-| `@Controller('path')`            | Supported     | String path only                                                                                  |
-| `@Controller({ path, version })` | Not supported | Object syntax is ignored                                                                          |
-| HTTP method decorators           | Supported     | `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Options`, `@Head`, `@All` (`all` is non-standard) |
+| Feature                                   | Status    | Notes                                                                                     |
+| ----------------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
+| `@Controller('path')`, `@Controller([...])` | Supported | Also `@Controller({ path, version })`; path arrays document every path                    |
+| HTTP method decorators                    | Supported | `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Options`, `@Head`; path arrays too        |
+| `@All()`                                  | Supported | One operation per HTTP method, operationIds `<Controller>_<method>_<verb>`, like Nest      |
+| `@Version()`, `VERSION_NEUTRAL`           | Supported | With [`versioning`](/docs/guides/configuration#versioning); URI versions in paths and operationIds |
+| `@HttpCode()`                             | Supported | Default success status                                                                    |
 
 ## Parameters
 
-| Decorator    | Status    | Notes                                |
-| ------------ | --------- | ------------------------------------ |
-| `@Param()`   | Supported | Path parameters                      |
-| `@Query()`   | Supported | Query params, DTOs inline by default |
-| `@Body()`    | Supported | Request body                         |
-| `@Headers()` | Supported | Header parameters                    |
+| Decorator                     | Status    | Notes                                                                                   |
+| ----------------------------- | --------- | --------------------------------------------------------------------------------------- |
+| `@Param()`                    | Supported | Path parameters                                                                         |
+| `@Query()`                    | Supported | Query params; DTOs are expanded, with their `@ApiProperty` metadata                     |
+| `@Body()`                     | Supported | Request body                                                                            |
+| `@Headers()`                  | Supported | Header parameters                                                                       |
+| `@ApiQuery`, `@ApiParam`      | Supported | Method and controller level; every option; params missing from the signature are added |
+| `@ApiHeader`, `@ApiHeaders`   | Supported | Method and controller level                                                             |
+| `@ApiQuery({ type: Dto })`    | Supported | Expanded into the DTO's properties                                                      |
 
 ## Swagger Operation Decorators
 
-| Decorator                      | Status        | Notes                                           |
-| ------------------------------ | ------------- | ----------------------------------------------- |
-| `@ApiTags`                     | Supported     | Controller and method level                     |
-| `@ApiOperation`                | Supported     | Summary, description, operationId               |
-| `@ApiParam`                    | Supported     | Path parameter docs                             |
-| `@ApiQuery`                    | Supported     | Query parameter docs                            |
-| `@ApiBody`                     | Supported     | Body metadata                                   |
-| `@ApiResponse`                 | Supported     | `status` is required                            |
-| `@ApiExcludeEndpoint`          | Supported     | Method-level, controlled by `excludeDecorators` |
-| `@ApiConsumes`, `@ApiProduces` | Supported     | Content types                                   |
-| `@ApiExcludeController`        | Not supported | Controller-level exclusion is not applied       |
+| Decorator                      | Status    | Notes                                                                    |
+| ------------------------------ | --------- | ------------------------------------------------------------------------ |
+| `@ApiTags`                     | Supported | Controller and method level, merged                                      |
+| `@ApiOperation`                | Supported | Summary, description, operationId, deprecated                            |
+| `@ApiBody`                     | Supported | `type`, `isArray`, `schema`, `description`, `required`                   |
+| `@ApiResponse`                 | Supported | `type`, `isArray`, `schema`, `description`; no `status` means `default`  |
+| `@ApiExcludeEndpoint`          | Supported | Also through wrappers                                                    |
+| `@ApiExcludeController`        | Supported | Every method of the controller                                           |
+| `@ApiConsumes`, `@ApiProduces` | Supported | Controller and method level                                              |
+| `@ApiExtension`                | Supported | Method level, and controller level for all its methods                   |
+| `@ApiExtraModels`              | Supported | Controller and method level                                              |
 
 ## Response Shortcuts
 
-| Decorator                                     | Status        | Notes                               |
-| --------------------------------------------- | ------------- | ----------------------------------- |
-| `@ApiOkResponse`, `@ApiCreatedResponse`, etc. | Not supported | Use `@ApiResponse({ status: ... })` |
+| Decorator                                                              | Status    | Notes                                                     |
+| ---------------------------------------------------------------------- | --------- | --------------------------------------------------------- |
+| `@ApiOkResponse`, `@ApiNotFoundResponse`, `@ApiDefaultResponse`, etc. | Supported | Every status shortcut @nestjs/swagger exports; controller and method level |
 
 ## Property Decorators
 
-| Decorator              | Status        | Notes                         |
-| ---------------------- | ------------- | ----------------------------- |
-| `@ApiProperty`         | Not supported | Use TypeScript types + JSDoc  |
-| `@ApiPropertyOptional` | Not supported | Use optional properties (`?`) |
-| `@ApiHideProperty`     | Not supported | No equivalent                 |
+| Decorator              | Status    | Notes                                                                                         |
+| ---------------------- | --------- | --------------------------------------------------------------------------------------------- |
+| `@ApiProperty`         | Supported | Every option; a declared `type`, `enum`, `items` or `oneOf`/`anyOf`/`allOf` wins over the TypeScript type |
+| `@ApiPropertyOptional` | Supported | Removes the property from `required`                                                          |
+| `@ApiHideProperty`     | Supported | Removes the property                                                                          |
+| `enum` + `enumName`    | Supported | A named component; `enumName` sets its name. Inline values with [`enums: 'nest'`](/docs/guides/configuration#enums) |
+
+## Mapped Types
+
+| Helper             | Status    | Notes                         |
+| ------------------ | --------- | ----------------------------- |
+| `PartialType`      | Supported | Every property optional       |
+| `PickType`         | Supported |                               |
+| `OmitType`         | Supported |                               |
+| `IntersectionType` | Supported | Helpers can be nested         |
+
+## Custom Decorators
+
+| Kind                                           | Status    | Notes                                                      |
+| ---------------------------------------------- | --------- | ---------------------------------------------------------- |
+| `applyDecorators()` wrappers in your code      | Supported | Followed automatically, including their arguments          |
+| Wrappers that cannot be followed               | Supported | Describe them with the [`decorators`](/docs/guides/configuration#decorators) option |
 
 ## Security
 
-| Decorator        | Status    | Notes                       |
-| ---------------- | --------- | --------------------------- |
-| `@ApiBearerAuth` | Supported | Scheme must exist in config |
-| `@ApiBasicAuth`  | Supported | Scheme must exist in config |
-| `@ApiOAuth2`     | Supported | Scheme must exist in config |
-| `@ApiSecurity`   | Supported | Scheme must exist in config |
-| `@ApiCookieAuth` | Supported | Scheme must exist in config |
+| Decorator        | Status    | Notes                                              |
+| ---------------- | --------- | -------------------------------------------------- |
+| `@ApiBearerAuth` | Supported | Controller and method level; scheme in config      |
+| `@ApiBasicAuth`  | Supported | Controller and method level; scheme in config      |
+| `@ApiOAuth2`     | Supported | Controller and method level; scheme in config      |
+| `@ApiSecurity`   | Supported | Controller and method level; scheme in config      |
+| `@ApiCookieAuth` | Supported | Controller and method level; scheme in config      |
 
 ## DTO Schema Generation
 
-| Source                     | Status    | Notes                              |
-| -------------------------- | --------- | ---------------------------------- |
-| TypeScript types           | Supported | Primary source of truth            |
-| JSDoc tags                 | Supported | Descriptions and constraints       |
-| class-validator decorators | Supported | Requires `extractValidation: true` |
+| Source                     | Status    | Notes                                         |
+| -------------------------- | --------- | --------------------------------------------- |
+| TypeScript types           | Supported | Primary source of truth                       |
+| JSDoc tags                 | Supported | Descriptions and constraints                  |
+| `@ApiProperty` metadata    | Supported | Read wherever the class is declared           |
+| class-validator decorators | Supported | Requires `extractValidation: true` (default)  |
+| Decorator arguments        | Supported | Literals, constants, enum members, `+` concatenation, template literals, `as const`, `Object.values/keys/entries`, array `filter`/`map`/`concat`/`slice`, `new Set` |
 
-## Limitations
+## Output
 
-- Dynamic route registration at runtime is not supported
-- Controller versioning via `@Controller({ path, version })` is not supported
-- Response shortcut decorators are ignored
-- Controller-level exclusion decorators are not applied
-- `@All()` maps to a non-standard `all` operation
+| Feature           | Status    | Notes                                                                    |
+| ----------------- | --------- | ------------------------------------------------------------------------ |
+| OpenAPI 3.0.3     | Supported | The default version                                                      |
+| OpenAPI 3.1 / 3.2 | Supported | `null` in types, `$ref` with sibling keywords, `examples` arrays         |
+| Path rewriting    | Supported | [`transformPath`](/docs/guides/configuration#transformpath)              |
+
+## Differences from @nestjs/swagger
+
+These are deliberate:
+- Enums are named components by default; @nestjs/swagger writes them in place unless `enumName` is set (`enums: 'nest'`).
+
+- A success response is inferred from the return type unless a 2xx response is declared; @nestjs/swagger documents only what decorators declare.
+- `@ApiExtension` on a controller applies to its methods; @nestjs/swagger ignores it there.
+- `@All()` documents the seven standard HTTP methods; @nestjs/swagger also emits the non-standard `search`.
+- Dynamic route registration at runtime cannot be seen statically.
 
 ## Next Steps
 

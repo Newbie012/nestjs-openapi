@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate } from '../src/generate.js';
+import { generate, type GenerateResult } from '../src/generate.js';
 import type { OpenApiSpec } from '../src/types.js';
 
 describe('DTO Validation E2E', () => {
@@ -14,20 +14,23 @@ describe('DTO Validation E2E', () => {
     'e2e-applications/dto-validation/openapi.generated.json',
   );
 
-  afterEach(() => {
-    // Clean up generated file
+  let result: GenerateResult;
+  let spec: OpenApiSpec;
+
+  beforeAll(async () => {
+    result = await generate(configPath);
+    spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  });
+
+  afterAll(() => {
     if (existsSync(outputPath)) {
       unlinkSync(outputPath);
     }
   });
 
-  it('should generate OpenAPI spec with DTOs', async () => {
-    const result = await generate(configPath);
-
+  it('should generate OpenAPI spec with DTOs', () => {
     expect(result.outputPath).toBe(outputPath);
     expect(existsSync(outputPath)).toBe(true);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
 
     // Verify basic spec structure
     expect(spec.openapi).toBe('3.0.3');
@@ -35,11 +38,7 @@ describe('DTO Validation E2E', () => {
     expect(spec.info.version).toBe('1.0.0');
   });
 
-  it('should include paths for users and products', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should include paths for users and products', () => {
     // Verify user paths exist
     expect(spec.paths['/users']).toBeDefined();
     expect(spec.paths['/users'].get).toBeDefined();
@@ -55,11 +54,7 @@ describe('DTO Validation E2E', () => {
     expect(spec.paths['/products/{id}']).toBeDefined();
   });
 
-  it('should have correct operation metadata', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should have correct operation metadata', () => {
     // Check user operations
     const createUserOp = spec.paths['/users'].post;
     expect(createUserOp.summary).toBe('Create a new user with validation');
@@ -70,11 +65,7 @@ describe('DTO Validation E2E', () => {
     expect(getProductOp.tags).toContain('Products');
   });
 
-  it('should include DTO schemas in components', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should include DTO schemas in components', () => {
     // Verify schemas are present
     expect(spec.components).toBeDefined();
     expect(spec.components?.schemas).toBeDefined();
@@ -87,10 +78,7 @@ describe('DTO Validation E2E', () => {
     expect(schemaNames.length).toBeGreaterThan(0);
   });
 
-  it('should have validation constraints in schemas when extractValidation is enabled', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  it('should have validation constraints in schemas when extractValidation is enabled', () => {
     const schemas = spec.components?.schemas ?? {};
 
     // Find CreateUserDto schema
@@ -129,10 +117,7 @@ describe('DTO Validation E2E', () => {
     }
   });
 
-  it('should have array constraints in product schema', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  it('should have array constraints in product schema', () => {
     const schemas = spec.components?.schemas ?? {};
 
     // Find CreateProductDto schema
@@ -152,10 +137,7 @@ describe('DTO Validation E2E', () => {
     }
   });
 
-  it('should correctly handle optional fields', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  it('should correctly handle optional fields', () => {
     const schemas = spec.components?.schemas ?? {};
 
     // Find UpdateUserDto schema - all fields should be optional
@@ -171,11 +153,7 @@ describe('DTO Validation E2E', () => {
     }
   });
 
-  it('should include response schemas with proper types', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should include response schemas with proper types', () => {
     // Check that responses reference proper schemas
     const createUserOp = spec.paths['/users'].post;
     const response201 = createUserOp.responses['201'];
@@ -184,10 +162,7 @@ describe('DTO Validation E2E', () => {
     expect(response201.description).toBe('User created');
   });
 
-  it('should extract enum values from @IsEnum decorator (not just from TS type)', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+  it('should extract enum values from @IsEnum decorator (not just from TS type)', () => {
     const schemas = spec.components?.schemas ?? {};
 
     // Find CreateUserDto schema
@@ -218,11 +193,7 @@ describe('DTO Validation E2E', () => {
     }
   });
 
-  it('should inline query DTO properties as individual parameters', async () => {
-    await generate(configPath);
-
-    const spec: OpenApiSpec = JSON.parse(readFileSync(outputPath, 'utf-8'));
-
+  it('should inline query DTO properties as individual parameters', () => {
     // The /users GET endpoint uses @Query() pagination: PaginationDto
     // which should be expanded to individual 'page' and 'limit' params
     const getUsersOp = spec.paths['/users'].get;

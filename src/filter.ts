@@ -187,11 +187,12 @@ export const filterMethods = (
   methods: readonly MethodInfo[],
   options: FilterOptions,
 ): readonly MethodInfo[] => {
+  const documented = methods.filter((method) => !method.excluded);
   const filter = createFilterPipeline(options);
 
   if (!filter) {
-    return methods;
+    return documented;
   }
 
-  return methods.filter(filter);
+  return documented.filter(filter);
 };

@@ -215,7 +215,7 @@ create(@Body() dto: CreateUserDto) {}
 
 ### `@ApiResponse`
 
-Documents responses. The `status` property is required and we read `description`, `type`, and array forms (`type: [UserDto]`). Shortcut helpers like `@ApiOkResponse` are not read; use `@ApiResponse` directly.
+Documents responses. We read `status`, `description`, `type` (including `[UserDto]` and `() => UserDto`), `isArray` and `schema` (including `getSchemaPath()`). As in @nestjs/swagger, a declared `type` or `schema` wins over the method's return type, and a response without `status` is the `default` response.
 
 ```typescript
 @Get(':id')
@@ -225,37 +225,27 @@ Documents responses. The `status` property is required and we read `description`
   type: UserDto,
 })
 @ApiResponse({
-  status: 404,
+  status: HttpStatus.NOT_FOUND,
   description: 'User not found',
 })
 findOne(@Param('id') id: string) {}
 ```
 
-<Callout type="warn">
-  The `status` property is required for `@ApiResponse`. Responses without a
-  status are ignored.
-</Callout>
-
 ### Response Shortcuts
 
-<Callout type="warn">
-  Response shortcut decorators (`@ApiOkResponse`, `@ApiCreatedResponse`, etc.)
-  are **not currently supported**. Use `@ApiResponse` with an explicit `status`
-  property instead.
-</Callout>
+Every status shortcut @nestjs/swagger exports is supported (`@ApiOkResponse`, `@ApiCreatedResponse`, `@ApiNoContentResponse`, `@ApiBadRequestResponse`, `@ApiUnauthorizedResponse`, `@ApiNotFoundResponse`, `@ApiConflictResponse`, `@ApiDefaultResponse` and the rest), with the same options as `@ApiResponse`.
+
+Response decorators on the controller apply to every method. A method's own response for the same status wins:
 
 ```typescript
-// Instead of @ApiOkResponse({ description: 'Success', type: UserDto })
-// Use:
-@ApiResponse({ status: 200, description: 'Success', type: UserDto })
-
-// Instead of @ApiCreatedResponse({ description: 'Created', type: UserDto })
-// Use:
-@ApiResponse({ status: 201, description: 'Created', type: UserDto })
-
-// Instead of @ApiNotFoundResponse({ description: 'Not found' })
-// Use:
-@ApiResponse({ status: 404, description: 'Not found' })
+@Controller('users')
+@ApiUnauthorizedResponse({ description: 'Missing credentials' })
+export class UsersController {
+  @Get(':id')
+  @ApiOkResponse({ type: UserDto })
+  @ApiNotFoundResponse({ description: 'User not found' })
+  findOne(@Param('id') id: string) {} // 200, 401 and 404
+}
 ```
 
 ### `@ApiConsumes` and `@ApiProduces`
@@ -272,9 +262,9 @@ uploadFile(@Body() dto: FileUploadDto) {}
 getReport() {}
 ```
 
-### `@ApiExcludeEndpoint`
+### `@ApiExcludeEndpoint` and `@ApiExcludeController`
 
-Exclude endpoints from the generated spec:
+Exclude endpoints, or every endpoint of a controller, from the generated spec:
 
 ```typescript
 @Get('health')
@@ -282,23 +272,40 @@ Exclude endpoints from the generated spec:
 healthCheck() {}
 ```
 
-This is controlled by the `excludeDecorators` option:
+To exclude endpoints marked with your own decorators, list them in [`excludeDecorators`](/docs/guides/configuration#excludedecorators).
+
+## Custom Decorators
+
+Decorators you build with `applyDecorators()` are followed automatically, including the arguments they are called with:
 
 ```typescript
-// openapi.config.ts
-options: {
-  excludeDecorators: ['ApiExcludeEndpoint'],
+export function FilterField(type = FilterDto) {
+  return applyDecorators(
+    ApiPropertyOptional({ type }),
+    IsOptional(),
+    ValidateNested(),
+    Type(() => type),
+  );
 }
+
+export const ApiStandardErrors = () =>
+  applyDecorators(
+    ApiBadRequestResponse({ type: ErrorDto }),
+    ApiUnauthorizedResponse(),
+  );
 ```
 
-`excludeDecorators` matches method decorators only. To exclude an entire controller, apply a decorator to each method or use a path filter.
+`@FilterField()` is read as `@ApiPropertyOptional({ type: FilterDto })` plus the validation decorators, and `@ApiStandardErrors()` as its two responses. This works for property, method and controller decorators, for functions and constants, and for wrappers of wrappers.
+
+Some decorators cannot be followed: those from a compiled library, or those that pick decorators with conditions. Describe them with the [`decorators`](/docs/guides/configuration#decorators) option.
 
 ## DTO Schema Generation
 
 <Callout type="info">
-  Schemas are generated from **TypeScript types**, not `@nestjs/swagger`
-  decorators. The library uses `ts-json-schema-generator` to analyze your DTO
-  classes and interfaces.
+  Schemas are generated from **TypeScript types** with
+  `ts-json-schema-generator`, then `@ApiProperty` and class-validator
+  metadata is applied on top. Metadata is read wherever the class is
+  declared.
 </Callout>
 
 ### How Schemas Work
@@ -353,13 +360,15 @@ export class CreateUserDto {
 
 See the [Validation Guide](/docs/guides/validation) for details.
 
-### Unsupported DTO Decorators
+### Property Decorators
 
-The following `@nestjs/swagger` property decorators are **not supported**:
+`@ApiProperty` and `@ApiPropertyOptional` add descriptions, examples, enums, formats, constraints and nullability. `required: false` and `@ApiPropertyOptional()` make a property optional even without `?`. `@ApiHideProperty()` removes a property.
 
-- `@ApiProperty()` - Use TypeScript types and JSDoc instead
-- `@ApiPropertyOptional()` - Use optional properties (`?`) instead
-- `@ApiHideProperty()` - Not supported
+A property whose type is another class is a `$ref` to that class's schema. When the property also has a description or is nullable, it is wrapped as `{ allOf: [{ $ref }], description }` in OpenAPI 3.0, like @nestjs/swagger does, and written as `{ $ref, description }` in 3.1.
+
+### Mapped Types
+
+Classes built with `PartialType`, `PickType`, `OmitType` and `IntersectionType` get the inherited properties with the helpers' rules, including nested helpers such as `PartialType(OmitType(UserDto, ['id']))`.
 
 ## Type Inference
 
@@ -432,34 +441,6 @@ export class UsersController {
 </Callout>
 
 See the [Security Guide](/docs/guides/security) for complete configuration options.
-
-## Unsupported Decorators
-
-The following `@nestjs/swagger` decorators are **not currently supported**:
-
-### Response Shortcuts
-
-- `@ApiOkResponse()` - Use `@ApiResponse({ status: 200, ... })`
-- `@ApiCreatedResponse()` - Use `@ApiResponse({ status: 201, ... })`
-- `@ApiAcceptedResponse()` - Use `@ApiResponse({ status: 202, ... })`
-- `@ApiNoContentResponse()` - Use `@ApiResponse({ status: 204, ... })`
-- `@ApiBadRequestResponse()` - Use `@ApiResponse({ status: 400, ... })`
-- `@ApiUnauthorizedResponse()` - Use `@ApiResponse({ status: 401, ... })`
-- `@ApiForbiddenResponse()` - Use `@ApiResponse({ status: 403, ... })`
-- `@ApiNotFoundResponse()` - Use `@ApiResponse({ status: 404, ... })`
-- `@ApiConflictResponse()` - Use `@ApiResponse({ status: 409, ... })`
-- `@ApiInternalServerErrorResponse()` - Use `@ApiResponse({ status: 500, ... })`
-
-### Property Decorators
-
-- `@ApiProperty()` - Use TypeScript types and JSDoc
-- `@ApiPropertyOptional()` - Use optional properties (`?`)
-- `@ApiHideProperty()` - Not supported
-
-### Other
-
-- `@ApiExtension()` - Custom extensions
-- Controller versioning - `@Controller({ path, version })` object syntax
 
 ## Next Steps
 
