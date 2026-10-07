@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
 import { Effect, Logger } from 'effect';
-import { generateEffect, type GenerateResult } from '../src/generate.js';
-import { generatorServicesLayer } from '../src/service-layer.js';
-import type { OpenApiSchema, OpenApiSpec } from '../src/types.js';
+import { generateEffect, type GenerateResult } from '../src/document/generate.js';
+import { generatorServicesLayer } from '../src/runtime/service-layer.js';
+import type { OpenApiSchema, OpenApiSpec } from '../src/config/types.js';
 
 const fixtureDir = resolve(process.cwd(), 'e2e-applications/regressions');
 

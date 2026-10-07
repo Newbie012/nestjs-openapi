@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { generate } from '../src/generate.js';
+import { generate } from '../src/document/generate.js';
 import { resolve } from 'node:path';
 import { readFileSync, existsSync, unlinkSync } from 'node:fs';
 

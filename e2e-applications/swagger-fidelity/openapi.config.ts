@@ -1,5 +1,5 @@
-import { defineConfig } from '../../src/config.js';
-import { typeRef } from '../../src/decorators.js';
+import { defineConfig } from '../../src/config/config.js';
+import { typeRef } from '../../src/analysis/decorators.js';
 
 export default defineConfig({
   output: 'openapi.generated.json',

@@ -5,20 +5,20 @@
  */
 
 import { Effect } from 'effect';
-import type { OpenApiPaths } from './domain.js';
-import { type GeneratorError, type ProjectError } from './errors.js';
-import { generateEffect, type GenerateResult } from './generate.js';
-import { MethodExtractionService } from './methods.js';
-import { ModuleTraversalService } from './modules.js';
-import { ProjectService } from './project.js';
+import type { OpenApiPaths } from './model/domain.js';
+import { type GeneratorError, type ProjectError } from './config/errors.js';
+import { generateEffect, type GenerateResult } from './document/generate.js';
+import { MethodExtractionService } from './analysis/methods.js';
+import { ModuleTraversalService } from './analysis/modules.js';
+import { ProjectService } from './analysis/project.js';
 import {
   runGeneratorApiPromise,
   runProjectApiPromise,
 } from './public-api.js';
-import { runtimeLayerFor } from './runtime-layer.js';
-import { generatorServicesLayer } from './service-layer.js';
-import { TransformerService } from './transformer.js';
-import type { GenerateOverrides } from './types.js';
+import { runtimeLayerFor } from './runtime/runtime-layer.js';
+import { generatorServicesLayer } from './runtime/service-layer.js';
+import { TransformerService } from './document/transformer.js';
+import type { GenerateOverrides } from './config/types.js';
 
 export interface GenerateOptions {
   readonly tsconfig: string;

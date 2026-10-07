@@ -11,15 +11,15 @@
 import 'tsx';
 
 import { Cause, Effect, Exit, Option } from 'effect';
-import { generateEffect } from './generate.js';
-import { formatValidationResult } from './spec-validator.js';
-import { toUserFacingErrorMessage } from './error-message.js';
-import { runtimeLayerFor } from './runtime-layer.js';
-import { generatorServicesLayer } from './service-layer.js';
+import { generateEffect } from './document/generate.js';
+import { formatValidationResult } from './document/spec-validator.js';
+import { toUserFacingErrorMessage } from './config/error-message.js';
+import { runtimeLayerFor } from './runtime/runtime-layer.js';
+import { generatorServicesLayer } from './runtime/service-layer.js';
 import minimist from 'minimist';
 import { relative } from 'node:path';
 import { createRequire } from 'node:module';
-import type { TelemetryConfig } from './types.js';
+import type { TelemetryConfig } from './config/types.js';
 
 // Read version from package.json at runtime
 const require = createRequire(import.meta.url);

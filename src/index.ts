@@ -39,18 +39,18 @@
 /**
  * Generate OpenAPI specification from a NestJS application
  */
-export { generate } from './generate.js';
-export type { GenerateResult } from './generate.js';
+export { generate } from './document/generate.js';
+export type { GenerateResult } from './document/generate.js';
 
 /**
  * Define configuration with TypeScript type inference
  */
-export { defineConfig } from './config.js';
+export { defineConfig } from './config/config.js';
 
 /**
  * Reference a class or enum by name in a custom decorator mapping
  */
-export { typeRef, TypeRef } from './decorators.js';
+export { typeRef, TypeRef } from './analysis/decorators.js';
 
 /**
  * Public types for configuration
@@ -78,7 +78,7 @@ export type {
   SchemaNameCollision,
   SchemaNameCollisionStrategy,
   PathTransform,
-} from './types.js';
+} from './config/types.js';
 
 /**
  * NestJS module for serving OpenAPI specifications at runtime
@@ -91,7 +91,7 @@ export {
   loadSpecFileEffect,
   generateSwaggerUiHtml,
   resolveOptions,
-} from './module.js';
+} from './runtime/module.js';
 export type {
   LoadSpecFileOptions,
   OpenApiDocumentFileSource,
@@ -101,7 +101,7 @@ export type {
   OpenApiSetupOptions,
   ResolvedOpenApiModuleOptions,
   SwaggerOptions,
-} from './module.js';
+} from './runtime/module.js';
 
 // =============================================================================
 // Advanced API (for users who need more control)
@@ -130,7 +130,7 @@ export type {
   MethodInfo,
   OpenApiGeneratorConfig,
   ResolvedConfig,
-} from './domain.js';
+} from './model/domain.js';
 
 // Errors
 export {
@@ -150,7 +150,7 @@ export {
   type ConfigError,
   type AnalysisError,
   type GeneratorError,
-} from './errors.js';
+} from './config/errors.js';
 
 // Services
 export {
@@ -159,7 +159,7 @@ export {
   makeProjectContext,
   type ProjectContext,
   type ProjectOptions,
-} from './project.js';
+} from './analysis/project.js';
 
 // Module Exploration
 export {
@@ -167,7 +167,7 @@ export {
   getAllControllers,
   ModuleTraversalService,
   type ModuleWithControllers,
-} from './modules.js';
+} from './analysis/modules.js';
 
 // Controller Analysis
 export {
@@ -180,7 +180,7 @@ export {
   getHttpDecorator,
   isHttpDecorator,
   normalizePath,
-} from './controllers.js';
+} from './analysis/controllers.js';
 
 // Method Analysis
 export {
@@ -189,7 +189,7 @@ export {
   getControllerMethodInfos,
   getControllerMethodInfosEffect,
   MethodExtractionService,
-} from './methods.js';
+} from './analysis/methods.js';
 
 // Transformation
 export {
@@ -198,7 +198,7 @@ export {
   transformMethodEffect,
   transformMethods,
   transformMethodsEffect,
-} from './transformer.js';
+} from './document/transformer.js';
 
 // Schema merging
 export {
@@ -209,7 +209,7 @@ export {
   filterSchemas,
   filterSchemasEffect,
   type MergedResult,
-} from './schema-merger.js';
+} from './schema/schema-merger.js';
 
 // Schema normalization
 export {
@@ -221,7 +221,7 @@ export {
   normalizeStructureRefsEffect,
   toPascalCase,
   type NormalizerOptions,
-} from './schema-normalizer.js';
+} from './schema/schema-normalizer.js';
 
 // Schema generation
 export {
@@ -232,9 +232,9 @@ export {
   type SchemaGeneratorOptions,
   type GeneratedSchemas,
   type JsonSchema,
-} from './schema-generator.js';
+} from './schema/schema-generator.js';
 
-export { SchemaService } from './schema-service.js';
+export { SchemaService } from './schema/schema-service.js';
 
 // Validation mapping
 export {
@@ -252,10 +252,10 @@ export {
   type ValidationConstraints,
   type PropertyValidationInfo,
   type ClassValidationInfo,
-} from './validation-mapper.js';
+} from './analysis/validation-mapper.js';
 
-export { ValidationService } from './validation-service.js';
-export { OutputService } from './output-service.js';
+export { ValidationService } from './analysis/validation-service.js';
+export { OutputService } from './document/output-service.js';
 
 // Config utilities
 export {
@@ -265,10 +265,10 @@ export {
   loadConfig,
   resolveConfig,
   loadAndResolveConfig,
-} from './config.js';
+} from './config/config.js';
 
 // Service layers
-export { generatorServicesLayer } from './service-layer.js';
+export { generatorServicesLayer } from './runtime/service-layer.js';
 
 // AST Utilities
 export {
@@ -276,7 +276,7 @@ export {
   getArrayInitializer,
   getStringLiteralValue,
   getSymbolFromIdentifier,
-} from './ast.js';
+} from './analysis/ast.js';
 
 export {
   isModuleClass,
@@ -285,7 +285,7 @@ export {
   resolveArrayOfClasses,
   getModuleMetadata,
   type ModuleMetadata,
-} from './nest-ast.js';
+} from './analysis/nest-ast.js';
 
 // Spec Validation
 export {
@@ -295,4 +295,4 @@ export {
   type ValidationResult,
   type BrokenRef,
   type BrokenRefCategories,
-} from './spec-validator.js';
+} from './document/spec-validator.js';

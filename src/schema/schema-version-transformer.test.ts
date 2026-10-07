@@ -1,0 +1,642 @@
+import { describe, it, expect } from 'vitest';
+import {
+  transformSchemasForVersion,
+  transformSpecForVersion,
+} from './schema-version-transformer.js';
+import type { OpenApiSchema, OpenApiSpec } from '../config/types.js';
+
+describe('schema-version-transformer', () => {
+  describe('transformSchemasForVersion', () => {
+    it('should return schemas unchanged for 3.0.3', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        User: { type: 'object', properties: { name: { type: 'string' } } },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.0.3');
+
+      expect(result).toEqual(schemas);
+    });
+
+    it('should transform nullable for 3.1.0', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        User: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', nullable: true },
+            email: { type: 'string' },
+          },
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      expect(result.User.properties?.name.type).toEqual(['string', 'null']);
+      expect(result.User.properties?.email.type).toBe('string');
+    });
+
+    it('should move metadata beside $ref for 3.1.0', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        User: {
+          type: 'object',
+          properties: {
+            role: {
+              allOf: [{ $ref: '#/components/schemas/Role' }],
+              description: 'User role',
+            },
+            manager: {
+              allOf: [{ $ref: '#/components/schemas/User' }],
+              description: 'Manager, if any',
+              nullable: true,
+            },
+          },
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      expect(result.User.properties?.role).toEqual({
+        $ref: '#/components/schemas/Role',
+        description: 'User role',
+      });
+      expect(result.User.properties?.manager).toEqual({
+        anyOf: [{ $ref: '#/components/schemas/User' }, { type: 'null' }],
+        description: 'Manager, if any',
+      });
+    });
+
+    it('should transform nullable for 3.2.0', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        Product: {
+          type: 'object',
+          properties: {
+            description: { type: 'string', nullable: true },
+          },
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.2.0');
+
+      expect(result.Product.properties?.description.type).toEqual([
+        'string',
+        'null',
+      ]);
+    });
+
+    it('should transform nested nullable schemas in properties', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        User: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', nullable: true },
+            age: { type: 'number' },
+          },
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      expect(result.User.properties?.name.type).toEqual(['string', 'null']);
+      expect(result.User.properties?.age.type).toBe('number');
+    });
+
+    it('should transform nullable in array items', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        UserList: {
+          type: 'object',
+          properties: {
+            items: {
+              type: 'array',
+              items: { type: 'string', nullable: true },
+            },
+          },
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      expect(
+        (result.UserList.properties?.items as OpenApiSchema).items?.type,
+      ).toEqual(['string', 'null']);
+    });
+
+    it('should keep a nullable $ref wrapper for 3.0.3', () => {
+      // ARRANGE
+      const schemas: Record<string, OpenApiSchema> = {
+        Widget: {
+          type: 'object',
+          properties: {
+            method: {
+              allOf: [{ $ref: '#/components/schemas/PaymentMethodDto' }],
+              nullable: true,
+            },
+          },
+        },
+      };
+
+      // ACT
+      const result = transformSchemasForVersion(schemas, '3.0.3');
+
+      // ASSERT
+      expect(result.Widget.properties?.['method']).toEqual({
+        allOf: [{ $ref: '#/components/schemas/PaymentMethodDto' }],
+        nullable: true,
+      });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'should drop the single-member allOf wrapper around a nullable $ref for %s',
+      (version) => {
+        // ARRANGE
+        const schemas: Record<string, OpenApiSchema> = {
+          Widget: {
+            type: 'object',
+            properties: {
+              method: {
+                allOf: [{ $ref: '#/components/schemas/PaymentMethodDto' }],
+                nullable: true,
+              },
+            },
+          },
+        };
+
+        // ACT
+        const result = transformSchemasForVersion(schemas, version);
+
+        // ASSERT
+        expect(result.Widget.properties?.['method']).toEqual({
+          anyOf: [
+            { $ref: '#/components/schemas/PaymentMethodDto' },
+            { type: 'null' },
+          ],
+        });
+      },
+    );
+
+    it.each(['3.0.3', '3.1.0'] as const)(
+      'should leave a non-nullable $ref untouched for %s',
+      (version) => {
+        // ARRANGE
+        const schemas: Record<string, OpenApiSchema> = {
+          Widget: {
+            type: 'object',
+            properties: {
+              method: { $ref: '#/components/schemas/PaymentMethodDto' },
+            },
+          },
+        };
+
+        // ACT
+        const result = transformSchemasForVersion(schemas, version);
+
+        // ASSERT
+        expect(result.Widget.properties?.['method']).toEqual({
+          $ref: '#/components/schemas/PaymentMethodDto',
+        });
+      },
+    );
+
+    it('should keep a multi-member allOf that is nullable as a wrapped union for 3.1.0', () => {
+      // ARRANGE
+      const schemas: Record<string, OpenApiSchema> = {
+        Widget: {
+          allOf: [
+            { $ref: '#/components/schemas/PaymentMethodDto' },
+            { type: 'object' },
+          ],
+          nullable: true,
+        },
+      };
+
+      // ACT
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      // ASSERT
+      expect(result.Widget).toEqual({
+        anyOf: [
+          {
+            allOf: [
+              { $ref: '#/components/schemas/PaymentMethodDto' },
+              { type: 'object' },
+            ],
+          },
+          { type: 'null' },
+        ],
+      });
+    });
+
+    it.each(['3.0.3', '3.1.0'] as const)(
+      'should leave a nullable non-$ref schema unaffected for %s',
+      (version) => {
+        // ARRANGE
+        const schemas: Record<string, OpenApiSchema> = {
+          Widget: {
+            type: 'object',
+            properties: { label: { type: 'string', nullable: true } },
+          },
+        };
+
+        // ACT
+        const result = transformSchemasForVersion(schemas, version);
+
+        // ASSERT
+        expect(result.Widget.properties?.['label']).toEqual(
+          version === '3.0.3'
+            ? { type: 'string', nullable: true }
+            : { type: ['string', 'null'] },
+        );
+      },
+    );
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'should replace format binary with contentMediaType for %s',
+      (version) => {
+        // ARRANGE
+        const schemas: Record<string, OpenApiSchema> = {
+          Widget: {
+            type: 'object',
+            properties: { file: { type: 'string', format: 'binary' } },
+          },
+        };
+
+        // ACT
+        const result = transformSchemasForVersion(schemas, version);
+
+        // ASSERT
+        expect(result.Widget.properties?.['file']).toEqual({
+          type: 'string',
+          contentMediaType: 'application/octet-stream',
+        });
+      },
+    );
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'should replace format byte with contentEncoding for %s',
+      (version) => {
+        // ARRANGE
+        const schemas: Record<string, OpenApiSchema> = {
+          Widget: {
+            type: 'object',
+            properties: { payload: { type: 'string', format: 'byte' } },
+          },
+        };
+
+        // ACT
+        const result = transformSchemasForVersion(schemas, version);
+
+        // ASSERT
+        expect(result.Widget.properties?.['payload']).toEqual({
+          type: 'string',
+          contentEncoding: 'base64',
+        });
+      },
+    );
+
+    it('should keep format binary and byte for 3.0.3', () => {
+      // ARRANGE
+      const schemas: Record<string, OpenApiSchema> = {
+        Widget: {
+          type: 'object',
+          properties: {
+            file: { type: 'string', format: 'binary' },
+            payload: { type: 'string', format: 'byte' },
+          },
+        },
+      };
+
+      // ACT
+      const result = transformSchemasForVersion(schemas, '3.0.3');
+
+      // ASSERT
+      expect(result.Widget.properties?.['file']).toEqual({
+        type: 'string',
+        format: 'binary',
+      });
+      expect(result.Widget.properties?.['payload']).toEqual({
+        type: 'string',
+        format: 'byte',
+      });
+    });
+
+    it('should keep every other format for 3.1.0', () => {
+      // ARRANGE
+      const schemas: Record<string, OpenApiSchema> = {
+        Widget: {
+          type: 'object',
+          properties: { createdAt: { type: 'string', format: 'date-time' } },
+        },
+      };
+
+      // ACT
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      // ASSERT
+      expect(result.Widget.properties?.['createdAt']).toEqual({
+        type: 'string',
+        format: 'date-time',
+      });
+    });
+
+    it('should replace format binary on a nullable property for 3.1.0', () => {
+      // ARRANGE
+      const schemas: Record<string, OpenApiSchema> = {
+        Widget: {
+          type: 'object',
+          properties: {
+            file: { type: 'string', format: 'binary', nullable: true },
+          },
+        },
+      };
+
+      // ACT
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      // ASSERT
+      expect(result.Widget.properties?.['file']).toEqual({
+        type: ['string', 'null'],
+        contentMediaType: 'application/octet-stream',
+      });
+    });
+
+    it('should transform nullable in oneOf', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        Response: {
+          oneOf: [{ type: 'string', nullable: true }, { type: 'number' }],
+        },
+      };
+
+      const result = transformSchemasForVersion(schemas, '3.1.0');
+
+      expect(result.Response.oneOf?.[0].type).toEqual(['string', 'null']);
+      expect(result.Response.oneOf?.[1].type).toBe('number');
+    });
+  });
+
+  describe('transformSpecForVersion', () => {
+    it('should return spec unchanged for 3.0.3', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {},
+      };
+
+      const result = transformSpecForVersion(spec, '3.0.3');
+
+      expect(result.openapi).toBe('3.0.3');
+    });
+
+    it('should update version and transform schemas for 3.1.0', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {},
+        components: {
+          schemas: {
+            User: {
+              type: 'object',
+              properties: {
+                nickname: { type: 'string', nullable: true },
+              },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      expect(result.openapi).toBe('3.1.0');
+      expect(
+        result.components?.schemas?.User.properties?.nickname.type,
+      ).toEqual(['string', 'null']);
+    });
+
+    it('should handle specs without schemas', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {},
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      expect(result.openapi).toBe('3.1.0');
+      expect(result.components).toBeUndefined();
+    });
+
+    it('should transform nullable in path parameter schemas for 3.1.0', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              parameters: [
+                {
+                  name: 'search',
+                  in: 'query',
+                  required: false,
+                  schema: { type: 'string', nullable: true },
+                },
+              ],
+              responses: { '200': { description: 'OK' } },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const param = result.paths['/users'].get.parameters?.[0];
+      expect(param?.schema?.type).toEqual(['string', 'null']);
+    });
+
+    it('should transform nullable in response schemas for 3.1.0', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: { type: 'number', nullable: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const schema =
+        result.paths['/users'].get.responses['200']?.content?.[
+          'application/json'
+      ]?.schema;
+      expect(schema?.type).toEqual(['number', 'null']);
+    });
+
+    it('should preserve nullability for allOf-wrapped refs in path schemas', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users/{id}': {
+            get: {
+              operationId: 'getUser',
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        allOf: [{ $ref: '#/components/schemas/UserDto' }],
+                        nullable: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const schema =
+        result.paths['/users/{id}'].get.responses['200']?.content?.[
+          'application/json'
+        ]?.schema;
+
+      expect(schema).toEqual({
+        anyOf: [{ $ref: '#/components/schemas/UserDto' }, { type: 'null' }],
+      });
+    });
+
+    it('should preserve nullability for oneOf path schemas', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              parameters: [
+                {
+                  name: 'filter',
+                  in: 'query',
+                  required: false,
+                  schema: {
+                    oneOf: [{ type: 'string' }, { type: 'number' }],
+                    nullable: true,
+                  },
+                },
+              ],
+              responses: { '200': { description: 'OK' } },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const schema = result.paths['/users'].get.parameters?.[0]?.schema;
+      expect(schema).toEqual({
+        oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }],
+      });
+    });
+
+    it('should transform nullable in request body schemas for 3.1.0', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users': {
+            post: {
+              operationId: 'createUser',
+              requestBody: {
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        bio: { type: 'string', nullable: true },
+                      },
+                    },
+                  },
+                },
+              },
+              responses: { '201': { description: 'Created' } },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      const schema =
+        result.paths['/users'].post.requestBody?.content?.['application/json']
+          ?.schema;
+      expect(schema?.properties?.bio?.type).toEqual(['string', 'null']);
+    });
+
+    it('should leave path schemas untouched for 3.0.3', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {
+          '/users': {
+            get: {
+              operationId: 'getUsers',
+              parameters: [
+                {
+                  name: 'search',
+                  in: 'query',
+                  required: false,
+                  schema: { type: 'string', nullable: true },
+                },
+              ],
+              responses: { '200': { description: 'OK' } },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.0.3');
+
+      const param = result.paths['/users'].get.parameters?.[0];
+      expect(param?.schema).toEqual({ type: 'string', nullable: true });
+    });
+
+    it('should transform nullable number for 3.1.0', () => {
+      const spec: OpenApiSpec = {
+        openapi: '3.0.3',
+        info: { title: 'Test API', version: '1.0.0' },
+        paths: {},
+        components: {
+          schemas: {
+            Product: {
+              type: 'object',
+              properties: {
+                price: { type: 'number', nullable: true },
+              },
+            },
+          },
+        },
+      };
+
+      const result = transformSpecForVersion(spec, '3.1.0');
+
+      expect(
+        result.components?.schemas?.Product.properties?.price.type,
+      ).toEqual(['number', 'null']);
+    });
+  });
+});

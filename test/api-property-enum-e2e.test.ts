@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate, type GenerateResult } from '../src/generate.js';
-import type { OpenApiSpec } from '../src/types.js';
+import { generate, type GenerateResult } from '../src/document/generate.js';
+import type { OpenApiSpec } from '../src/config/types.js';
 
 describe('@ApiProperty extraction E2E', () => {
   const configPath = resolve(

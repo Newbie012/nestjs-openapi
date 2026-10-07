@@ -1,4 +1,4 @@
-import { defineConfig } from '../../src/config.js';
+import { defineConfig } from '../../src/config/config.js';
 
 // Generic instantiations keep their TypeScript names, e.g. `Page<User>`
 export default defineConfig({

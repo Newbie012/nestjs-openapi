@@ -102,7 +102,7 @@ export class AppModule {}
     writeFileSync(
       configPath,
       `
-import { defineConfig } from '${resolve(process.cwd(), 'src/config.js').replace(/\\/g, '/')}';
+import { defineConfig } from '${resolve(process.cwd(), 'src/config/config.js').replace(/\\/g, '/')}';
 
 export default defineConfig({
   output: '${join(TEST_DIR, 'openapi.generated.json').replace(/\\/g, '/')}',
@@ -184,7 +184,7 @@ export class AppModule {}
     writeFileSync(
       configPath,
       `
-import { defineConfig } from '${resolve(process.cwd(), 'src/config.js').replace(/\\/g, '/')}';
+import { defineConfig } from '${resolve(process.cwd(), 'src/config/config.js').replace(/\\/g, '/')}';
 
 export default defineConfig({
   output: '${join(TEST_DIR, 'generic-openapi.generated.json').replace(/\\/g, '/')}',

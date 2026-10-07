@@ -1,4 +1,4 @@
-import { defineConfig } from '../../src/config.js';
+import { defineConfig } from '../../src/config/config.js';
 
 /**
  * Default config - query DTOs are inlined as individual parameters

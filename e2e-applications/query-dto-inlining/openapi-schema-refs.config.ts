@@ -1,4 +1,4 @@
-import { defineConfig } from '../../src/config.js';
+import { defineConfig } from '../../src/config/config.js';
 
 /**
  * Schema refs config - query DTOs are kept as schema references (legacy behavior)

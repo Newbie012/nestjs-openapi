@@ -14,7 +14,7 @@ import { performance } from 'node:perf_hooks';
 import { glob } from 'glob';
 import { join, resolve, dirname } from 'node:path';
 import { Effect } from 'effect';
-import { generateSchemas } from '../src/schema-generator.js';
+import { generateSchemas } from '../src/schema/schema-generator.js';
 import { generateSchemasFromFiles } from '../src/custom-schema-generator.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 

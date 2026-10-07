@@ -2,15 +2,15 @@
 
 ## Test Structure
 
-- **Unit tests** (`src/*.test.ts`) — Co-located with source, use in-memory ts-morph
+- **Unit tests** (`src/**/*.test.ts`) — Next to the module they test, use in-memory ts-morph
 - **E2E tests** (`test/*-e2e.test.ts`) — Use fixture apps in `e2e-applications/`
 
 ## Running Tests
 
 ```bash
-pnpm test              # All tests (361 tests)
+pnpm test              # All tests
 pnpm test:watch        # Interactive watch mode
-pnpm test:e2e          # E2E tests only
+pnpm test:e2e          # Snapshot tests of the fixture apps (test/openapi-e2e-apps.test.ts)
 ```
 
 ## Writing Unit Tests
@@ -47,7 +47,7 @@ describe('MyFeature', () => {
 E2E tests use real fixture apps:
 
 ```typescript
-import { generate } from '../src/generate.js';
+import { generate } from '../src/index.js';
 import { resolve } from 'node:path';
 
 describe('Feature E2E', () => {

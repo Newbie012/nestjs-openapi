@@ -5,7 +5,7 @@ import {
   generateFromConfigAsync,
   generatePathsAsync,
 } from './internal.js';
-import { generate } from './generate.js';
+import { generate } from './document/generate.js';
 
 const TEST_DIR = resolve(process.cwd(), '.test-internal-compat');
 const TEST_APP_DIR = resolve(
@@ -30,7 +30,7 @@ describe('Promise API compatibility wrappers', () => {
     const configPath = join(TEST_DIR, 'compat.config.ts');
     const outputPath = join(TEST_DIR, 'compat.openapi.json');
 
-    const config = `import { defineConfig } from '${resolve(process.cwd(), 'src/config.js').replace(/\\/g, '/')}';
+    const config = `import { defineConfig } from '${resolve(process.cwd(), 'src/config/config.js').replace(/\\/g, '/')}';
 
 export default defineConfig({
   output: '${outputPath.replace(/\\/g, '/')}',

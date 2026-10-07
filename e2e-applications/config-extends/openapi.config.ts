@@ -1,4 +1,4 @@
-import { defineConfig } from '../../src/config.js';
+import { defineConfig } from '../../src/config/config.js';
 
 export default defineConfig({
   extends: './base.config.ts',
