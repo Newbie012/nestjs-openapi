@@ -6,7 +6,7 @@ Static analysis tool that generates OpenAPI specifications from NestJS applicati
 
 | Item | Value |
 |------|-------|
-| Package manager | pnpm 10+ |
+| Package manager | pnpm 12 |
 | Build | `pnpm build` |
 | Quality gate | `pnpm typecheck && pnpm lint && pnpm knip && pnpm test && pnpm build && pnpm publint` |
 
@@ -15,6 +15,10 @@ Static analysis tool that generates OpenAPI specifications from NestJS applicati
 - **Effect for errors** — Never `throw`, use `Effect.fail` with `Schema.TaggedError` (serializable)
 - **Nested config only** — Use `openapi.info`, not flat `info` at root
 - **ESM imports** — Always use `.js` extensions
+
+## Releases
+
+A change users would notice needs a change intent: `pnpm change` writes one to `.changeset/`. Merging to `main` releases the pending intents. A refactor, test or docs change needs none.
 
 ## Documentation
 

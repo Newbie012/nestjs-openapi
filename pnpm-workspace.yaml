@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+  "@nestjs/core": false
+  "@scarf/scarf": false
+  msgpackr-extract: false
+  protobufjs: false
