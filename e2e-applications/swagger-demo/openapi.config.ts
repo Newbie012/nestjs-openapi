@@ -1,6 +1,6 @@
 // Note: In a real app, you would import from 'nestjs-openapi'
 // import { defineConfig } from 'nestjs-openapi';
-import { defineConfig } from '../../src/config';
+import { defineConfig } from '../../src/config/config';
 
 export default defineConfig({
   output: 'openapi.generated.json',

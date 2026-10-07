@@ -1,12 +1,12 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { generate } from '../src/generate.js';
+import { generate } from '../src/document/generate.js';
 import {
   OpenApiModule,
   OPENAPI_MODULE_OPTIONS,
   OPENAPI_SPEC,
-} from '../src/module.js';
+} from '../src/runtime/module.js';
 
 describe('Swagger Demo E2E', () => {
   const configPath = 'e2e-applications/swagger-demo/openapi.config.ts';

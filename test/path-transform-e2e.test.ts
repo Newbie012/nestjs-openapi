@@ -1,8 +1,8 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate } from '../src/generate.js';
-import type { OpenApiSpec } from '../src/types.js';
+import { generate } from '../src/document/generate.js';
+import type { OpenApiSpec } from '../src/config/types.js';
 
 describe('transformPath E2E', () => {
   const fixtureDir = resolve(process.cwd(), 'e2e-applications/path-transform');

@@ -3,12 +3,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { type INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { generate } from '../src/generate.js';
+import { generate } from '../src/document/generate.js';
 import {
   OpenApiModule,
   OPENAPI_MODULE_OPTIONS,
   OPENAPI_SPEC,
-} from '../src/module.js';
+} from '../src/runtime/module.js';
 
 describe('OpenApiModule E2E', () => {
   const configPath = 'e2e-applications/openapi-module-demo/openapi.config.ts';

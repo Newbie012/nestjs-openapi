@@ -99,7 +99,7 @@ Expected during build — CLI exports nothing, unbuild warns about it.
 Run before every commit:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm publint
+pnpm typecheck && pnpm lint && pnpm knip && pnpm test && pnpm build && pnpm publint
 ```
 
 All 416 tests must pass.

@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ProductController } from './product.controller';
 // Note: In a real app, you would import from 'nestjs-openapi'
 // import { OpenApiModule } from 'nestjs-openapi';
-import { OpenApiModule } from '../../../src/module';
+import { OpenApiModule } from '../../../src/runtime/module';
 
 /**
  * Demo application module showing OpenApiModule usage.

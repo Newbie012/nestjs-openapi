@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
-import { generate } from '../src/generate.js';
-import type { OpenApiSpec } from '../src/types.js';
+import { generate } from '../src/document/generate.js';
+import type { OpenApiSpec } from '../src/config/types.js';
 
 describe('Import Alias E2E', () => {
   const configPath = resolve(

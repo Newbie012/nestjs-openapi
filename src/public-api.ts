@@ -3,7 +3,7 @@ import {
   PublicApiError,
   type GeneratorError,
   type ProjectError,
-} from './errors.js';
+} from './config/errors.js';
 
 const toPublicApiError = <E>(error: E) =>
   Effect.fail(PublicApiError.fromUnknown(error));

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { readFileSync, existsSync, unlinkSync, writeFileSync } from 'fs';
 import yaml from 'js-yaml';
-import { generate } from '../src/generate.js';
+import { generate } from '../src/document/generate.js';
 
 const TEST_APP_DIR = 'e2e-applications/dto-validation';
 const YAML_OUTPUT = 'openapi.generated.yaml';
@@ -18,7 +18,7 @@ describe('YAML output format', () => {
 
   // Create a temporary YAML config file
   beforeAll(() => {
-    const yamlConfig = `import { defineConfig } from '../../src/config.js';
+    const yamlConfig = `import { defineConfig } from '../../src/config/config.js';
 
 export default defineConfig({
   output: '${YAML_OUTPUT}',
@@ -84,7 +84,7 @@ export default defineConfig({
       'openapi.compare.json',
     );
 
-    const jsonConfig = `import { defineConfig } from '../../src/config.js';
+    const jsonConfig = `import { defineConfig } from '../../src/config/config.js';
 
 export default defineConfig({
   output: 'openapi.compare.json',
@@ -155,7 +155,7 @@ export default defineConfig({
       'openapi.override.config.ts',
     );
 
-    const overrideConfig = `import { defineConfig } from '../../src/config.js';
+    const overrideConfig = `import { defineConfig } from '../../src/config/config.js';
 
 export default defineConfig({
   output: 'openapi.override.yaml',

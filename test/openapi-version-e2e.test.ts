@@ -7,8 +7,8 @@ import {
   writeFileSync,
   mkdirSync,
 } from 'fs';
-import { generate } from '../src/generate.js';
-import type { OpenApiSpec } from '../src/types.js';
+import { generate } from '../src/document/generate.js';
+import type { OpenApiSpec } from '../src/config/types.js';
 
 /**
  * E2E tests for OpenAPI version support (3.0.3, 3.1.0, 3.2.0)
@@ -129,7 +129,7 @@ export class WidgetDto {
   const createConfig = (version?: string) => {
     const versionLine = version ? `version: '${version}',` : '';
     const configContent = `
-import { defineConfig } from '../../src/config.js';
+import { defineConfig } from '../../src/config/config.js';
 
 export default defineConfig({
   output: 'openapi.generated.json',

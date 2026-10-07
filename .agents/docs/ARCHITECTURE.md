@@ -8,7 +8,7 @@ This tool performs static AST analysis to emit OpenAPI 3.0/3.1/3.2 specs from Ne
 
 1. Create a ts-morph project from `files.entry` using the provided `tsconfig`
 2. Traverse `@Module` graphs to collect controllers and HTTP methods
-3. Extract routing + Swagger metadata into `MethodInfo` objects. Every reader goes through `getEffectiveDecorators()` (decorators.ts), which expands `applyDecorators()` wrappers and `options.decorators` mappings into built-in decorator calls
+3. Extract routing + Swagger metadata into `MethodInfo` objects. Every reader goes through `getEffectiveDecorators()` (`analysis/decorators.ts`), which expands `applyDecorators()` wrappers and `options.decorators` mappings into built-in decorator calls
 4. Generate DTO schemas with `ts-json-schema-generator`, normalize names, merge `class-validator` constraints
 5. Apply filters, prefix `basePath`, build OpenAPI paths, merge schemas + security, write output
 6. Optional: `OpenApiModule` serves the generated spec and Swagger UI at runtime
@@ -17,45 +17,45 @@ This tool performs static AST analysis to emit OpenAPI 3.0/3.1/3.2 specs from Ne
 
 ```
 src/
-├── index.ts              # Public API exports
-├── internal.ts           # Internal utilities export  
-├── cli.ts                # CLI entry point
-├── generate.ts           # Main generation orchestration
-├── config.ts             # Config loading and resolution
-├── types.ts              # Public TypeScript interfaces
-├── domain.ts             # Effect Schemas for validation
-├── project.ts            # ts-morph project creation
-├── modules.ts            # NestJS module traversal
-├── controllers.ts        # Controller analysis utilities
-├── methods.ts            # Controller method extraction
-├── transformer.ts        # MethodInfo → OpenAPI transformation
-├── filter.ts             # Path/decorator filtering
-├── security.ts           # Security scheme building
-├── security-decorators.ts # Security decorator extraction
-├── decorators.ts         # Effective decorators: expands applyDecorators() wrappers and config mappings
-├── static-value.ts       # Static evaluation of decorator arguments
-├── responses.ts          # @ApiResponse / shortcuts / @ApiBody metadata
-├── parameters.ts         # @ApiQuery / @ApiParam / @ApiHeader(s), merged with inferred params
-├── property-schema.ts    # @ApiProperty options → declared schema (Nest precedence)
-├── run-project.ts        # One ts-morph project per tsconfig per run
-├── spec-compliance.ts    # Valid component names, version-specific `examples`
-├── schema-inliner.ts     # Writes referenced components in place
-├── http-status.ts        # HttpStatus codes and response shortcut statuses
-├── schema-program.ts     # TypeScript programs for ts-json-schema-generator (in-memory transforms)
-├── schema-generator.ts   # JSON Schema generation
-├── mapped-types.ts       # PartialType / PickType / OmitType / IntersectionType schemas
-├── declaration-references.ts # Declarations each operation reaches, by symbol
-├── schema-identity.ts    # One schema per declaration: collision strategies, in-memory renames
-├── schema-merger.ts      # Schema merging and deduplication
-├── schema-normalizer.ts  # Schema name normalization
-├── schema-version-transformer.ts # OpenAPI version transforms
-├── validation-mapper.ts  # class-validator → JSON Schema
-├── ast.ts                # Generic AST utilities
-├── nest-ast.ts           # NestJS-specific AST utilities
-├── module.ts             # NestJS runtime module (OpenApiModule)
-├── errors.ts             # Typed error definitions
-└── *.test.ts             # Unit tests (co-located)
+├── index.ts, internal.ts, cli.ts, public-api.ts   # Entry points
+├── config/        # User configuration
+│   ├── config.ts             # Config loading and resolution
+│   ├── types.ts              # Public TypeScript interfaces
+│   └── errors.ts, error-message.ts # Typed errors
+├── model/
+│   └── domain.ts             # MethodInfo and the other Effect Schemas between stages
+├── analysis/      # Reading the Nest app
+│   ├── project.ts, run-project.ts # ts-morph projects (one per tsconfig per run)
+│   ├── ast.ts, nest-ast.ts   # AST utilities
+│   ├── static-value.ts       # Static evaluation of decorator arguments
+│   ├── decorators.ts         # Effective decorators: expands applyDecorators() wrappers and config mappings
+│   ├── modules.ts, controllers.ts, methods.ts, filter.ts # Module traversal, controllers, operations
+│   ├── responses.ts, parameters.ts, http-status.ts # @ApiResponse/@ApiBody, @ApiQuery/@ApiParam/@ApiHeader(s)
+│   ├── property-schema.ts    # @ApiProperty options → declared schema (Nest precedence)
+│   ├── validation-mapper.ts  # class-validator and @ApiProperty metadata → schema constraints
+│   ├── security-decorators.ts # Security decorator extraction
+│   ├── mapped-types.ts       # PartialType / PickType / OmitType / IntersectionType schemas
+│   └── declaration-references.ts # Declarations each operation reaches, by symbol
+├── schema/        # Producing JSON Schemas
+│   ├── schema-program.ts     # TypeScript programs for ts-json-schema-generator (in-memory transforms)
+│   ├── schema-generator.ts   # Generation with crash recovery
+│   ├── type-resolver.ts      # Finds types declared outside dtoGlob
+│   ├── schema-identity.ts    # One schema per declaration: collision strategies, in-memory renames
+│   ├── schema-normalizer.ts, schema-alias-collapser.ts, schema-inliner.ts # Names, aliases, inlining
+│   ├── schema-merger.ts      # JSON Schema → OpenAPI components
+│   ├── schema-const-expander.ts, schema-version-transformer.ts # Per-version shapes
+│   └── spec-compliance.ts    # Valid component names, version-specific `examples`
+├── document/      # Assembling and writing the spec
+│   ├── generate.ts           # Main generation orchestration
+│   ├── transformer.ts        # MethodInfo → OpenAPI operations
+│   ├── security.ts           # Security scheme building
+│   ├── spec-validator.ts     # Broken-ref validation
+│   └── output-service.ts     # Serialization and writing
+└── runtime/       # OpenApiModule and Effect layers
+    └── module.ts, runtime-layer.ts, service-layer.ts
 ```
+
+Unit tests (`*.test.ts`) sit next to the module they test. `*-service.ts` files wrap a module's functions as an Effect service and sit next to it.
 
 ## Test Applications
 

@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { resolve, dirname, basename } from 'path';
 import { existsSync, unlinkSync, readFileSync, writeFileSync } from 'fs';
 import { Validator } from '@seriousme/openapi-schema-validator';
-import { generate } from '../src/generate.js';
+import { generate } from '../src/document/generate.js';
 
 /**
  * Every feature must produce a document that is valid against the official
@@ -40,7 +40,7 @@ describe('OpenAPI schema validation E2E', () => {
     writeFileSync(
       configPath,
       [
-        "import { defineConfig } from '../../src/config.js';",
+        "import { defineConfig } from '../../src/config/config.js';",
         'export default defineConfig({',
         `  extends: ${base},`,
         `  output: ${JSON.stringify(basename(outputPath))},`,

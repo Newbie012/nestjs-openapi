@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync, writeFileSync } from 'fs';
-import { generate, type GenerateResult } from '../src/generate.js';
-import type { OpenApiSpec } from '../src/types.js';
+import { generate, type GenerateResult } from '../src/document/generate.js';
+import type { OpenApiSpec } from '../src/config/types.js';
 
 describe('Security Decorators E2E', () => {
   const configPath = resolve(
@@ -196,7 +196,7 @@ describe('Security Decorators E2E', () => {
       writeFileSync(
         mergedConfigPath,
         `
-import { defineConfig } from '../../src/config.js';
+import { defineConfig } from '../../src/config/config.js';
 
 export default defineConfig({
   output: 'openapi.global-merge.generated.json',

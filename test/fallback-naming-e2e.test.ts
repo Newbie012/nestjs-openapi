@@ -2,10 +2,10 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
 import { Effect, Logger } from 'effect';
-import { generateEffect } from '../src/generate.js';
-import { generatorServicesLayer } from '../src/service-layer.js';
-import { generateNamedSchemas } from '../src/schema-generator.js';
-import type { OpenApiSpec } from '../src/types.js';
+import { generateEffect } from '../src/document/generate.js';
+import { generatorServicesLayer } from '../src/runtime/service-layer.js';
+import { generateNamedSchemas } from '../src/schema/schema-generator.js';
+import type { OpenApiSpec } from '../src/config/types.js';
 
 /**
  * A class whose name collides with another file's, a non-exported

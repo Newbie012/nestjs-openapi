@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Effect } from 'effect';
 import { resolve, join } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { generate } from './generate.js';
+import { generate } from './document/generate.js';
 import { generateFromConfigAsync } from './internal.js';
-import { generateEffect } from './generate.js';
-import { generatorServicesLayer } from './service-layer.js';
-import { runtimeLayerFor } from './runtime-layer.js';
+import { generateEffect } from './document/generate.js';
+import { generatorServicesLayer } from './runtime/service-layer.js';
+import { runtimeLayerFor } from './runtime/runtime-layer.js';
 
 const TEST_DIR = resolve(process.cwd(), '.test-behavior-regression');
 const TEST_APP_DIR = resolve(
@@ -31,7 +31,7 @@ describe('Behavior regression guardrails', () => {
     const configPath = join(TEST_DIR, 'behavior.config.ts');
     const outputPath = join(TEST_DIR, 'behavior.openapi.json');
 
-    const config = `import { defineConfig } from '${resolve(process.cwd(), 'src/config.js').replace(/\\/g, '/')}';
+    const config = `import { defineConfig } from '${resolve(process.cwd(), 'src/config/config.js').replace(/\\/g, '/')}';
 
 export default defineConfig({
   output: '${outputPath.replace(/\\/g, '/')}',
