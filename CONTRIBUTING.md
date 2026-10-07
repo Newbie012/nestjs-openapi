@@ -5,7 +5,7 @@ Thank you for your interest in contributing!
 ## Prerequisites
 
 - Node.js 20+
-- pnpm 10+
+- pnpm 12: `npm install -g --allow-scripts=pnpm pnpm@12` (corepack can't install it)
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ pnpm test
 Run before submitting a PR:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm publint
+pnpm typecheck && pnpm lint && pnpm knip && pnpm test && pnpm build && pnpm publint
 ```
 
 ## Documentation
@@ -51,7 +51,12 @@ For detailed guidelines, see the `.agents/docs/` folder:
 2. Make changes following guidelines in `.agents/docs/WORKFLOW.md`
 3. Run the quality gate
 4. Write/update tests (see `.agents/docs/TESTING.md`)
-5. Submit PR with clear description
+5. If users will notice the change, record it with `pnpm change`
+6. Submit PR with clear description
+
+## Releases
+
+Merging to `main` releases every recorded change: the version is bumped, `CHANGELOG.md` is updated, and the package is published to npm with a GitHub release. A refactor, test or docs change needs no change record.
 
 ## Commit Messages
 

@@ -15,36 +15,80 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
       id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
           registry-url: https://registry.npmjs.org
+
+      - name: Install pnpm
+        run: npm install -g --allow-scripts=pnpm "$(node -p "require('./package.json').packageManager")"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Plan
+        id: plan
+        run: |
+          pnpm change status
+          if pnpm version -r --dry-run | grep -q '→'; then
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply versions
+        id: version
+        if: steps.plan.outputs.pending == 'true'
+        run: |
+          pnpm version -r
+          pnpm changelog
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        if: steps.plan.outputs.pending == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- .changeset package.json CHANGELOG.md
+          # A rerun after a failed publish has nothing new to commit
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: release $VERSION"
+          fi
+          git tag -f -a "v$VERSION" -m "v$VERSION"
+          git push --atomic origin HEAD:main "refs/tags/v$VERSION"
+
       - name: Build
+        if: steps.plan.outputs.pending == 'true'
         run: pnpm build
 
-      - name: Create Release Pull Request or Publish
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          version: pnpm run version
-          publish: pnpm run release
-          title: 'chore: release package'
-          commit: 'chore: release package'
+      - name: Publish
+        if: steps.plan.outputs.pending == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "nestjs-openapi@$VERSION" version > /dev/null 2>&1; then
+            echo "nestjs-openapi@$VERSION is already on npm."
+          else
+            pnpm publish --provenance --no-git-checks
+          fi
+
+      - name: GitHub release
+        if: steps.plan.outputs.pending == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! gh release view "v$VERSION" > /dev/null 2>&1; then
+            tail -n +2 ".changeset/changelogs/nestjs-openapi@$VERSION.md" > notes.md
+            gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file notes.md
+          fi
