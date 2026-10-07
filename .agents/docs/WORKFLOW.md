@@ -73,22 +73,11 @@ All paths are relative to the config file location, not `process.cwd()`.
 
 ### Decorator Arguments
 
-Can be identifiers, literals, or objects — handle all cases:
-
-```typescript
-const arg = decorator.getArguments()[0];
-if (Node.isStringLiteral(arg)) {
-  // Handle string
-} else if (Node.isObjectLiteralExpression(arg)) {
-  // Handle object
-} else if (Node.isIdentifier(arg)) {
-  // Handle identifier reference
-}
-```
+Read decorators through `getEffectiveDecorators()` (`analysis/decorators.ts`). It follows `applyDecorators()` wrappers and `options.decorators` mappings, and gives each argument as a `StaticValue` (`analysis/static-value.ts`) with constants, enum members and references already resolved.
 
 ### Generic Types
 
-Preserved in schema names: `PaginatedResponse<UserDto>` stays as-is.
+Generic instantiations get valid component names: `PaginatedResponse<UserDto>` becomes `PaginatedResponse_UserDto`. `schemas.genericNames: 'raw'` keeps the TypeScript name.
 
 ### Empty CLI Chunk Warning
 
@@ -102,4 +91,4 @@ Run before every commit:
 pnpm typecheck && pnpm lint && pnpm knip && pnpm test && pnpm build && pnpm publint
 ```
 
-All 416 tests must pass.
+All tests must pass.

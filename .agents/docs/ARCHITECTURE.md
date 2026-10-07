@@ -79,6 +79,6 @@ E2E tests use fixture apps in `e2e-applications/`:
 
 | Feature Type | Files to Update |
 |--------------|-----------------|
-| Config option | `types.ts` → `domain.ts` → `config.ts` → `generate.ts` → tests |
-| Decorator support | `methods.ts` → `transformer.ts` → tests |
-| New error type | `errors.ts` (extend `Schema.TaggedError`) |
+| Config option | `config/types.ts` → `model/domain.ts` → `config/config.ts` → `document/generate.ts` → tests |
+| Decorator support | the reader in `analysis/` (`responses.ts`, `parameters.ts`, `property-schema.ts`, `methods.ts`) → `document/transformer.ts` → tests |
+| New error type | `config/errors.ts` (extend `Schema.TaggedError`) |

@@ -1,13 +1,12 @@
 # Configuration Structure
 
-## Critical: Nested Structure Only
+## Nested Structure
 
-Always use the **nested config structure**. The flat structure is not supported.
+Options are grouped under `files`, `openapi` and `options`; a flat config is not supported.
 
 ```typescript
 import { defineConfig } from 'nestjs-openapi';
 
-// CORRECT - nested structure
 export default defineConfig({
   output: 'openapi.json',
   format: 'json', // or 'yaml'
@@ -54,14 +53,7 @@ export default defineConfig({
 });
 ```
 
-```typescript
-// WRONG - flat structure (DO NOT USE)
-export default defineConfig({
-  entry: '...',        // NO - use files.entry
-  info: { ... },       // NO - use openapi.info
-  security: [ ... ],   // NO - use openapi.security
-});
-```
+A flat config maps to the nested one as `entry` → `files.entry`, `info` → `openapi.info`, `security` → `openapi.security`.
 
 ## Config Options Reference
 
