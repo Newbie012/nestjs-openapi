@@ -1,5 +1,5 @@
 allowBuilds:
-  esbuild: true
+  esbuild: false
   "@nestjs/core": false
   "@scarf/scarf": false
   msgpackr-extract: false

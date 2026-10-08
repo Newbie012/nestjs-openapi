@@ -61,7 +61,7 @@ files: {
    // Entry module file(s) - default: 'src/app.module.ts'
    entry: 'src/app.module.ts',
 
-   // Multiple entry points (only the first is used today)
+   // Multiple entry points, merged into one spec
    entry: ['src/app.module.ts', 'src/admin.module.ts'],
 
    // tsconfig path (recommended)
@@ -72,12 +72,6 @@ files: {
 
   // Multiple DTO patterns
   dtoGlob: ['src/**/*.dto.ts', 'libs/**/*.dto.ts'],
-
-  // Glob patterns to include
-  include: ['src/**/*.ts'],
-
-  // Glob patterns to exclude (defaults shown)
-  exclude: ['**/*.spec.ts', '**/*.test.ts', '**/node_modules/**'],
 }
 ```
 
@@ -484,7 +478,6 @@ export default defineConfig({
     entry: 'src/app.module.ts',
     tsconfig: 'tsconfig.json',
     dtoGlob: 'src/**/*.dto.ts',
-    exclude: ['**/*.spec.ts', '**/*.test.ts'],
   },
 
   openapi: {
