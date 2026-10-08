@@ -15,8 +15,6 @@ export default defineConfig({
     entry: 'src/app.module.ts',
     tsconfig: 'tsconfig.json',
     dtoGlob: 'src/**/*.dto.ts',
-    include: [],
-    exclude: ['**/*.spec.ts'],
   },
   
   openapi: {
@@ -72,8 +70,6 @@ A flat config maps to the nested one as `entry` → `files.entry`, `info` → `o
 | `entry` | `string \| string[]` | `'src/app.module.ts'` | Entry module(s) |
 | `tsconfig` | `string` | auto-detected | Path to tsconfig.json |
 | `dtoGlob` | `string \| string[]` | — | Glob for DTO files |
-| `include` | `string[]` | `[]` | Additional includes |
-| `exclude` | `string[]` | `['**/*.spec.ts', ...]` | Exclusions |
 
 #### tsconfig Auto-Detection
 
