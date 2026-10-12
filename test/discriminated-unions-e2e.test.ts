@@ -128,4 +128,45 @@ describe('Discriminated Unions E2E', () => {
       expect(pushVariant.properties.channel).toMatchObject({ enum: ['push'] });
     });
   });
+
+  describe('generic with an inline object argument', () => {
+    const responseSchema = (path: string) => {
+      const spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+      return spec.paths[path].post.responses['201'].content['application/json']
+        .schema;
+    };
+
+    it('writes the instantiation in place, since it has no name of its own', async () => {
+      const result = await generate(configPath);
+      expect(result.validation.brokenRefCount).toBe(0);
+
+      expect(responseSchema('/unions/notification')).toEqual({
+        type: 'object',
+        properties: {
+          data: {
+            type: 'object',
+            properties: { sent: { type: 'boolean' } },
+            required: ['sent'],
+          },
+          timestamp: { type: 'string' },
+        },
+        required: ['data', 'timestamp'],
+      });
+      const spec = JSON.parse(readFileSync(outputPath, 'utf-8'));
+      expect(
+        Object.keys(spec.components.schemas).filter((name) =>
+          name.startsWith('ApiResponse'),
+        ),
+      ).toEqual([]);
+    });
+
+    it('uses the declaration the controller imports, not another of that name', async () => {
+      // e2e-applications/comparison-benchmark declares another ApiResponse,
+      // a success/error union, under the same tsconfig
+      await generate(configPath);
+      expect(responseSchema('/unions/payment')).toMatchObject({
+        properties: { timestamp: { type: 'string' } },
+      });
+    });
+  });
 });

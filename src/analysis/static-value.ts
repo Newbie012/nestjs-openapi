@@ -13,6 +13,9 @@ export type StaticValue =
   | {
       readonly kind: 'object';
       readonly properties: Readonly<Record<string, StaticValue>>;
+      // Computed keys that cannot be read statically, so their entries are
+      // missing from `properties`
+      readonly unresolvedKeys?: readonly Node[];
     }
   | { readonly kind: 'reference'; readonly name: string; readonly node?: Node }
   | { readonly kind: 'thunk'; readonly value: StaticValue }
@@ -49,19 +52,37 @@ const propertyNameText = (name: Node) => {
   return undefined;
 };
 
+// `[Status.Active]: ...` or `[KEY]: ...`, keyed by the value like the runtime
+const computedKey = (
+  expression: Node,
+  environment: StaticEnvironment,
+  depth: number,
+) => {
+  const value = evaluate(expression, environment, depth + 1);
+  return value.kind === 'literal' &&
+    (typeof value.value === 'string' || typeof value.value === 'number')
+    ? String(value.value)
+    : undefined;
+};
+
 const evaluateObjectLiteral = (
   node: Node,
   environment: StaticEnvironment,
   depth: number,
 ): StaticValue => {
   const properties: Record<string, StaticValue> = {};
+  const unresolvedKeys: Node[] = [];
   for (const property of node
     .asKindOrThrow(ts.SyntaxKind.ObjectLiteralExpression)
     .getProperties()) {
     if (Node.isPropertyAssignment(property)) {
-      const name = propertyNameText(property.getNameNode());
+      const nameNode = property.getNameNode();
+      const name = Node.isComputedPropertyName(nameNode)
+        ? computedKey(nameNode.getExpression(), environment, depth)
+        : propertyNameText(nameNode);
       const initializer = property.getInitializer();
-      if (name !== undefined && initializer) {
+      if (name === undefined) unresolvedKeys.push(nameNode);
+      else if (initializer) {
         properties[name] = evaluate(initializer, environment, depth + 1);
       }
       continue;
@@ -80,7 +101,9 @@ const evaluateObjectLiteral = (
         Object.assign(properties, spread.properties);
     }
   }
-  return { kind: 'object', properties };
+  return unresolvedKeys.length > 0
+    ? { kind: 'object', properties, unresolvedKeys }
+    : { kind: 'object', properties };
 };
 
 const evaluateArrayLiteral = (
@@ -627,5 +650,23 @@ export const toPlain = (
       );
     default:
       return onOpaque(value);
+  }
+};
+
+export const findUnresolvedKeys = (
+  value: StaticValue | undefined,
+): readonly Node[] => {
+  switch (value?.kind) {
+    case 'object':
+      return [
+        ...(value.unresolvedKeys ?? []),
+        ...Object.values(value.properties).flatMap(findUnresolvedKeys),
+      ];
+    case 'array':
+      return value.items.flatMap(findUnresolvedKeys);
+    case 'thunk':
+      return findUnresolvedKeys(value.value);
+    default:
+      return [];
   }
 };

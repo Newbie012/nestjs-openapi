@@ -79,6 +79,51 @@ const replaceBinaryFormat = (schema: OpenApiSchema): OpenApiSchema => {
   return { ...rest, ...replacement };
 };
 
+type Bound = 'Minimum' | 'Maximum';
+
+const BOUNDS: readonly Bound[] = ['Minimum', 'Maximum'];
+
+// The stricter of an inclusive and an exclusive bound
+const exclusiveWins = (bound: Bound, inclusive: unknown, exclusive: number) =>
+  typeof inclusive !== 'number' ||
+  (bound === 'Minimum' ? exclusive >= inclusive : exclusive <= inclusive);
+
+/**
+ * 3.0 (JSON Schema draft 5) marks a bound exclusive with a boolean beside
+ * `minimum`/`maximum`; 3.1 (2020-12) gives the exclusive bound as a number.
+ * Either form can come from the source (`@IsPositive()` gives the number,
+ * `@ApiProperty({ minimum, exclusiveMinimum: true })` the boolean).
+ */
+const exclusiveBoundsFor = <S extends Record<string, unknown>>(
+  schema: S,
+  version: 'v30' | 'v31',
+): S => {
+  let result: Record<string, unknown> = schema;
+  for (const bound of BOUNDS) {
+    const key = `exclusive${bound}`;
+    const inclusiveKey = bound.toLowerCase();
+    const exclusive = result[key];
+    const inclusive = result[inclusiveKey];
+    if (exclusive === undefined) continue;
+    const { [key]: _exclusive, [inclusiveKey]: _inclusive, ...rest } = result;
+
+    if (version === 'v30' && typeof exclusive === 'number') {
+      result = exclusiveWins(bound, inclusive, exclusive)
+        ? { ...rest, [inclusiveKey]: exclusive, [key]: true }
+        : { ...rest, [inclusiveKey]: inclusive };
+    } else if (version === 'v31' && typeof exclusive === 'boolean') {
+      result =
+        exclusive && typeof inclusive === 'number'
+          ? { ...rest, [key]: inclusive }
+          : {
+              ...rest,
+              ...(inclusive === undefined ? {} : { [inclusiveKey]: inclusive }),
+            };
+    }
+  }
+  return result as S;
+};
+
 const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
   // Transform nested schemas first
   const transformedOneOf = schema.oneOf?.map(transformSchemaToV31);
@@ -106,7 +151,7 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
       : schema.type;
 
   const transformedSchema: OpenApiSchema = {
-    ...replaceBinaryFormat(restWithoutNullable),
+    ...replaceBinaryFormat(exclusiveBoundsFor(restWithoutNullable, 'v31')),
     ...(transformedType !== undefined && { type: transformedType }),
     ...(transformedOneOf && { oneOf: transformedOneOf }),
     ...(transformedAnyOf && { anyOf: transformedAnyOf }),
@@ -178,6 +223,19 @@ export const transformSchemasForVersion = (
   );
 };
 
+// Bytes sent as the whole body are of the body's media type: a binary schema
+// under `application/zip` is `contentMediaType: application/zip`. A JSON or
+// wildcard key names no byte format, so it keeps application/octet-stream
+const transformMediaSchemaToV31 = (
+  schema: OpenApiSchema,
+  contentType: string,
+): OpenApiSchema => {
+  const transformed = transformSchemaToV31(schema);
+  return schema.format === 'binary' && !/\*|json/.test(contentType)
+    ? { ...transformed, contentMediaType: contentType }
+    : transformed;
+};
+
 /**
  * Transforms an operation's schemas (parameters, requestBody, responses)
  */
@@ -196,7 +254,13 @@ const transformOperationToV31 = (
           Object.entries(operation.requestBody.content).map(
             ([contentType, mediaType]) => [
               contentType,
-              { ...mediaType, schema: transformSchemaToV31(mediaType.schema) },
+              {
+                ...mediaType,
+                schema: transformMediaSchemaToV31(
+                  mediaType.schema,
+                  contentType,
+                ),
+              },
             ],
           ),
         ),
@@ -215,7 +279,10 @@ const transformOperationToV31 = (
                   contentType,
                   {
                     ...mediaType,
-                    schema: transformSchemaToV31(mediaType.schema),
+                    schema: transformMediaSchemaToV31(
+                      mediaType.schema,
+                      contentType,
+                    ),
                   },
                 ],
               ),
@@ -300,6 +367,210 @@ export const transformSpecForVersion = (
       components: {
         ...spec.components,
         schemas: transformedSchemas,
+      },
+    }),
+  };
+};
+
+type SchemaRecord = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is SchemaRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const COMPONENT_PREFIX = '#/components/schemas/';
+
+const ANNOTATION_KEYS = new Set([
+  'description',
+  'title',
+  'example',
+  'default',
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+  'externalDocs',
+]);
+
+// The single JSON type a schema allows, when it can be told
+const inferSchemaType = (
+  schema: unknown,
+  components: Readonly<Record<string, unknown>>,
+  seen: ReadonlySet<string> = new Set(),
+): string | undefined => {
+  if (!isRecord(schema)) return undefined;
+  if (typeof schema['type'] === 'string') return schema['type'];
+
+  const ref = schema['$ref'];
+  if (typeof ref === 'string' && ref.startsWith(COMPONENT_PREFIX)) {
+    const name = ref.slice(COMPONENT_PREFIX.length);
+    if (seen.has(name)) return undefined;
+    return inferSchemaType(
+      components[name],
+      components,
+      new Set([...seen, name]),
+    );
+  }
+
+  const values = Array.isArray(schema['enum'])
+    ? schema['enum'].filter((value) => value !== null)
+    : [];
+  const valueTypes = new Set(values.map((value) => typeof value));
+  if (values.length > 0 && valueTypes.size === 1) {
+    const [valueType] = valueTypes;
+    if (
+      valueType === 'string' ||
+      valueType === 'number' ||
+      valueType === 'boolean'
+    )
+      return valueType;
+  }
+
+  if (
+    isRecord(schema['properties']) ||
+    schema['additionalProperties'] !== undefined
+  )
+    return 'object';
+  if (schema['items'] !== undefined) return 'array';
+
+  const member = (key: string) =>
+    Array.isArray(schema[key])
+      ? (schema[key] as unknown[]).map((item) =>
+          inferSchemaType(item, components, seen),
+        )
+      : undefined;
+  // allOf members all hold, so any one that knows its type gives it
+  const allOf = member('allOf')?.find((type) => type !== undefined);
+  if (allOf) return allOf;
+  for (const key of ['oneOf', 'anyOf']) {
+    const types = member(key);
+    if (
+      types &&
+      types.length > 0 &&
+      types.every((type) => type && type === types[0])
+    )
+      return types[0];
+  }
+  return undefined;
+};
+
+/**
+ * OpenAPI 3.0.3: `nullable` only means something beside a `type` in the same
+ * schema, and keywords beside `$ref` are ignored. A nullable reference
+ * becomes `{ allOf: [{ $ref }], type, nullable: true }`; a nullable schema
+ * whose type cannot be told allows null through an `anyOf` member instead.
+ */
+const typeNullable = (
+  schema: SchemaRecord,
+  components: Readonly<Record<string, unknown>>,
+): SchemaRecord => {
+  if (schema['nullable'] === undefined || schema['type'] !== undefined)
+    return schema;
+  const { nullable, $ref, ...rest } = schema;
+  if (nullable !== true) return $ref === undefined ? rest : { $ref, ...rest };
+
+  const withoutRef: SchemaRecord =
+    $ref === undefined
+      ? rest
+      : { ...rest, allOf: [{ $ref }, ...((rest['allOf'] as unknown[]) ?? [])] };
+  const type = inferSchemaType(schema, components);
+  if (type) return { ...withoutRef, type, nullable: true };
+
+  const annotations = Object.fromEntries(
+    Object.entries(withoutRef).filter(([key]) => ANNOTATION_KEYS.has(key)),
+  );
+  const value = Object.fromEntries(
+    Object.entries(withoutRef).filter(([key]) => !ANNOTATION_KEYS.has(key)),
+  );
+  return {
+    ...annotations,
+    anyOf: [value, { type: 'object', nullable: true, enum: [null] }],
+  };
+};
+
+// 3.0 has no `const`, wherever the schema ends up: components, or inlined
+// into an operation
+const constAsEnum = (schema: SchemaRecord): SchemaRecord => {
+  if (!('const' in schema)) return schema;
+  const { const: value, ...rest } = schema;
+  return { ...rest, enum: [value] };
+};
+
+const SUBSCHEMA_KEYS = ['items', 'not', 'additionalProperties'] as const;
+const SUBSCHEMA_LIST_KEYS = ['allOf', 'anyOf', 'oneOf'] as const;
+const SUBSCHEMA_MAP_KEYS = ['properties', 'patternProperties'] as const;
+
+const adaptSchemaForV30 = (
+  value: unknown,
+  components: Readonly<Record<string, unknown>>,
+): unknown => {
+  if (!isRecord(value)) return value;
+  const result: SchemaRecord = { ...value };
+  for (const key of SUBSCHEMA_KEYS) {
+    if (isRecord(result[key]))
+      result[key] = adaptSchemaForV30(result[key], components);
+  }
+  for (const key of SUBSCHEMA_LIST_KEYS) {
+    const members = result[key];
+    if (Array.isArray(members))
+      result[key] = members.map((member) =>
+        adaptSchemaForV30(member, components),
+      );
+  }
+  for (const key of SUBSCHEMA_MAP_KEYS) {
+    const map = result[key];
+    if (isRecord(map)) {
+      result[key] = Object.fromEntries(
+        Object.entries(map).map(([name, item]) => [
+          name,
+          adaptSchemaForV30(item, components),
+        ]),
+      );
+    }
+  }
+  return typeNullable(
+    exclusiveBoundsFor(constAsEnum(result), 'v30'),
+    components,
+  );
+};
+
+// Every `schema` of an operation: parameters, request bodies, responses
+const adaptOperationsForV30 = (
+  value: unknown,
+  components: Readonly<Record<string, unknown>>,
+): unknown => {
+  if (Array.isArray(value))
+    return value.map((item) => adaptOperationsForV30(item, components));
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      key === 'schema'
+        ? adaptSchemaForV30(item, components)
+        : adaptOperationsForV30(item, components),
+    ]),
+  );
+};
+
+/**
+ * Writes a 3.0 spec's schemas in the forms 3.0.3 gives meaning: nullable
+ * beside a type, and exclusive bounds as booleans
+ */
+export const adaptSpecForV30 = (spec: OpenApiSpec): OpenApiSpec => {
+  const components = (spec.components?.schemas ?? {}) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...spec,
+    paths: adaptOperationsForV30(spec.paths, components) as OpenApiPaths,
+    ...(spec.components?.schemas && {
+      components: {
+        ...spec.components,
+        schemas: Object.fromEntries(
+          Object.entries(spec.components.schemas).map(([name, schema]) => [
+            name,
+            adaptSchemaForV30(schema, components) as OpenApiSchema,
+          ]),
+        ),
       },
     }),
   };

@@ -3,6 +3,7 @@ import {
   validateSpec,
   categorizeBrokenRefs,
   formatValidationResult,
+  validateStructure,
 } from './spec-validator.js';
 import type { OpenApiSpec } from '../config/types.js';
 
@@ -270,6 +271,113 @@ describe('spec-validator', () => {
       expect(formatted).toContain('GetUserQueryParams');
       expect(formatted).toContain('Other missing schemas');
       expect(formatted).toContain('MissingDto');
+    });
+  });
+
+  describe('validateStructure', () => {
+    const withQueryParameter = (
+      version: string,
+      parameter: Record<string, unknown>,
+    ) =>
+      ({
+        openapi: version,
+        info: { title: 'Pets', version: '1.0' },
+        paths: {
+          '/pets': {
+            get: {
+              operationId: 'listPets',
+              parameters: [
+                { in: 'query', name: 'tag', required: false, ...parameter },
+              ],
+              responses: { '200': { description: 'The pets' } },
+            },
+          },
+        },
+      }) as unknown as OpenApiSpec;
+
+    it.each(['3.0.3', '3.1.0'])(
+      'accepts a valid %s document',
+      async (version) => {
+        expect(
+          await validateStructure(
+            withQueryParameter(version, {
+              schema: { type: 'string' },
+              examples: { one: { value: 'cat' } },
+            }),
+          ),
+        ).toEqual([]);
+      },
+    );
+
+    it.each(['3.0.3', '3.1.0'])(
+      'reports a Parameter Object examples array in %s, and only its cause',
+      async (version) => {
+        expect(
+          await validateStructure(
+            withQueryParameter(version, {
+              schema: { type: 'string' },
+              examples: ['cat', 'dog'],
+            }),
+          ),
+        ).toEqual([
+          {
+            path: '/paths/~1pets/get/parameters/0/examples',
+            message: 'must be object (got ["cat","dog"])',
+          },
+        ]);
+      },
+    );
+
+    it('reports a 3.0 nullable without a type, which the 3.0 schema cannot', async () => {
+      const spec = {
+        openapi: '3.0.3',
+        info: { title: 'Pets', version: '1.0' },
+        paths: {},
+        components: {
+          schemas: {
+            Owner: { type: 'object' },
+            Pet: {
+              type: 'object',
+              properties: {
+                owner: {
+                  allOf: [{ $ref: '#/components/schemas/Owner' }],
+                  nullable: true,
+                },
+              },
+            },
+          },
+        },
+      } as unknown as OpenApiSpec;
+
+      expect(await validateStructure(spec)).toEqual([
+        {
+          path: '/components/schemas/Pet/properties/owner/nullable',
+          message: '`nullable` needs a `type` in the same schema',
+        },
+      ]);
+    });
+
+    it('lists structural errors in the formatted result', () => {
+      const formatted = formatValidationResult({
+        valid: false,
+        totalRefs: 0,
+        brokenRefCount: 0,
+        brokenRefs: [],
+        missingSchemas: new Map(),
+        structuralErrors: [
+          {
+            path: '/paths/~1pets/get/parameters/0/examples',
+            message: 'must be object',
+          },
+        ],
+      });
+
+      expect(formatted).toBe(
+        [
+          'Found 1 places that break the OpenAPI specification:',
+          '    - /paths/~1pets/get/parameters/0/examples: must be object',
+        ].join('\n'),
+      );
     });
   });
 });

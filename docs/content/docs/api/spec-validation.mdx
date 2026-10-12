@@ -1,11 +1,13 @@
 ---
 title: Spec Validation
 seoTitle: 'Validate OpenAPI specs for broken $ref links'
-description: 'Reference for validateSpec(), which finds $ref targets missing from an OpenAPI spec. The CLI runs it automatically and reports warnings.'
+description: 'Reference for validateSpec() and validateStructure(), which find missing $ref targets and breaks of the OpenAPI specification. generate() runs both.'
 ---
 
-Validate generated OpenAPI specs for missing `$ref` targets. The CLI runs this
-check automatically and prints warnings without failing generation.
+Every generated spec is checked for missing `$ref` targets and against the
+official OpenAPI schema for its version. When either check fails, the spec is
+still written, `result.validation.valid` is `false`, and the CLI prints the
+problems and exits with code 1.
 
 ## validateSpec()
 
@@ -25,14 +27,28 @@ if (!result.validation.valid) {
 }
 ```
 
+## validateStructure()
+
+```typescript
+function validateStructure(
+  spec: OpenApiSpec,
+): Promise<readonly StructuralError[]>;
+```
+
+Checks a spec against the official OpenAPI 3.0, 3.1 or 3.2 schema, and for 3.0
+also the rule that schema cannot express: `nullable` needs a `type` beside it.
+Each error has a JSON pointer `path` and a `message`. `generate()` puts them in
+`result.validation.structuralErrors`.
+
 ## formatValidationResult()
 
 ```typescript
 function formatValidationResult(result: ValidationResult): string;
 ```
 
-Formats a readable summary suitable for CLI output. Includes categories for
-primitive types, union types, query/path params, and other missing schemas.
+Formats a readable summary suitable for CLI output: structural errors, then
+broken refs by category (primitive types, union types, query/path params, and
+other missing schemas).
 
 ## categorizeBrokenRefs()
 

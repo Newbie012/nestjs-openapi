@@ -162,7 +162,8 @@ const BINARY_TYPE_NAMES = new Set([
   'ReadableStream',
 ]);
 
-const RECORD_TYPE_PATTERN = /^Record<string,\s*(.+)>$/;
+// A value that says nothing about its type
+const UNTYPED_VALUE_TYPES = new Set(['unknown', 'any']);
 const TYPE_REFERENCE_PATTERN = /^[a-zA-Z_$][a-zA-Z0-9_$]*(<[^>]+>)?$/;
 
 const buildInlineObjectSchema = (parsed: InlineObjectType): OpenApiSchema => ({
@@ -241,8 +242,52 @@ const resolveArraySchema: TypeSchemaResolver = (tsType) =>
       }
     : undefined;
 
-const resolveRecordSchema: TypeSchemaResolver = (tsType) =>
-  RECORD_TYPE_PATTERN.test(tsType) ? { type: 'object' } : undefined;
+// `A, B<C, D>` → [`A`, `B<C, D>`]: commas inside brackets are not splits
+const splitTypeArguments = (text: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of text) {
+    if ('<({['.includes(char)) depth++;
+    if ('>)}]'.includes(char)) depth--;
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  return [...parts, current.trim()].filter((part) => part !== '');
+};
+
+const COLLECTION_TYPE_PATTERN =
+  /^(Record|Map|ReadonlyMap|Set|ReadonlySet)<(.+)>$/;
+
+// JSON has no Map or Set: a body or response declared as one is sent as an
+// object keyed by strings, or as an array of unique items
+const resolveCollectionSchema: TypeSchemaResolver = (tsType) => {
+  const match = COLLECTION_TYPE_PATTERN.exec(tsType);
+  if (!match) return undefined;
+  const [, collection, argumentText] = match;
+  const typeArguments = splitTypeArguments(argumentText);
+  if (collection === 'Set' || collection === 'ReadonlySet') {
+    return typeArguments.length === 1
+      ? {
+          type: 'array',
+          items: tsTypeToOpenApiSchema(typeArguments[0]),
+          uniqueItems: true,
+        }
+      : undefined;
+  }
+  if (typeArguments.length !== 2) return undefined;
+  const value = typeArguments[1];
+  return {
+    type: 'object',
+    ...(UNTYPED_VALUE_TYPES.has(value)
+      ? {}
+      : { additionalProperties: tsTypeToOpenApiSchema(value) }),
+  };
+};
 
 const resolveReferenceSchema: TypeSchemaResolver = (tsType) =>
   TYPE_REFERENCE_PATTERN.test(tsType)
@@ -255,7 +300,7 @@ const TYPE_SCHEMA_RESOLVERS: readonly TypeSchemaResolver[] = [
   resolvePrimitiveSchema,
   resolveBinarySchema,
   resolveArraySchema,
-  resolveRecordSchema,
+  resolveCollectionSchema,
   resolveReferenceSchema,
 ];
 
@@ -339,6 +384,12 @@ const applyParameterConstraints = (
 
 const PARAMETER_LEVEL_KEYS = ['description', 'deprecated', 'examples'] as const;
 
+// A Parameter Object's `examples` is a map of Example Objects. An array is the
+// JSON Schema keyword, so it stays on the schema, where each version's form
+// is written later
+const isParameterLevel = (key: string, value: unknown) =>
+  value !== undefined && (key !== 'examples' || !Array.isArray(value));
+
 const TYPE_DEFINING_KEYS = [
   'type',
   '$ref',
@@ -353,22 +404,23 @@ const liftParameterKeys = (schema: OpenApiSchema) => {
   const record = schema as Record<string, unknown>;
   const lifted = Object.fromEntries(
     PARAMETER_LEVEL_KEYS.flatMap((key) =>
-      record[key] === undefined ? [] : [[key, record[key]]],
+      isParameterLevel(key, record[key]) ? [[key, record[key]]] : [],
     ),
   );
   if (Object.keys(lifted).length === 0) return { schema, lifted };
   return {
     schema: Object.fromEntries(
-      Object.entries(record).filter(
-        ([key]) => !(PARAMETER_LEVEL_KEYS as readonly string[]).includes(key),
-      ),
+      Object.entries(record).filter(([key]) => !(key in lifted)),
     ) as OpenApiSchema,
     lifted,
   };
 };
 
 const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
-  const baseSchema = tsTypeToOpenApiSchema(param.tsType);
+  // `type: object` would mean exploded `key=value` pairs
+  const baseSchema = UNTYPED_VALUE_TYPES.has(param.tsType.trim())
+    ? {}
+    : tsTypeToOpenApiSchema(param.tsType);
   const constraints = param.constraints as ValidationConstraints | undefined;
   if (!constraints) return baseSchema;
   if (!constraints.schemaOverride && !constraints.keywords) {
@@ -388,7 +440,14 @@ const buildParameterSchema = (param: ResolvedParameter) => {
   if (!declared) return inferred;
 
   const declaresType = TYPE_DEFINING_KEYS.some((key) => key in declared);
-  const schema = declaresType ? declared : { ...inferred.schema, ...declared };
+  // A property's `examples` array describes the parameter, not its type, so
+  // a declared type keeps it, as @nestjs/swagger keeps undeclared fields
+  const { examples } = inferred.schema as { examples?: unknown };
+  const kept =
+    Array.isArray(examples) && !('examples' in declared) ? { examples } : {};
+  const schema = declaresType
+    ? { ...kept, ...declared }
+    : { ...inferred.schema, ...declared };
   return { schema: schema as OpenApiSchema, lifted: inferred.lifted };
 };
 
@@ -505,20 +564,31 @@ const isSuccessWithContent = (
   statusCode: ResponseMetadata['statusCode'],
 ): boolean => isSuccessStatus(statusCode) && statusCode !== 204;
 
-/** Build a single response entry */
+/**
+ * Build a single response entry. As in @nestjs/swagger, a declared type or
+ * schema wins, then a declared `content` map as is; the return type is
+ * inferred only when the decorator declares none of them
+ */
 const buildResponseEntry = (
   response: ResponseMetadata,
   returnType: MethodInfo['returnType'],
   hasReturnType: boolean,
   contentTypes: readonly string[],
 ): ResponseObject => {
+  const description = Option.getOrElse(response.description, () => '');
+  const declared = buildSchemaFromMetadata(response);
+  if (!declared && response.content && typeof response.content === 'object') {
+    return {
+      description,
+      content: response.content as NonNullable<ResponseObject['content']>,
+    };
+  }
+
   const schema =
-    buildSchemaFromMetadata(response) ??
+    declared ??
     (hasReturnType && isSuccessWithContent(response.statusCode)
       ? buildResponseSchema(returnType)
       : undefined);
-
-  const description = Option.getOrElse(response.description, () => '');
 
   return schema
     ? { description, content: buildContentObject(contentTypes, schema) }

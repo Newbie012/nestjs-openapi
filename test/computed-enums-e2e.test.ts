@@ -46,6 +46,21 @@ describe('Computed enums E2E', () => {
     });
   });
 
+  it('reads computed keys it can, and warns about the ones it cannot', async () => {
+    const accounts = (await run()).components?.schemas?.['CheckoutDto']
+      ?.properties?.['accounts'];
+
+    expect(accounts).toMatchObject({
+      properties: { paypal: { type: 'string' } },
+    });
+    expect(Object.keys(accounts?.properties ?? {})).toEqual(['paypal']);
+    expect(
+      warnings.find((message) => message.includes('CheckoutDto.accounts')),
+    ).toMatch(
+      /CheckoutDto\.accounts: @ApiProperty\(\) cannot read the key `\[loadCardKey\(\)\]` statically \(.*checkout\.dto\.ts:\d+\); its entry is left out/,
+    );
+  });
+
   it('warns about an enum it cannot read, naming the property and location', async () => {
     await run();
 

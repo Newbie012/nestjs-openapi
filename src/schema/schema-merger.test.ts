@@ -3,6 +3,7 @@ import {
   mergeSchemas,
   mergeGeneratedSchemas,
   filterSchemas,
+  forbidAdditionalProperties,
 } from './schema-merger.js';
 import type { GeneratedSchemas } from './schema-generator.js';
 import type { OpenApiPaths } from '../config/types.js';
@@ -500,6 +501,80 @@ describe('schema-merger', () => {
       expect(result.definitions['User']).toBeDefined();
       expect(result.definitions['Post']).toBeDefined();
       expect(result.definitions['InternalType']).toBeUndefined();
+    });
+  });
+
+  describe('forbidAdditionalProperties', () => {
+    it('closes every object that lists properties, nested ones too', () => {
+      expect(
+        forbidAdditionalProperties({
+          Order: {
+            type: 'object',
+            properties: {
+              lines: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { sku: { type: 'string' } },
+                },
+              },
+              note: { type: 'string' },
+            },
+          },
+          Status: { type: 'string', enum: ['open'] },
+        }),
+      ).toEqual({
+        Order: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            lines: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: { sku: { type: 'string' } },
+              },
+            },
+            note: { type: 'string' },
+          },
+        },
+        Status: { type: 'string', enum: ['open'] },
+      });
+    });
+
+    it('keeps a declared additionalProperties', () => {
+      const schemas = {
+        Labels: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          additionalProperties: { type: 'string' },
+        },
+        Open: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          additionalProperties: true,
+        },
+      };
+
+      expect(forbidAdditionalProperties(schemas)).toEqual(schemas);
+    });
+
+    it('treats a property named like a keyword as a property', () => {
+      expect(
+        forbidAdditionalProperties({
+          Pet: {
+            type: 'object',
+            properties: { properties: { type: 'string' } },
+          },
+        }),
+      ).toEqual({
+        Pet: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { properties: { type: 'string' } },
+        },
+      });
     });
   });
 });

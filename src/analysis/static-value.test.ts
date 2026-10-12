@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Project, ts } from 'ts-morph';
-import { evaluate, toPlain } from './static-value.js';
+import { evaluate, findUnresolvedKeys, toPlain } from './static-value.js';
 
 const evaluateInitializer = (code: string, name = 'value') => {
   const project = new Project({ useInMemoryFileSystem: true });
@@ -131,5 +131,28 @@ describe('static-value evaluate', () => {
     );
     expect(result).toEqual({ kind: 'literal', value: 'p-x' });
     expect(ts.SyntaxKind.TemplateExpression).toBeGreaterThan(0);
+  });
+
+  it('keys computed properties by enum member and const values', () => {
+    expect(
+      plain(`
+        enum Species { Cat = 'cat', Dog = 2 }
+        const BIRD = 'bird';
+        const value = { [Species.Cat]: 1, [Species.Dog]: 2, [BIRD]: 3, ['fish']: 4 };
+      `),
+    ).toEqual({ cat: 1, 2: 2, bird: 3, fish: 4 });
+  });
+
+  it('records computed keys it cannot read, nested or not', () => {
+    const value = evaluateInitializer(`
+      declare function key(): string;
+      const value = { a: 1, [key()]: 2, nested: { [Math.random()]: 3 } };
+    `);
+
+    expect(toPlain(value)).toEqual({ a: 1, nested: {} });
+    expect(findUnresolvedKeys(value).map((node) => node.getText())).toEqual([
+      '[key()]',
+      '[Math.random()]',
+    ]);
   });
 });

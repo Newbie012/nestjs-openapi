@@ -93,6 +93,28 @@ const collectModules = (root: ClassDeclaration) => {
   return modules;
 };
 
+const includedModules = (
+  root: ClassDeclaration,
+  include: readonly string[],
+) => {
+  const wanted = new Set(include);
+  return isModuleClass(root)
+    ? collectModules(root).filter((mod) => wanted.has(mod.getName() ?? ''))
+    : [];
+};
+
+// Names in `include` that no module reachable from `root` has. With several
+// entries, a name is missing only when every entry misses it
+export const findMissingIncludes = (
+  root: ClassDeclaration,
+  include: readonly string[],
+): readonly string[] => {
+  const found = new Set(
+    includedModules(root, include).map((mod) => mod.getName()),
+  );
+  return include.filter((name) => !found.has(name));
+};
+
 // SwaggerModule.createDocument()'s rules: with `include`, only controllers
 // declared in the included modules, plus, with `deepScanRoutes`, those of
 // their direct, non-global imports
@@ -104,19 +126,7 @@ export const getDocumentedControllers = Effect.fn(
     return yield* getAllControllers(root);
   }
 
-  const wanted = new Set(include);
-  const included = isModuleClass(root)
-    ? collectModules(root).filter((mod) => wanted.has(mod.getName() ?? ''))
-    : [];
-
-  const found = new Set(included.map((mod) => mod.getName()));
-  const missing = include.filter((name) => !found.has(name));
-  if (missing.length > 0) {
-    yield* Effect.logWarning(
-      'Modules listed in options.include were not found in the module graph',
-    ).pipe(Effect.annotateLogs({ modules: missing.join(', ') }));
-  }
-
+  const included = includedModules(root, include);
   const controllers = included.flatMap((mod) => {
     const { controllers: own, imports } = getModuleMetadata(mod);
     const fromImports = scope.deepScanRoutes

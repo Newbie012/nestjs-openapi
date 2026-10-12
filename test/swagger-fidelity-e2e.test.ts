@@ -85,6 +85,21 @@ describe('Swagger fidelity E2E', () => {
       });
     });
 
+    it('uses a declared content map as is, over the inferred return type', () => {
+      expect(responsesOf('/items/export', 'get')['200']).toEqual({
+        description: 'The items as a file or as JSON',
+        content: {
+          'text/csv': { schema: { type: 'string', format: 'binary' } },
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ItemDto' },
+            },
+          },
+        },
+      });
+    });
+
     it('reads an explicit schema with getSchemaPath()', () => {
       expect(jsonSchemaOf(responsesOf('/items/schema', 'get')['200'])).toEqual({
         type: 'array',
@@ -164,9 +179,11 @@ describe('Swagger fidelity E2E', () => {
         allOf: [{ $ref: '#/components/schemas/ExternalLibraryRefDto' }],
         description: 'The library reference',
       });
+      // Unlike @nestjs/swagger, with the `type` that 3.0 needs beside `nullable`
       expect(properties['previous']).toEqual({
         allOf: [{ $ref: '#/components/schemas/ExternalLibraryRefDto' }],
         description: 'Previous reference',
+        type: 'object',
         nullable: true,
       });
     });
@@ -286,6 +303,13 @@ describe('Swagger fidelity E2E', () => {
       expect(property('numericString')).toEqual({ type: 'number' });
     });
 
+    it('lets a declared type win over an array TypeScript type and @IsArray', () => {
+      expect(property('tagList')).toEqual({
+        type: 'string',
+        description: 'Comma-separated tags',
+      });
+    });
+
     it('copies schema keywords', () => {
       expect(property('id')).toEqual({
         type: 'string',
@@ -342,6 +366,93 @@ describe('Swagger fidelity E2E', () => {
           },
         },
       });
+    });
+
+    it('writes nullable references with a type, as 3.0 requires', () => {
+      expect(property('previousAddress')).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Address' }],
+        description: 'The previous address',
+        type: 'object',
+        nullable: true,
+      });
+      expect(property('billingAddress')).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Address' }],
+        type: 'object',
+        nullable: true,
+      });
+      expect(property('fallbackPriority')).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Priority' }],
+        type: 'string',
+        nullable: true,
+      });
+      expect(property('addressOrLabel')).toEqual({
+        anyOf: [
+          {
+            oneOf: [
+              { $ref: '#/components/schemas/Address' },
+              { type: 'string' },
+            ],
+          },
+          { type: 'object', nullable: true, enum: [null] },
+        ],
+      });
+    });
+
+    it('reads computed mapping keys from enum members and consts', () => {
+      expect(property('keyedPet')).toMatchObject({
+        discriminator: {
+          propertyName: 'kind',
+          mapping: {
+            cat: '#/components/schemas/CatDto',
+            dog: '#/components/schemas/DogDto',
+          },
+        },
+      });
+    });
+  });
+
+  describe('object schemas', () => {
+    it('leaves additionalProperties out, as @nestjs/swagger does', () => {
+      const schemas = Object.values(spec.components?.schemas ?? {});
+      expect(schemas.length).toBeGreaterThan(0);
+      for (const schema of schemas) {
+        expect(schema).not.toHaveProperty('additionalProperties');
+      }
+    });
+
+    it('keeps a declared additionalProperties', () => {
+      expect(
+        spec.components?.schemas?.['PropertyOptionsDto']?.properties?.[
+          'labels'
+        ],
+      ).toHaveProperty('additionalProperties', { type: 'string' });
+    });
+
+    it("forbids unlisted properties with additionalProperties: 'forbid'", async () => {
+      const forbidOutput = resolve(
+        process.cwd(),
+        'e2e-applications/swagger-fidelity/openapi.forbid.generated.json',
+      );
+      try {
+        await generate(
+          resolve(
+            process.cwd(),
+            'e2e-applications/swagger-fidelity/openapi.forbid.config.ts',
+          ),
+        );
+        const schemas: OpenApiSpec['components'] = JSON.parse(
+          readFileSync(forbidOutput, 'utf-8'),
+        ).components;
+        const options = schemas?.schemas?.['PropertyOptionsDto'];
+
+        expect(options?.additionalProperties).toBe(false);
+        expect(options?.properties?.['labels']).toHaveProperty(
+          'additionalProperties',
+          { type: 'string' },
+        );
+      } finally {
+        if (existsSync(forbidOutput)) unlinkSync(forbidOutput);
+      }
     });
   });
 
@@ -479,6 +590,34 @@ describe('Swagger fidelity E2E', () => {
       expect(parameter('/params', 'sortBy')?.schema).toEqual({
         type: 'string',
         enum: ['name', 'createdAt'],
+      });
+    });
+
+    it('keeps a property examples array on the schema, not the parameter', () => {
+      const colors = parameter('/params', 'colors');
+
+      expect(colors).not.toHaveProperty('examples');
+      // 3.0 schemas only have `example`: the first value
+      expect(colors?.schema).toEqual({
+        type: 'array',
+        items: { type: 'string' },
+        example: 'red',
+      });
+    });
+
+    it('keeps the property examples when @ApiQuery declares the type', () => {
+      // 3.0: the declared `example` wins over the first of `examples`
+      expect(parameter('/params', 'bornSince')?.schema).toEqual({
+        type: 'string',
+        format: 'date-time',
+        example: '2024-01-01',
+      });
+    });
+
+    it('lets a declared type win over an array query DTO property', () => {
+      expect(parameter('/params', 'tags')?.schema).toEqual({
+        type: 'string',
+        example: 'red,blue',
       });
     });
   });
