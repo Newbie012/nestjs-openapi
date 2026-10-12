@@ -401,8 +401,6 @@ export const FilesConfig = Schema.Struct({
   dtoGlob: Schema.optional(
     Schema.Union(Schema.String, Schema.Array(Schema.String)),
   ),
-  include: Schema.optional(Schema.Array(Schema.String)),
-  exclude: Schema.optional(Schema.Array(Schema.String)),
 });
 export type FilesConfig = typeof FilesConfig.Type;
 
@@ -531,8 +529,6 @@ export type OpenApiGeneratorConfig = typeof OpenApiGeneratorConfig.Type;
 export const ResolvedConfig = Schema.Struct({
   tsconfig: Schema.String,
   entry: Schema.Array(Schema.String),
-  include: Schema.Array(Schema.String),
-  exclude: Schema.Array(Schema.String),
   excludeDecorators: Schema.Array(Schema.String),
   dtoGlob: Schema.Array(Schema.String),
   extractValidation: Schema.Boolean,

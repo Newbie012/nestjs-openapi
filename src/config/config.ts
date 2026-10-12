@@ -94,10 +94,6 @@ const DEFAULT_DTO_GLOB = [
 ] as const;
 
 const DEFAULT_CONFIG = {
-  files: {
-    include: [] as string[],
-    exclude: ['**/*.spec.ts', '**/*.test.ts', '**/node_modules/**'],
-  },
   options: {
     excludeDecorators: ['ApiExcludeEndpoint', 'ApiExcludeController'],
     extractValidation: true,
@@ -371,8 +367,6 @@ export const resolveConfig = (
   return Effect.succeed({
     tsconfig,
     entry,
-    include: files.include ?? DEFAULT_CONFIG.files.include,
-    exclude: files.exclude ?? DEFAULT_CONFIG.files.exclude,
     excludeDecorators:
       options.excludeDecorators ?? DEFAULT_CONFIG.options.excludeDecorators,
     dtoGlob,

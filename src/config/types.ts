@@ -229,17 +229,6 @@ export interface FilesConfig {
    * @example "src/**\/*.dto.ts"
    */
   readonly dtoGlob?: string | readonly string[];
-
-  /**
-   * Glob patterns to include.
-   */
-  readonly include?: readonly string[];
-
-  /**
-   * Glob patterns to exclude.
-   * @default ["**\/*.spec.ts", "**\/*.test.ts", "**\/node_modules/**"]
-   */
-  readonly exclude?: readonly string[];
 }
 
 /**
