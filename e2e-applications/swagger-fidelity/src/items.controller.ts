@@ -1,4 +1,11 @@
-import { Body, Controller, Get, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Post,
+  StreamableFile,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiConflictResponse,
@@ -67,6 +74,21 @@ export class ItemsController {
   })
   bySchema(): unknown {
     return [];
+  }
+
+  // A declared content map is used as is, not the inferred return type
+  @Get('export')
+  @ApiOkResponse({
+    description: 'The items as a file or as JSON',
+    content: {
+      'text/csv': { schema: { type: 'string', format: 'binary' } },
+      'application/json': {
+        schema: { type: 'array', items: { $ref: getSchemaPath(ItemDto) } },
+      },
+    },
+  })
+  export(): Promise<StreamableFile | object> {
+    return Promise.resolve({});
   }
 
   @Get('paged')

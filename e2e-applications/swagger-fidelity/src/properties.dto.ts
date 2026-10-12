@@ -3,6 +3,7 @@ import {
   ApiPropertyOptional,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { IsArray } from 'class-validator';
 import { CatDto, DecoratorOnlyDto, DogDto } from './decorator-only-dto';
 import { Address } from './people.dto';
 
@@ -15,6 +16,12 @@ export enum Level {
   One = 1,
   Two = 2,
 }
+
+export enum PetKind {
+  Cat = 'cat',
+}
+
+const DOG_KIND = 'dog';
 
 const MAX_NAME = 40;
 
@@ -67,6 +74,40 @@ export class PropertyOptionsDto {
     },
   })
   pet: CatDto | DogDto;
+
+  // Computed keys are read as the runtime reads them
+  @ApiProperty({
+    oneOf: [{ $ref: getSchemaPath(CatDto) }, { $ref: getSchemaPath(DogDto) }],
+    discriminator: {
+      propertyName: 'kind',
+      mapping: {
+        [PetKind.Cat]: getSchemaPath(CatDto),
+        [DOG_KIND]: getSchemaPath(DogDto),
+      },
+    },
+  })
+  keyedPet: CatDto | DogDto;
+
+  @ApiProperty({ type: String, description: 'Comma-separated tags' })
+  @IsArray()
+  tagList: string[];
+
+  // Nullable references: 3.0 needs a `type` beside `nullable`
+  @ApiProperty({ description: 'The previous address' })
+  previousAddress: Address | null;
+
+  @ApiProperty({ type: Address, nullable: true })
+  billingAddress: Address | null;
+
+  @ApiProperty({ enum: Priority, enumName: 'Priority', nullable: true })
+  fallbackPriority: Priority | null;
+
+  // No single type: allows null through an anyOf member in 3.0
+  @ApiProperty({
+    oneOf: [{ $ref: getSchemaPath(Address) }, { type: 'string' }],
+    nullable: true,
+  })
+  addressOrLabel: Address | string | null;
 
   @ApiProperty({ type: 'array', items: { type: 'string', format: 'email' } })
   emails: unknown;

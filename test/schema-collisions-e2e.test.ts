@@ -57,12 +57,10 @@ describe('Schema name collisions E2E', () => {
 
   const shippingAddress = {
     type: 'object',
-    additionalProperties: false,
     properties: { name: { type: 'string', nullable: true } },
   };
   const orderProduct = {
     type: 'object',
-    additionalProperties: false,
     properties: {
       barcode: { type: 'string' },
       name: { type: 'string' },

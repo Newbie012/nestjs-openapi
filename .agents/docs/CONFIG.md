@@ -48,7 +48,11 @@ export default defineConfig({
     enums: 'ref', // or 'nest' (inline, like @nestjs/swagger)
     versioning: { type: 'uri', defaultVersion: '1' }, // as in app.enableVersioning()
     transformPath: (path, { controller, method, httpMethod }) => path,
-    schemas: { aliasRefs: 'collapse', genericNames: 'sanitized' },
+    schemas: {
+      aliasRefs: 'collapse',
+      genericNames: 'sanitized',
+      additionalProperties: 'omit', // or 'forbid'
+    },
   },
 });
 ```
@@ -103,6 +107,8 @@ When `files.tsconfig` is omitted, the Promise API (`generate()`) searches upward
 | `pathFilter` | `RegExp \| Function` | — | Filter routes |
 | `query.style` | `"inline" \| "ref"` | `"inline"` | How to represent query DTOs |
 | `schemas.aliasRefs` | `"collapse" \| "preserve"` | `"collapse"` | Collapse pass-through `$ref` aliases |
+| `schemas.genericNames` | `"sanitized" \| "raw"` | `"sanitized"` | `Page<User>` → `Page_User`, or keep the TypeScript name |
+| `schemas.additionalProperties` | `"omit" \| "forbid"` | `"omit"` | Leave `additionalProperties` out, as @nestjs/swagger does, or write `false` on every component object |
 
 #### Query DTO Style
 
@@ -150,6 +156,10 @@ options: {
 
 - `"collapse"` rewrites `A -> B -> C` to `A -> C` when `B` is just a `$ref` alias (plus optional description), and removes `B`.
 - `"preserve"` keeps alias schemas in `components.schemas`.
+
+#### Additional Properties
+
+Object schemas leave `additionalProperties` out by default, as @nestjs/swagger does, so a field added to a response later does not break strict clients. Set `schemas.additionalProperties: 'forbid'` to write `additionalProperties: false` on every component object that lists its properties. Either way, an `additionalProperties` declared in `@ApiProperty`, or an index signature such as `Record<string, T>`, is kept.
 
 #### Validation Extraction
 

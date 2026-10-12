@@ -467,6 +467,17 @@ Names of generic instantiations (default: `"sanitized"`). OpenAPI only allows le
 | `"sanitized"` | `Page<User>` → `Page_User`, `Page<User[]>` → `Page_UserArray`, `Result<A \| B>` → `Result_A_Or_B` |
 | `"raw"`       | `Page<User>` as is; not valid OpenAPI, though some tools accept it              |
 
+#### `schemas.additionalProperties`
+
+Whether object schemas allow properties they do not list (default: `"omit"`).
+
+| Value      | Output                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| `"omit"`   | No `additionalProperties`, as @nestjs/swagger writes it. A field added to a response later is not a breaking change |
+| `"forbid"` | `additionalProperties: false` on every component object that lists its properties, for clients that reject unknown fields |
+
+An `additionalProperties` declared in `@ApiProperty`, or an index signature such as `Record<string, T>`, is kept either way.
+
 ## `extends`
 
 The type definition includes an `extends` field for future shared configs, but it is **not implemented** in the current Promise-based generator. Keep configs standalone for now.

@@ -106,6 +106,8 @@ export const ResponseMetadata = Schema.Struct({
   /** Whether the response type is an array */
   isArray: Schema.Boolean,
   schema: Schema.optional(Schema.Unknown),
+  /** Declared content map, by media type, used when no type or schema is */
+  content: Schema.optional(Schema.Unknown),
 });
 export type ResponseMetadata = typeof ResponseMetadata.Type;
 
@@ -430,6 +432,7 @@ export type QueryOptionsConfig = typeof QueryOptionsConfig.Type;
 export const SchemaOptionsConfig = Schema.Struct({
   aliasRefs: Schema.optional(Schema.Literal('collapse', 'preserve')),
   genericNames: Schema.optional(Schema.Literal('sanitized', 'raw')),
+  additionalProperties: Schema.optional(Schema.Literal('omit', 'forbid')),
 });
 export type SchemaOptionsConfig = typeof SchemaOptionsConfig.Type;
 

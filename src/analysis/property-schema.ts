@@ -276,8 +276,3 @@ export const allowsNull = (schema: JsonSchema) =>
   (Array.isArray(schema.type) && schema.type.includes('null')) ||
   (schema.anyOf ?? []).some((member) => member.type === 'null') ||
   (schema.oneOf ?? []).some((member) => member.type === 'null');
-
-export const isArraySchema = (schema: JsonSchema) =>
-  schema.type === 'array' ||
-  (Array.isArray(schema.type) && schema.type.includes('array')) ||
-  (schema.anyOf ?? []).some((member) => member.type === 'array');

@@ -8,7 +8,7 @@
 import { Effect } from 'effect';
 import { existsSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
-import { Project, type ClassDeclaration } from 'ts-morph';
+import { Project, ts, type ClassDeclaration } from 'ts-morph';
 import { glob as nodeGlob } from 'glob';
 import type {
   GenerateOverrides,
@@ -24,7 +24,11 @@ import {
   DtoGlobResolutionError,
   type GeneratorError,
 } from '../config/errors.js';
-import { ModuleTraversalService, type ModuleScope } from '../analysis/modules.js';
+import {
+  findMissingIncludes,
+  ModuleTraversalService,
+  type ModuleScope,
+} from '../analysis/modules.js';
 import {
   MethodExtractionService,
   type ExtractParametersOptions,
@@ -39,11 +43,21 @@ import {
 import { normalizeStructureRefsEffect } from '../schema/schema-normalizer.js';
 import { collapseAliasRefs } from '../schema/schema-alias-collapser.js';
 import { expandConstSchemas } from '../schema/schema-const-expander.js';
-import { mergeSchemasEffect } from '../schema/schema-merger.js';
+import {
+  forbidAdditionalProperties,
+  mergeSchemasEffect,
+} from '../schema/schema-merger.js';
 import { filterMethods } from '../analysis/filter.js';
-import { transformSpecForVersion } from '../schema/schema-version-transformer.js';
+import {
+  transformSpecForVersion,
+  adaptSpecForV30,
+} from '../schema/schema-version-transformer.js';
 import { ConfigService } from '../config/config.js';
-import { validateSpec, type ValidationResult } from './spec-validator.js';
+import {
+  validateSpec,
+  validateStructure,
+  type ValidationResult,
+} from './spec-validator.js';
 import { runGeneratorApiPromise } from '../public-api.js';
 import {
   createTypeResolverProject,
@@ -288,14 +302,39 @@ const NON_IMPORTABLE_TYPE_NAMES = new Set([
   'extends',
 ]);
 
+// The names a type text refers to, read with the TypeScript parser so that
+// property names in `{ sent: boolean }`, index signature keys and mapped type
+// parameters are not taken for types to import
 const extractTypeIdentifiers = (typeRef: string): Set<string> => {
-  const withoutStringLiterals = typeRef.replace(/'[^']*'|"[^"]*"|`[^`]*`/g, '');
-
-  const matches =
-    withoutStringLiterals.match(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g) ?? [];
-
+  const source = ts.createSourceFile(
+    'type-ref.ts',
+    `type __Ref = ${typeRef};`,
+    ts.ScriptTarget.Latest,
+  );
+  const names = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isTypeReferenceNode(node) ||
+      ts.isExpressionWithTypeArguments(node)
+    ) {
+      let name: ts.Node = ts.isTypeReferenceNode(node)
+        ? node.typeName
+        : node.expression;
+      // `Dtos.UserDto` is imported as `Dtos`
+      while (ts.isQualifiedName(name)) name = name.left;
+      while (ts.isPropertyAccessExpression(name)) name = name.expression;
+      if (ts.isIdentifier(name)) names.add(name.text);
+    }
+    if (ts.isTypeQueryNode(node)) {
+      let name: ts.Node = node.exprName;
+      while (ts.isQualifiedName(name)) name = name.left;
+      if (ts.isIdentifier(name)) names.add(name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
   return new Set(
-    matches.filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
+    [...names].filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
   );
 };
 
@@ -351,6 +390,31 @@ const buildMissingGenericCacheKey = (
     .map((symbol) => `${symbol}:${symbolLocations.get(symbol) ?? ''}`);
 
   return `${tsconfig}||${refs.join('|')}||${symbolEntries.join('|')}`;
+};
+
+const generatedTargetName = (schema: unknown): string | undefined => {
+  if (!schema || typeof schema !== 'object') return undefined;
+  const { $ref, ...rest } = schema as Record<string, unknown>;
+  return typeof $ref === 'string' &&
+    $ref.startsWith('#/definitions/') &&
+    Object.keys(rest).length === 0
+    ? decodeURIComponent($ref.slice('#/definitions/'.length))
+    : undefined;
+};
+
+// `ApiResponse<{ sent: boolean }>`: an argument with no name of its own, so
+// the instantiation is written where it is used, as inline types are
+const isAnonymousInstantiation = (name: string): boolean => {
+  if (!isGenericSchemaRef(name)) return false;
+  const source = ts.createSourceFile(
+    'type-ref.ts',
+    `type __Ref = ${name};`,
+    ts.ScriptTarget.Latest,
+  );
+  const hasTypeLiteral = (node: ts.Node): boolean =>
+    ts.isTypeLiteralNode(node) ||
+    ts.forEachChild(node, hasTypeLiteral) === true;
+  return hasTypeLiteral(source);
 };
 
 const generateMissingGenericSchemasEffect = Effect.fn(
@@ -430,7 +494,16 @@ const generateMissingGenericSchemasEffect = Effect.fn(
       generated.definitions[schemaName] ??
       generated.definitions[aliasName] ??
       undefined;
-    if (resolvedSchema) {
+    // The generator names `ApiResponse<{ sent: boolean }>` after positions
+    // in the virtual file; the schema keeps the name the source wrote
+    const target = generatedTargetName(resolvedSchema);
+    if (target !== undefined && target !== schemaName) {
+      const body = generated.definitions[target];
+      if (body) {
+        generated.definitions[schemaName] = body;
+        delete generated.definitions[target];
+      }
+    } else if (resolvedSchema) {
       generated.definitions[schemaName] = resolvedSchema;
     }
     delete generated.definitions[aliasName];
@@ -667,9 +740,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
       );
 
     for (const note of unreadable ?? []) {
-      yield* Effect.logWarning(
-        `${note}; the TypeScript type is used instead. Describe it with a literal, an enum, or a static expression`,
-      );
+      yield* Effect.logWarning(note);
     }
 
     if (Object.keys(constraints).length > 0) {
@@ -823,7 +894,10 @@ const extractMethodInfosFromEntry = (
       { concurrency: 'unbounded' },
     );
 
-    return methodInfos.flat();
+    return {
+      methodInfos: methodInfos.flat(),
+      missingIncludes: findMissingIncludes(entryClass, scope.include ?? []),
+    };
   })(tsconfig, entry, extractOptions);
 
 /**
@@ -836,12 +910,26 @@ const extractMethodInfosEffect = Effect.fn('Generate.extractMethodInfos')(
     extractOptions: ExtractParametersOptions,
     scope: ModuleScope,
   ) {
-    const allMethodInfos = yield* Effect.forEach(
+    const fromEntries = yield* Effect.forEach(
       entries,
       (entry) =>
         extractMethodInfosFromEntry(tsconfig, entry, extractOptions, scope),
       { concurrency: 'unbounded' },
     );
+
+    // A module found in any entry is found
+    const missing = (scope.include ?? []).filter((name) =>
+      fromEntries.every(({ missingIncludes }) =>
+        missingIncludes.includes(name),
+      ),
+    );
+    if (missing.length > 0) {
+      yield* Effect.logWarning(
+        'Modules listed in options.include were not found in the module graph',
+      ).pipe(Effect.annotateLogs({ modules: missing.join(', ') }));
+    }
+
+    const allMethodInfos = fromEntries.map(({ methodInfos }) => methodInfos);
 
     // Flatten and deduplicate by path + method combination
     const seen = new Set<string>();
@@ -1286,10 +1374,30 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             }
           }
 
-          const resolvedGenericSymbols = resolveSymbolLocations(
-            tsconfig,
-            genericSymbols,
-          );
+          // The declarations the operations reach, by symbol, win over a
+          // lookup by name, which finds any declaration with that name
+          const reachedLocations = new Map<string, string>();
+          for (const method of filteredMethodInfos) {
+            for (const ref of method.referencedDeclarations ?? []) {
+              if (
+                genericSymbols.has(ref.name) &&
+                !reachedLocations.has(ref.name)
+              ) {
+                reachedLocations.set(ref.name, ref.filePath);
+              }
+            }
+          }
+          const resolvedGenericSymbols = new Map([
+            ...resolveSymbolLocations(
+              tsconfig,
+              new Set(
+                [...genericSymbols].filter(
+                  (name) => !reachedLocations.has(name),
+                ),
+              ),
+            ),
+            ...reachedLocations,
+          ]);
           for (const [name, filePath] of resolvedNonGenericLocations) {
             resolvedGenericSymbols.set(name, filePath);
           }
@@ -1371,11 +1479,12 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = inlined.schemas;
     }
 
-    // 'inline' collision strategy: colliding schemas are written in place
-    const inlineNames = collisionInlinedNames(
-      Object.keys(schemas),
-      schemaNamePlan,
-    );
+    // 'inline' collision strategy: colliding schemas are written in place,
+    // and so are instantiations with an anonymous type argument
+    const inlineNames = new Set([
+      ...collisionInlinedNames(Object.keys(schemas), schemaNamePlan),
+      ...Object.keys(schemas).filter(isAnonymousInstantiation),
+    ]);
     if (inlineNames.size > 0) {
       const inlined = inlineSchemas(
         paths as OpenApiPaths,
@@ -1408,6 +1517,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       const sanitized = sanitizeComponentNames(paths as OpenApiPaths, schemas);
       paths = sanitized.paths as typeof paths;
       schemas = sanitized.schemas;
+    }
+
+    if (options.schemas?.additionalProperties === 'forbid') {
+      schemas = forbidAdditionalProperties(schemas);
     }
 
     // `examples` in schemas: 3.0 has only `example`, 3.1 wants an array
@@ -1462,9 +1575,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     };
 
     // Transform spec for OpenAPI 3.1/3.2 if needed
-    if (openApiVersion !== '3.0.3') {
-      spec = transformSpecForVersion(spec, openApiVersion);
-    }
+    spec =
+      openApiVersion === '3.0.3'
+        ? adaptSpecForV30(spec)
+        : transformSpecForVersion(spec, openApiVersion);
 
     // Sort keys to match NestJS Swagger output order
     const sortedSpec = sortObjectKeysDeep(spec, true);
@@ -1490,8 +1604,20 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     yield* Effect.annotateCurrentSpan('finalOperationCount', operationCount);
     yield* Effect.annotateCurrentSpan('finalSchemaCount', schemaCount);
 
-    // Validate the spec for broken refs
-    const validation = validateSpec(sortedSpec);
+    // Broken refs, and breaks of the OpenAPI specification
+    const refValidation = validateSpec(sortedSpec);
+    const structuralErrors = yield* Effect.promise(() =>
+      validateStructure(sortedSpec),
+    );
+    const validation: ValidationResult = {
+      ...refValidation,
+      valid: refValidation.valid && structuralErrors.length === 0,
+      structuralErrors,
+    };
+    yield* Effect.annotateCurrentSpan(
+      'validationStructuralErrorCount',
+      structuralErrors.length,
+    );
     yield* Effect.annotateCurrentSpan(
       'validationTotalRefCount',
       validation.totalRefs,
@@ -1514,6 +1640,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         schemaCount,
         validationValid: validation.valid,
         brokenRefCount: validation.brokenRefCount,
+        structuralErrorCount: structuralErrors.length,
       }),
     );
 

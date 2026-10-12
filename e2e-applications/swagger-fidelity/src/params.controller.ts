@@ -7,6 +7,7 @@ import {
   ApiPropertyOptional,
   ApiQuery,
 } from '@nestjs/swagger';
+import { IsArray } from 'class-validator';
 import { Priority } from './properties.dto';
 
 export class PageQueryDto {
@@ -15,6 +16,18 @@ export class PageQueryDto {
 
   @ApiProperty({ description: 'Sort field', enum: ['name', 'createdAt'] })
   sortBy: string;
+
+  // Sent as `?tags=red,blue` and split by a pipe: the declared type wins
+  @ApiPropertyOptional({ type: String, example: 'red,blue' })
+  @IsArray()
+  tags?: string[];
+
+  // Schema examples, not a Parameter Object's examples map
+  @ApiPropertyOptional({ examples: ['red', 'blue'] })
+  colors?: string[];
+
+  @ApiPropertyOptional({ examples: ['2024-01-01', '2024-02-01'], type: Date })
+  bornSince?: Date;
 }
 
 export class FilterQueryDto {
@@ -76,6 +89,12 @@ export class ParamsController {
   }
 
   @Get()
+  @ApiQuery({
+    name: 'bornSince',
+    required: false,
+    type: Date,
+    example: '2024-01-01',
+  })
   page(@Query() query: PageQueryDto): string {
     return String(query);
   }

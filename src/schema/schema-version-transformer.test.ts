@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  adaptSpecForV30,
   transformSchemasForVersion,
   transformSpecForVersion,
 } from './schema-version-transformer.js';
@@ -478,7 +479,7 @@ describe('schema-version-transformer', () => {
       const schema =
         result.paths['/users'].get.responses['200']?.content?.[
           'application/json'
-      ]?.schema;
+        ]?.schema;
       expect(schema?.type).toEqual(['number', 'null']);
     });
 
@@ -637,6 +638,254 @@ describe('schema-version-transformer', () => {
       expect(
         result.components?.schemas?.Product.properties?.price.type,
       ).toEqual(['number', 'null']);
+    });
+  });
+
+  describe('binary bodies', () => {
+    const specWithBody = (contentType: string): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Test API', version: '1.0.0' },
+      paths: {
+        '/files': {
+          get: {
+            operationId: 'download',
+            responses: {
+              '200': {
+                description: 'The file',
+                content: {
+                  [contentType]: {
+                    schema: { type: 'string', format: 'binary' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const bodySchema = (contentType: string) =>
+      transformSpecForVersion(specWithBody(contentType), '3.1.0').paths[
+        '/files'
+      ]?.get?.responses['200']?.content?.[contentType]?.schema;
+
+    it('states the media type of bytes sent as the whole body for 3.1', () => {
+      expect(bodySchema('application/pdf')).toEqual({
+        type: 'string',
+        contentMediaType: 'application/pdf',
+      });
+    });
+
+    it.each(['application/json', '*/*', 'image/*'])(
+      'keeps application/octet-stream under %s',
+      (contentType) => {
+        expect(bodySchema(contentType)).toEqual({
+          type: 'string',
+          contentMediaType: 'application/octet-stream',
+        });
+      },
+    );
+  });
+
+  describe('adaptSpecForV30', () => {
+    const adaptProperty = (
+      property: OpenApiSchema,
+      schemas: Record<string, OpenApiSchema> = {},
+    ) =>
+      adaptSpecForV30({
+        openapi: '3.0.3',
+        info: { title: 'Pets', version: '1.0.0' },
+        paths: {},
+        components: {
+          schemas: {
+            ...schemas,
+            Pet: { type: 'object', properties: { value: property } },
+          },
+        },
+      }).components?.schemas?.['Pet']?.properties?.['value'];
+
+    it('gives a nullable reference the type of what it references', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        Owner: { type: 'object', properties: { name: { type: 'string' } } },
+        Species: { type: 'string', enum: ['cat', 'dog'] },
+      };
+
+      expect(
+        adaptProperty(
+          { $ref: '#/components/schemas/Owner', nullable: true },
+          schemas,
+        ),
+      ).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Owner' }],
+        type: 'object',
+        nullable: true,
+      });
+      expect(
+        adaptProperty(
+          {
+            allOf: [{ $ref: '#/components/schemas/Species' }],
+            description: 'The species',
+            nullable: true,
+          },
+          schemas,
+        ),
+      ).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Species' }],
+        description: 'The species',
+        type: 'string',
+        nullable: true,
+      });
+    });
+
+    it('allows null through an anyOf member when no single type fits', () => {
+      expect(
+        adaptProperty({
+          oneOf: [{ type: 'string' }, { type: 'number' }],
+          description: 'A label or a rank',
+          nullable: true,
+        }),
+      ).toEqual({
+        description: 'A label or a rank',
+        anyOf: [
+          { oneOf: [{ type: 'string' }, { type: 'number' }] },
+          { type: 'object', nullable: true, enum: [null] },
+        ],
+      });
+    });
+
+    it('writes const as a single-value enum, in operations too', () => {
+      const spec = adaptSpecForV30({
+        openapi: '3.0.3',
+        info: { title: 'Pets', version: '1.0.0' },
+        paths: {
+          '/pets': {
+            get: {
+              operationId: 'listPets',
+              responses: {
+                '200': {
+                  description: 'The pets',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          status: {
+                            type: 'string',
+                            const: 'ok',
+                          } as OpenApiSchema,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        spec.paths['/pets']?.get?.responses['200']?.content?.[
+          'application/json'
+        ]?.schema?.properties?.['status'],
+      ).toEqual({ type: 'string', enum: ['ok'] });
+    });
+
+    it('leaves a typed nullable as it is', () => {
+      expect(adaptProperty({ type: 'string', nullable: true })).toEqual({
+        type: 'string',
+        nullable: true,
+      });
+    });
+
+    it('also adapts the schemas of operations', () => {
+      const spec = adaptSpecForV30({
+        openapi: '3.0.3',
+        info: { title: 'Pets', version: '1.0.0' },
+        paths: {
+          '/pets': {
+            get: {
+              operationId: 'listPets',
+              responses: {
+                '200': {
+                  description: 'The pets',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        $ref: '#/components/schemas/Page',
+                        nullable: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        components: { schemas: { Page: { type: 'object' } } },
+      });
+
+      expect(
+        spec.paths['/pets']?.get?.responses['200']?.content?.[
+          'application/json'
+        ]?.schema,
+      ).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Page' }],
+        type: 'object',
+        nullable: true,
+      });
+    });
+
+    it('writes a numeric exclusive bound as a boolean beside its bound', () => {
+      expect(
+        adaptProperty({ type: 'number', exclusiveMinimum: 0, maximum: 10 }),
+      ).toEqual({
+        type: 'number',
+        minimum: 0,
+        exclusiveMinimum: true,
+        maximum: 10,
+      });
+      // `minimum: 5` is already stricter than `> 0`
+      expect(
+        adaptProperty({ type: 'number', minimum: 5, exclusiveMinimum: 0 }),
+      ).toEqual({ type: 'number', minimum: 5 });
+    });
+  });
+
+  describe('exclusive bounds for 3.1', () => {
+    it('writes a boolean exclusive bound as the bound itself', () => {
+      const spec = transformSpecForVersion(
+        {
+          openapi: '3.0.3',
+          info: { title: 'Pets', version: '1.0.0' },
+          paths: {},
+          components: {
+            schemas: {
+              Pet: {
+                type: 'object',
+                properties: {
+                  age: {
+                    type: 'number',
+                    minimum: 0,
+                    exclusiveMinimum: true,
+                  },
+                  weight: {
+                    type: 'number',
+                    maximum: 90,
+                    exclusiveMaximum: false,
+                  },
+                },
+              },
+            },
+          },
+        },
+        '3.1.0',
+      );
+
+      expect(spec.components?.schemas?.['Pet']?.properties).toEqual({
+        age: { type: 'number', exclusiveMinimum: 0 },
+        weight: { type: 'number', maximum: 90 },
+      });
     });
   });
 });

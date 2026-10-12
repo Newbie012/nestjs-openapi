@@ -211,6 +211,7 @@ defineConfig({
     pathFilter: /regex/ /* or function */,
     schemas: {
       aliasRefs: 'collapse', // default
+      additionalProperties: 'omit', // default; 'forbid' writes `false`
     },
   },
 });

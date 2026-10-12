@@ -13,6 +13,7 @@ export const PUBLIC_PAYMENT_METHODS = Object.values(PaymentMethod).filter(
 );
 
 declare function loadAllowedRegions(): string[];
+declare function loadCardKey(): string;
 
 export class CheckoutDto {
   @ApiPropertyOptional({
@@ -25,4 +26,14 @@ export class CheckoutDto {
   // Not readable statically
   @ApiProperty({ enum: loadAllowedRegions() })
   region: string;
+
+  // One key is readable, the other is not
+  @ApiProperty({
+    type: 'object',
+    properties: {
+      [PaymentMethod.PAYPAL]: { type: 'string' },
+      [loadCardKey()]: { type: 'string' },
+    },
+  })
+  accounts: Record<string, string>;
 }

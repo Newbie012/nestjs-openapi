@@ -292,6 +292,8 @@ export {
   validateSpec,
   categorizeBrokenRefs,
   formatValidationResult,
+  validateStructure,
+  type StructuralError,
   type ValidationResult,
   type BrokenRef,
   type BrokenRefCategories,

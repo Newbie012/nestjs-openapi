@@ -175,6 +175,9 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.5.0
         version: 2.5.0(@opentelemetry/api@1.9.0)
+      '@seriousme/openapi-schema-validator':
+        specifier: ^2.11.0
+        version: 2.11.0
       effect:
         specifier: ^3.19.15
         version: 3.19.15
@@ -218,9 +221,6 @@ importers:
       '@nestjs/testing':
         specifier: ^11.1.6
         version: 11.1.12(@nestjs/common@11.1.6(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6)(@nestjs/platform-express@11.1.13)
-      '@seriousme/openapi-schema-validator':
-        specifier: ^2.11.0
-        version: 2.11.0
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9

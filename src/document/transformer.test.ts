@@ -1249,8 +1249,37 @@ describe('transformMethod', () => {
         { tsType: 'number', expected: { type: 'number' } },
         { tsType: 'boolean', expected: { type: 'boolean' } },
         { tsType: 'Date', expected: { type: 'string', format: 'date-time' } },
-        { tsType: 'unknown', expected: { type: 'object' } },
+        // A parameter's value says nothing about its type
+        { tsType: 'unknown', expected: {} },
+        { tsType: 'any', expected: {} },
         { tsType: 'object', expected: { type: 'object' } },
+        // JSON has no Map or Set
+        {
+          tsType: 'Map<string, CustomDto>',
+          expected: {
+            type: 'object',
+            additionalProperties: { $ref: '#/components/schemas/CustomDto' },
+          },
+        },
+        {
+          tsType: 'Record<string, Map<string, number>>',
+          expected: {
+            type: 'object',
+            additionalProperties: {
+              type: 'object',
+              additionalProperties: { type: 'number' },
+            },
+          },
+        },
+        { tsType: 'Record<string, unknown>', expected: { type: 'object' } },
+        {
+          tsType: 'Set<string>',
+          expected: {
+            type: 'array',
+            items: { type: 'string' },
+            uniqueItems: true,
+          },
+        },
         {
           tsType: 'CustomDto',
           expected: { $ref: '#/components/schemas/CustomDto' },
@@ -1857,6 +1886,47 @@ describe('transformMethod', () => {
       expect(schema).toEqual({
         type: 'object',
         properties: {},
+      });
+    });
+  });
+
+  describe('property examples on query parameters', () => {
+    const queryParameter = (declaredSchema?: object) => {
+      const parameter: ResolvedParameter = {
+        name: 'bornSince',
+        location: 'query',
+        tsType: 'Date',
+        required: false,
+        description: Option.none(),
+        constraints: {
+          schemaOverride: { type: 'string', format: 'date-time' },
+          keywords: { examples: ['2024-01-01', '2024-02-01'] },
+        } as ResolvedParameter['constraints'],
+        ...(declaredSchema ? { declaredSchema } : {}),
+      };
+      return transformMethod(
+        createMethodInfo({ path: '/pets', parameters: [parameter] }),
+      )['/pets'].get.parameters?.[0];
+    };
+
+    it('keeps an examples array on the schema, not the parameter', () => {
+      const parameter = queryParameter();
+
+      expect(parameter).not.toHaveProperty('examples');
+      expect(parameter?.schema).toEqual({
+        type: 'string',
+        format: 'date-time',
+        examples: ['2024-01-01', '2024-02-01'],
+      });
+    });
+
+    it('keeps it when a declared parameter replaces the type', () => {
+      expect(
+        queryParameter({ type: 'string', example: '2024-01-01' })?.schema,
+      ).toEqual({
+        type: 'string',
+        example: '2024-01-01',
+        examples: ['2024-01-01', '2024-02-01'],
       });
     });
   });

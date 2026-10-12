@@ -69,7 +69,14 @@ const readStatus = (call: DecoratorCall) => {
 const readResponse = (call: DecoratorCall): ResponseMetadata | undefined => {
   const statusCode = readStatus(call);
   if (statusCode === undefined) return undefined;
-  return { statusCode, ...readContentOptions(call.args[0]) };
+  const contentOption = getProperty(call.args[0], 'content');
+  const content =
+    contentOption?.kind === 'object' ? toPlain(contentOption) : undefined;
+  return {
+    statusCode,
+    ...readContentOptions(call.args[0]),
+    ...(content === undefined ? {} : { content }),
+  };
 };
 
 const readResponses = (calls: readonly DecoratorCall[]) => {
@@ -89,6 +96,7 @@ const mergeResponse = (
   fromMethod: ResponseMetadata,
 ): ResponseMetadata => {
   const schema = fromMethod.schema ?? fromClass.schema;
+  const content = fromMethod.content ?? fromClass.content;
   return {
     statusCode: fromMethod.statusCode,
     description: Option.orElse(
@@ -100,6 +108,7 @@ const mergeResponse = (
       ? fromMethod.isArray
       : fromClass.isArray,
     ...(schema === undefined ? {} : { schema }),
+    ...(content === undefined ? {} : { content }),
   };
 };
 

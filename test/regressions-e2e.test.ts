@@ -85,8 +85,10 @@ describe('Regressions E2E', () => {
         type: 'array',
         items: { $ref: '#/components/schemas/NotificationChannel' },
       });
+      // 3.0 needs a `type` beside `nullable`: the referenced enum's
       expect(properties['unavailableReason']).toEqual({
         allOf: [{ $ref: '#/components/schemas/ChannelUnavailableReason' }],
+        type: 'string',
         nullable: true,
       });
       expect(schemaOf('NotificationChannel')).toEqual({

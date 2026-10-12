@@ -162,6 +162,25 @@ describe('Import Alias E2E', () => {
       }
     });
 
+    it('writes Map<string, T> and Record<string, T> as objects of T', async () => {
+      const spec = await generateSpec();
+      const bodySchema = (path: string) =>
+        (
+          spec.paths[path]?.post?.requestBody as {
+            content: Record<string, { schema: unknown }>;
+          }
+        ).content['application/json'].schema;
+
+      expect(bodySchema('/builtin-types/map-type')).toEqual({
+        type: 'object',
+        additionalProperties: { $ref: '#/components/schemas/UserDto' },
+      });
+      expect(bodySchema('/builtin-types/record-type')).toEqual({
+        type: 'object',
+        additionalProperties: { type: 'number' },
+      });
+    });
+
     it('should NOT create schemas for built-in types like Array, Record, Map', async () => {
       const spec = await generateSpec();
 

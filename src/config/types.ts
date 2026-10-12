@@ -476,6 +476,20 @@ export interface SchemaOptions {
    * @default "sanitized"
    */
   readonly genericNames?: 'sanitized' | 'raw';
+
+  /**
+   * Whether object schemas allow properties they do not list.
+   * - `"omit"`: leave `additionalProperties` out, as @nestjs/swagger does,
+   *   so adding a response field later is not a breaking change
+   * - `"forbid"`: write `additionalProperties: false` on every component
+   *   object that lists properties, for clients that reject unknown fields
+   *
+   * An `additionalProperties` declared in `@ApiProperty`, or an index
+   * signature such as `Record<string, T>`, is kept either way.
+   *
+   * @default "omit"
+   */
+  readonly additionalProperties?: 'omit' | 'forbid';
 }
 
 /**
@@ -660,8 +674,10 @@ export interface OpenApiSchema {
   // Number validation constraints
   readonly minimum?: number;
   readonly maximum?: number;
-  readonly exclusiveMinimum?: number;
-  readonly exclusiveMaximum?: number;
+  /** A number in 3.1; in 3.0, `true` makes `minimum` exclusive */
+  readonly exclusiveMinimum?: number | boolean;
+  /** A number in 3.1; in 3.0, `true` makes `maximum` exclusive */
+  readonly exclusiveMaximum?: number | boolean;
   // Array validation constraints
   readonly minItems?: number;
   readonly maxItems?: number;

@@ -24,6 +24,7 @@ import {
   asBoolean,
   asNumber,
   asString,
+  findUnresolvedKeys,
   getProperty,
   toPlain,
   unwrapThunk,
@@ -32,7 +33,6 @@ import {
 import {
   DEFAULT_SCHEMA_NAMING,
   allowsNull,
-  isArraySchema,
   readDeclaredPropertySchema,
   type EnumValue,
   type SchemaNaming,
@@ -437,13 +437,13 @@ const withApiPropertyRequired = (
   return required === undefined ? state : { ...state, isOptional: !required };
 };
 
+const describeNode = (node: Node) =>
+  `${node.getSourceFile().getFilePath()}:${node.getStartLineNumber()}`;
+
 const describeLocation = (
   value: StaticValue | undefined,
   call: DecoratorCall,
-) => {
-  const node = (value && 'node' in value ? value.node : undefined) ?? call.node;
-  return `${node.getSourceFile().getFilePath()}:${node.getStartLineNumber()}`;
-};
+) => describeNode((value && 'node' in value ? value.node : undefined) ?? call.node);
 
 const describeArgument = (value: StaticValue | undefined) => {
   if (value === undefined) return 'undefined';
@@ -451,6 +451,9 @@ const describeArgument = (value: StaticValue | undefined) => {
   if (value.kind === 'reference') return value.name;
   return JSON.stringify(toPlain(value));
 };
+
+const TYPE_FALLBACK =
+  '; the TypeScript type is used instead. Describe it with a literal, an enum, or a static expression';
 
 // Recorded so an argument is never silently dropped
 const withUnreadable = (
@@ -472,22 +475,36 @@ const withEnumArgument = (
   }
   return withUnreadable(
     state,
-    `@${call.name}(values) cannot read \`${describeArgument(value)}\` statically (${describeLocation(value, call)})`,
+    `@${call.name}(values) cannot read \`${describeArgument(value)}\` statically (${describeLocation(value, call)})${TYPE_FALLBACK}`,
   );
 };
+
+const withUnresolvedKeys = (
+  state: PropertyValidationInfo,
+  call: DecoratorCall,
+) =>
+  findUnresolvedKeys(call.args[0]).reduce(
+    (acc, key) =>
+      withUnreadable(
+        acc,
+        `@${call.name}() cannot read the key \`${key.getText()}\` statically (${describeNode(key)}); its entry is left out. Key it with a literal, an enum member, or a const`,
+      ),
+    state,
+  );
 
 const apiPropertyDecoratorHandler: DecoratorHandler = (
   state,
   call,
   context,
 ) => {
+  const withKeys = withUnresolvedKeys(state, call);
   const enumOption = getProperty(call.args[0], 'enum');
   if (enumOption === undefined || readEnumValues(enumOption)) {
-    return apiPropertyConstraintsHandler(state, call, context);
+    return apiPropertyConstraintsHandler(withKeys, call, context);
   }
   const unreadable = withUnreadable(
-    state,
-    `@${call.name}({ enum }) cannot read \`${describeArgument(enumOption)}\` statically (${describeLocation(enumOption, call)})`,
+    withKeys,
+    `@${call.name}({ enum }) cannot read \`${describeArgument(enumOption)}\` statically (${describeLocation(enumOption, call)})${TYPE_FALLBACK}`,
   );
   return apiPropertyConstraintsHandler(unreadable, call, context);
 };
@@ -657,21 +674,14 @@ const cleanPropertyConstraints = (
   return cleanConstraints;
 };
 
-// The declared type replaces the inferred one, as in @nestjs/swagger, but
-// an array property stays an array of it unless it is an array itself, and
-// `T | null` stays nullable
+// The declared type replaces the inferred one, as in @nestjs/swagger: a
+// `string[]` declared `type: String` is a string (`isArray` or `[String]`
+// declares an array), and `T | null` stays nullable
 const applySchemaOverride = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints,
 ): JsonSchema => {
-  const override = constraints.schemaOverride!;
-  const keepsArray =
-    isArraySchema(propertySchema) &&
-    constraints.isArray !== false &&
-    override.type !== 'array';
-  const typed: JsonSchema = keepsArray
-    ? { type: 'array', items: override }
-    : override;
+  const typed = constraints.schemaOverride!;
   const {
     type: _type,
     enum: _enum,

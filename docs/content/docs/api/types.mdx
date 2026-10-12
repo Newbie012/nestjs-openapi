@@ -330,6 +330,16 @@ interface SchemaOptions {
    * @default "collapse"
    */
   readonly aliasRefs?: 'collapse' | 'preserve';
+
+  /**
+   * Whether object schemas allow properties they do not list.
+   * - `"omit"`: leave `additionalProperties` out, as @nestjs/swagger does
+   * - `"forbid"`: write `additionalProperties: false` on every component
+   *   object that lists properties
+   *
+   * @default "omit"
+   */
+  readonly additionalProperties?: 'omit' | 'forbid';
 }
 ```
 
@@ -523,11 +533,24 @@ interface GenerateResult {
 
 ```typescript
 interface ValidationResult {
+  /** No broken refs, nor structural errors */
   readonly valid: boolean;
+  /** Set by generate(); validateSpec() checks refs only */
+  readonly structuralErrors?: readonly StructuralError[];
   readonly totalRefs: number;
   readonly brokenRefCount: number;
   readonly brokenRefs: readonly BrokenRef[];
   readonly missingSchemas: ReadonlyMap<string, number>;
+}
+```
+
+### StructuralError
+
+```typescript
+interface StructuralError {
+  /** JSON pointer to the offending value */
+  readonly path: string;
+  readonly message: string;
 }
 ```
 

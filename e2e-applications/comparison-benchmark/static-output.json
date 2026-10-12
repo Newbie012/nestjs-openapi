@@ -346,7 +346,6 @@
   "components": {
     "schemas": {
       "Address": {
-        "additionalProperties": false,
         "properties": {
           "city": {
             "type": "string"
@@ -368,7 +367,6 @@
       "ApiResponse_UserDto": {
         "anyOf": [
           {
-            "additionalProperties": false,
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/UserDto"
@@ -387,7 +385,6 @@
             "type": "object"
           },
           {
-            "additionalProperties": false,
             "properties": {
               "code": {
                 "type": "number"
@@ -412,7 +409,6 @@
         ]
       },
       "CatDto": {
-        "additionalProperties": false,
         "properties": {
           "meow": {
             "type": "boolean"
@@ -428,7 +424,6 @@
         "type": "object"
       },
       "CreateOrderDto": {
-        "additionalProperties": false,
         "properties": {
           "notes": {
             "type": "string"
@@ -443,7 +438,6 @@
         "type": "object"
       },
       "CreateUserDto": {
-        "additionalProperties": false,
         "properties": {
           "address": {
             "$ref": "#/components/schemas/Address"
@@ -467,7 +461,6 @@
         "type": "object"
       },
       "DecoratedUserDto": {
-        "additionalProperties": false,
         "properties": {
           "bio": {
             "description": "User bio",
@@ -505,7 +498,6 @@
         "type": "object"
       },
       "DogDto": {
-        "additionalProperties": false,
         "properties": {
           "bark": {
             "type": "boolean"
@@ -521,7 +513,6 @@
         "type": "object"
       },
       "IUserProfile": {
-        "additionalProperties": false,
         "properties": {
           "avatarUrl": {
             "nullable": true,
@@ -554,7 +545,6 @@
         "type": "string"
       },
       "PaginatedResponse_UserDto": {
-        "additionalProperties": false,
         "properties": {
           "items": {
             "items": {
@@ -581,7 +571,6 @@
         "type": "object"
       },
       "PetOwnerDto": {
-        "additionalProperties": false,
         "properties": {
           "ownerName": {
             "type": "string"
@@ -612,7 +601,6 @@
         "type": "string"
       },
       "UpdateUserDto": {
-        "additionalProperties": false,
         "properties": {
           "age": {
             "nullable": true,
@@ -633,7 +621,6 @@
         "type": "object"
       },
       "UserDto": {
-        "additionalProperties": false,
         "properties": {
           "address": {
             "$ref": "#/components/schemas/Address"

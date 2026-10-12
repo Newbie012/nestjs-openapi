@@ -223,10 +223,14 @@ const main = async (): Promise<void> => {
         `  ${result.pathCount} paths, ${result.operationCount} operations`,
       );
 
-      // Show validation warnings if there are broken refs
+      // Show validation warnings: broken refs, or breaks of the specification
       if (!result.validation.valid) {
         console.log('');
-        warning(`Spec has broken references`);
+        warning(
+          result.validation.brokenRefCount > 0
+            ? `Spec has broken references`
+            : `Spec is not valid OpenAPI`,
+        );
         console.log(`  ${formatValidationResult(result.validation)}`);
       }
     }

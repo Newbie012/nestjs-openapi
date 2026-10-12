@@ -60,7 +60,8 @@ const BASE_GENERATOR_CONFIG: TsJsonSchemaConfig = {
   sortProps: true,
   strictTuples: false,
   encodeRefs: false,
-  additionalProperties: false,
+  // Left out unless declared, as @nestjs/swagger does
+  additionalProperties: true,
 };
 
 const compilerOptionsCache = new Map<string, TypeScript.CompilerOptions>();
