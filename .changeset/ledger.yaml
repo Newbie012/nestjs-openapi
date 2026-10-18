@@ -4,3 +4,8 @@ nestjs-openapi@0.7.0:
     - calm-maps-resolve
     - quiet-specs-check
     - vast-lions-dream
+nestjs-openapi@0.8.0:
+  dir: ""
+  intents:
+    - quiet-jars-mix
+    - sweet-eels-smoke
