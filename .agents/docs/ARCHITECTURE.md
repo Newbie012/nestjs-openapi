@@ -40,7 +40,8 @@ src/
 │   ├── schema-program.ts     # TypeScript programs for ts-json-schema-generator (in-memory transforms)
 │   ├── schema-generator.ts   # Generation with crash recovery
 │   ├── type-resolver.ts      # Finds types declared outside dtoGlob
-│   ├── schema-identity.ts    # One schema per declaration: collision strategies, in-memory renames
+│   ├── schema-identity.ts    # One schema per declaration: temporary names for same-name declarations, in-memory renames
+│   ├── schema-name-resolution.ts # Equal same-name schemas share a component; collision strategies for the rest
 │   ├── schema-normalizer.ts, schema-alias-collapser.ts, schema-inliner.ts # Names, aliases, inlining
 │   ├── schema-merger.ts      # JSON Schema → OpenAPI components
 │   ├── schema-const-expander.ts, schema-version-transformer.ts # Per-version shapes

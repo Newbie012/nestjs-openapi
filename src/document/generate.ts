@@ -75,11 +75,14 @@ import { SchemaService } from '../schema/schema-service.js';
 import {
   EMPTY_PLAN,
   applyPlanToMethods,
-  collisionInlinedNames,
   namingForPlan,
   planSchemaNames,
   regenerateDeclarations,
 } from '../schema/schema-identity.js';
+import {
+  resolveSchemaNames,
+  type EnumNameClash,
+} from '../schema/schema-name-resolution.js';
 import { declarationKey } from '../analysis/declaration-references.js';
 import { inlineSchemas } from '../schema/schema-inliner.js';
 import type { DeclarationRef } from '../model/domain.js';
@@ -599,6 +602,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
     withValidation: boolean,
     naming: SchemaNaming,
     namedEnums: Set<string>,
+    enumNameUses: EnumNameUse[],
   ) {
     if (sourceFilePaths.length === 0) {
       return inputSchemas;
@@ -662,6 +666,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
         expansion,
         naming,
         namedEnums,
+        enumNameUses,
       );
     }
 
@@ -709,6 +714,74 @@ const inlineInferredEnumRefs = (
   };
 };
 
+type EnumNameUse = {
+  readonly name: string;
+  readonly className: string;
+  readonly property: string;
+  readonly schema: JsonSchema;
+};
+
+const sameEnumValues = (a: readonly unknown[], b: readonly unknown[]) =>
+  a.length === b.length && a.every((value) => b.includes(value));
+
+const inlineRef = (value: unknown, ref: string, schema: unknown): unknown => {
+  if (Array.isArray(value))
+    return value.map((item) => inlineRef(item, ref, schema));
+  if (!value || typeof value !== 'object') return value;
+  const { $ref, ...rest } = value as Record<string, unknown>;
+  if ($ref === ref) return { ...(schema as object), ...rest };
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      inlineRef(item, ref, schema),
+    ]),
+  );
+};
+
+// An `enumName` given to different values by the documented schemas: each
+// use is written in place, and the clash reported
+const separateEnumNameClashes = (
+  paths: OpenApiPaths,
+  schemas: Record<string, OpenApiSchema>,
+  uses: readonly EnumNameUse[],
+) => {
+  const byName = new Map<string, EnumNameUse[]>();
+  for (const use of uses) {
+    if (!schemas[use.className]) continue;
+    byName.set(use.name, [...(byName.get(use.name) ?? []), use]);
+  }
+  const clashes: EnumNameClash[] = [];
+  let result = schemas;
+  for (const [name, named] of byName) {
+    const values: unknown[][] = [];
+    for (const use of named) {
+      const enumValues = (use.schema['enum'] as unknown[] | undefined) ?? [];
+      if (!values.some((other) => sameEnumValues(other, enumValues))) {
+        values.push(enumValues);
+      }
+    }
+    if (values.length < 2) continue;
+    clashes.push({ name, values });
+    const ref = `#/components/schemas/${name}`;
+    result = { ...result };
+    for (const use of named) {
+      const owner = result[use.className]!;
+      const property = owner.properties?.[use.property];
+      if (!property) continue;
+      result[use.className] = {
+        ...owner,
+        properties: {
+          ...owner.properties,
+          [use.property]: inlineRef(property, ref, use.schema) as OpenApiSchema,
+        },
+      };
+    }
+    const { [name]: _named, ...others } = result;
+    if (!JSON.stringify([paths, others]).includes(`"${ref}"`)) result = others;
+  }
+  return { schemas: result, clashes };
+};
+
 /**
  * Extract validation constraints from the given classes and merge them into
  * their schemas
@@ -721,6 +794,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
   expansion: DecoratorExpansionOptions,
   naming: SchemaNaming,
   namedEnums: Set<string>,
+  enumNameUses: EnumNameUse[],
 ) {
   const validation = yield* ValidationMapperService;
 
@@ -756,6 +830,20 @@ const overlayValidationConstraintsEffect = Effect.fn(
     }
   }
 
+  // Where each `enumName` is used, to find names given to different values
+  for (const [className, properties] of classConstraints) {
+    for (const [property, constraints] of Object.entries(properties)) {
+      const component = constraints.enumComponent;
+      if (component) {
+        enumNameUses.push({
+          name: component.name,
+          className,
+          property,
+          schema: component.schema,
+        });
+      }
+    }
+  }
   for (const properties of classConstraints.values()) {
     for (const constraints of Object.values(properties)) {
       if (constraints.enumComponent)
@@ -1099,12 +1187,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     // documented operations reach, and point the operations at them
     const dtoFiles = yield* resolveDtoFilesEffect(dtoGlobArray, configDir);
     const schemaNamePlan = initialSchemas
-      ? yield* planSchemaNames(
-          filteredMethodInfos,
-          dtoFiles,
-          options.schemaNameCollision ?? 'inline',
-          configDir,
-        )
+      ? planSchemaNames(filteredMethodInfos, dtoFiles, configDir)
       : EMPTY_PLAN;
     const documentedMethods = applyPlanToMethods(
       filteredMethodInfos,
@@ -1120,6 +1203,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     const schemaNaming = namingForPlan(schemaNamePlan, enumStyle);
     // Enums named with `enumName` stay components in 'nest' style
     const namedEnums = new Set<string>();
+    const enumNameUses: EnumNameUse[] = [];
 
     const routedMethods = documentedMethods.map((method) => ({
       ...method,
@@ -1453,6 +1537,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           shouldExtractValidation,
           schemaNaming,
           namedEnums,
+          enumNameUses,
         );
         mergeResult = yield* mergeSchemasEffect(
           paths as unknown as OpenApiSpec['paths'],
@@ -1479,10 +1564,27 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = inlined.schemas;
     }
 
+    // Same-name declarations with equal schemas share one component; the
+    // collision strategy decides about the others
+    const enumNames = separateEnumNameClashes(
+      paths as OpenApiPaths,
+      schemas,
+      enumNameUses,
+    );
+    const resolvedNames = yield* resolveSchemaNames(
+      paths as OpenApiPaths,
+      enumNames.schemas,
+      schemaNamePlan,
+      options.schemaNameCollision ?? 'inline',
+      enumNames.clashes,
+    );
+    paths = resolvedNames.paths as typeof paths;
+    schemas = resolvedNames.schemas;
+
     // 'inline' collision strategy: colliding schemas are written in place,
     // and so are instantiations with an anonymous type argument
     const inlineNames = new Set([
-      ...collisionInlinedNames(Object.keys(schemas), schemaNamePlan),
+      ...resolvedNames.inline,
       ...Object.keys(schemas).filter(isAnonymousInstantiation),
     ]);
     if (inlineNames.size > 0) {

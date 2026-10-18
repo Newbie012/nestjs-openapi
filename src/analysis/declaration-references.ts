@@ -2,6 +2,7 @@ import {
   Node,
   type MethodDeclaration,
   type SourceFile,
+  type Symbol as TsSymbol,
   type Type,
 } from 'ts-morph';
 import {
@@ -136,9 +137,31 @@ const walkDeclarationMembers = (node: Node, state: WalkState) => {
   }
 };
 
+const recordSymbol = (
+  symbol: TsSymbol,
+  state: WalkState,
+  topLevel: boolean,
+) => {
+  const aliased = symbol.isAlias() ? symbol.getAliasedSymbol() : undefined;
+  for (const declaration of (aliased ?? symbol).getDeclarations()) {
+    recordDeclaration(declaration, state, topLevel);
+  }
+};
+
 const walkType = (type: Type, state: WalkState, topLevel: boolean) => {
   if (state.visitedTypes.has(type) && !topLevel) return;
   state.visitedTypes.add(type);
+
+  // `type ItemList = ItemDto[]` is a component too, generated from its
+  // alias; record it before walking the array, union or intersection
+  const aliasSymbol = type.getAliasSymbol();
+  const arrayElement = type.getArrayElementType();
+  if (
+    aliasSymbol &&
+    (arrayElement || type.isUnion() || type.isIntersection())
+  ) {
+    recordSymbol(aliasSymbol, state, topLevel);
+  }
 
   if (type.isUnion()) {
     for (const member of type.getUnionTypes())
@@ -152,7 +175,6 @@ const walkType = (type: Type, state: WalkState, topLevel: boolean) => {
     return;
   }
 
-  const arrayElement = type.getArrayElementType();
   if (arrayElement) {
     walkType(arrayElement, state, topLevel);
     return;
@@ -165,12 +187,8 @@ const walkType = (type: Type, state: WalkState, topLevel: boolean) => {
     walkType(argument, state, topLevel);
   }
 
-  const symbol = type.getAliasSymbol() ?? type.getSymbol();
-  if (!symbol) return;
-  const aliased = symbol.isAlias() ? symbol.getAliasedSymbol() : undefined;
-  for (const declaration of (aliased ?? symbol).getDeclarations()) {
-    recordDeclaration(declaration, state, topLevel);
-  }
+  const symbol = aliasSymbol ?? type.getSymbol();
+  if (symbol) recordSymbol(symbol, state, topLevel);
 };
 
 const walkReference = (

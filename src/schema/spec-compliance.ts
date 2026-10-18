@@ -29,32 +29,17 @@ const mapDeep = (
   );
 };
 
-export const sanitizeComponentNames = (
-  paths: OpenApiPaths,
-  schemas: Record<string, OpenApiSchema>,
-) => {
-  const taken = new Set(
-    Object.keys(schemas).filter((name) => VALID_COMPONENT_NAME.test(name)),
-  );
-  const renames = new Map<string, string>();
-  for (const name of Object.keys(schemas).sort()) {
-    if (VALID_COMPONENT_NAME.test(name)) continue;
-    const base = sanitizeComponentName(name) || 'Schema';
-    let candidate = base;
-    for (let index = 2; taken.has(candidate); index++) {
-      candidate = `${base}_${index}`;
-    }
-    taken.add(candidate);
-    renames.set(name, candidate);
-  }
-  if (renames.size === 0) return { paths, schemas };
-
+// Points every `$ref` and discriminator mapping at the renamed component
+export const renameSchemaRefs = (
+  value: unknown,
+  renames: ReadonlyMap<string, string>,
+): unknown => {
   const renameRef = (ref: string) => {
     if (!ref.startsWith(REF_PREFIX)) return ref;
     const name = ref.slice(REF_PREFIX.length);
     return `${REF_PREFIX}${renames.get(name) ?? name}`;
   };
-  const rewrite = (record: Record<string, unknown>) => {
+  return mapDeep(value, (record) => {
     let result = record;
     if (typeof record['$ref'] === 'string') {
       result = { ...result, $ref: renameRef(record['$ref']) };
@@ -77,14 +62,37 @@ export const sanitizeComponentNames = (
       };
     }
     return result;
-  };
+  });
+};
+
+export const sanitizeComponentNames = (
+  paths: OpenApiPaths,
+  schemas: Record<string, OpenApiSchema>,
+) => {
+  const taken = new Set(
+    Object.keys(schemas).filter((name) => VALID_COMPONENT_NAME.test(name)),
+  );
+  const renames = new Map<string, string>();
+  for (const name of Object.keys(schemas).sort()) {
+    if (VALID_COMPONENT_NAME.test(name)) continue;
+    const base = sanitizeComponentName(name) || 'Schema';
+    let candidate = base;
+    for (let index = 2; taken.has(candidate); index++) {
+      candidate = `${base}_${index}`;
+    }
+    taken.add(candidate);
+    renames.set(name, candidate);
+  }
+  if (renames.size === 0) return { paths, schemas };
+
+  const rewrite = (value: unknown) => renameSchemaRefs(value, renames);
 
   return {
-    paths: mapDeep(paths, rewrite) as OpenApiPaths,
+    paths: rewrite(paths) as OpenApiPaths,
     schemas: Object.fromEntries(
       Object.entries(schemas).map(([name, schema]) => [
         renames.get(name) ?? name,
-        mapDeep(schema, rewrite) as OpenApiSchema,
+        rewrite(schema) as OpenApiSchema,
       ]),
     ),
   };
