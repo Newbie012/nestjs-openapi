@@ -1,5 +1,4 @@
 import { afterAll, describe, it, expect } from 'vitest';
-import { Effect, Either } from 'effect';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -42,54 +41,40 @@ describe('planSchemaNames', () => {
   });
   const method = (refs: readonly DeclarationRef[]) =>
     ({ referencedDeclarations: refs }) as unknown as MethodInfo;
-  const methods = [
-    method([ref(fileA, 'Shared'), ref(fileA, 'Other')]),
-    method([ref(fileB, 'Shared')]),
-  ];
 
-  const plan = (strategy: Parameters<typeof planSchemaNames>[2]) =>
-    Effect.runSync(Effect.either(planSchemaNames(methods, [], strategy, dir)));
-
-  it('fails when a naming function returns the same name twice', () => {
-    const result = plan(() => 'SameName');
-
-    expect(Either.isLeft(result) && result.left.message).toMatch(
-      /returned "SameName" for both Shared in a\.dto\.ts and Shared in b\.dto\.ts/,
-    );
-  });
-
-  it("fails when a naming function returns another schema's name", () => {
-    const result = plan(() => 'Other');
-
-    expect(Either.isLeft(result) && result.left.message).toMatch(
-      /already the name of another schema/,
-    );
-  });
-
-  it('accepts unique names from a naming function', () => {
-    const result = plan(({ relativePath }) =>
-      relativePath.startsWith('a') ? 'SharedA' : 'SharedB',
+  it('generates each same-name declaration under a temporary name', () => {
+    const plan = planSchemaNames(
+      [
+        method([ref(fileA, 'Shared'), ref(fileA, 'Other')]),
+        method([ref(fileB, 'Shared')]),
+      ],
+      [],
+      dir,
     );
 
-    expect(Either.isRight(result)).toBe(true);
-    if (Either.isRight(result)) {
-      expect(
-        [...result.right.declarations.values()].map((d) => d.name).sort(),
-      ).toEqual(['SharedA', 'SharedB']);
-    }
+    expect(
+      [...plan.declarations.values()].map((declaration) => declaration.name),
+    ).toEqual(['Shared__oapiShared0', 'Shared__oapiShared1']);
+    expect(
+      [...plan.shared.values()].map((entry) => [
+        entry.name,
+        entry.relativePath,
+      ]),
+    ).toEqual([
+      ['Shared', 'a.dto.ts'],
+      ['Shared', 'b.dto.ts'],
+    ]);
   });
 
   it('keeps names reached through a single declaration', () => {
-    const result = Effect.runSync(
-      planSchemaNames(
-        [method([ref(fileA, 'Other')])],
-        [fileA, fileB],
-        'rename',
-        dir,
-      ),
+    const plan = planSchemaNames(
+      [method([ref(fileA, 'Other')])],
+      [fileA, fileB],
+      dir,
     );
 
-    expect(result.declarations.size).toBe(0);
+    expect(plan.declarations.size).toBe(0);
+    expect(plan.shared.size).toBe(0);
   });
 
   afterAll(() => {

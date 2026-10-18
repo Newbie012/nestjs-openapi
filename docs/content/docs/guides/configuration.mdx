@@ -252,10 +252,10 @@ options: {
 
 How enums are emitted (default: `"ref"`).
 
-| Value    | Behavior                                                                                                   |
-| -------- | ---------------------------------------------------------------------------------------------------------- |
-| `"ref"`  | Every TypeScript enum (and `enum: Status` without `enumName`) is a component named after it. |
-| `"nest"` | Like @nestjs/swagger: enum values are written in place, unless `enumName` gives them a component name.     |
+| Value    | Behavior                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------ |
+| `"ref"`  | Every TypeScript enum (and `enum: Status` without `enumName`) is a component named after it.           |
+| `"nest"` | Like @nestjs/swagger: enum values are written in place, unless `enumName` gives them a component name. |
 
 ```typescript
 // 'nest': { type: 'string', enum: ['low', 'high'] }
@@ -343,12 +343,14 @@ options: {
 
 Schemas are components named after their types, but different declarations can share a name: two files each declaring their own `AddressDto`, or two libraries exporting a `PluginStateDto`. References always resolve to the declaration they point to; this option only decides how such schemas are named. Only declarations reached from the documented routes count, so an unused class with the same name is not a collision.
 
+Declarations whose schemas are equal are not a collision: they share one component under their name, with no warning, in every mode. Key order, `required` order and enum value order don't count; descriptions, examples and every other keyword do, and so do the schemas they refer to. A generic is compared per instantiation: `ChoiceDto<string>` from two identical `ChoiceDto<T>` declarations is one `ChoiceDto_string`, and if two declarations give `ResultDto<string>` different bodies, only that instantiation collides. An `enumName` given different values in different places is a collision too; outside `'error'`, those values are written in place.
+
 | Value      | Behavior                                                                                       |
 | ---------- | ---------------------------------------------------------------------------------------------- |
-| `'inline'` | Default. Each colliding schema is written in place where it is used, with a warning per name. |
-| `'rename'` | Each colliding declaration gets its own component, named after its file (see below).          |
-| `'error'`  | Generation fails, listing every colliding name and the files declaring it.                    |
-| function   | Returns the component name for each colliding declaration. Names must be unique.              |
+| `'inline'` | Default. Each colliding schema is written in place where it is used, with a warning per name.  |
+| `'rename'` | Each colliding declaration gets its own component, named after its file (see below).           |
+| `'error'`  | Generation fails, listing every colliding name, the files declaring it, and where they differ. |
+| function   | Returns the component name for each colliding declaration. Names must be unique.               |
 
 `'rename'` names a component `<File>_<Type>`: the declaring file's name without `.ts` and `.dto`, in PascalCase. If two colliding declarations come from files with the same name, parent folders are prepended until they differ:
 
@@ -359,7 +361,7 @@ Schemas are components named after their types, but different declarations can s
 | `PluginStateDto` in `libs/a/plugin-state.dto.ts`      | `APluginState_PluginStateDto` |
 | `PluginStateDto` in `libs/b/plugin-state.dto.ts`      | `BPluginState_PluginStateDto` |
 
-A function receives each colliding declaration:
+When only some declarations differ, equal ones share a group and are named after the first file. A function receives each colliding declaration; it is not called for names whose declarations are all equal:
 
 ```typescript
 options: {
@@ -462,18 +464,18 @@ options: {
 
 Names of generic instantiations (default: `"sanitized"`). OpenAPI only allows letters, digits, `.`, `-` and `_` in component names.
 
-| Value         | Example                                                                         |
-| ------------- | ------------------------------------------------------------------------------- |
+| Value         | Example                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------- |
 | `"sanitized"` | `Page<User>` → `Page_User`, `Page<User[]>` → `Page_UserArray`, `Result<A \| B>` → `Result_A_Or_B` |
-| `"raw"`       | `Page<User>` as is; not valid OpenAPI, though some tools accept it              |
+| `"raw"`       | `Page<User>` as is; not valid OpenAPI, though some tools accept it                                |
 
 #### `schemas.additionalProperties`
 
 Whether object schemas allow properties they do not list (default: `"omit"`).
 
-| Value      | Output                                                                                           |
-| ---------- | ------------------------------------------------------------------------------------------------ |
-| `"omit"`   | No `additionalProperties`, as @nestjs/swagger writes it. A field added to a response later is not a breaking change |
+| Value      | Output                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `"omit"`   | No `additionalProperties`, as @nestjs/swagger writes it. A field added to a response later is not a breaking change       |
 | `"forbid"` | `additionalProperties: false` on every component object that lists its properties, for clients that reject unknown fields |
 
 An `additionalProperties` declared in `@ApiProperty`, or an index signature such as `Record<string, T>`, is kept either way.

@@ -12,7 +12,6 @@ import type {
   MethodInfo,
   ResolvedParameter,
 } from '../model/domain.js';
-import { SchemaNameCollisionError } from '../config/errors.js';
 import type { EnumStyle, SchemaNaming } from '../analysis/property-schema.js';
 import { getRunProject } from '../analysis/run-project.js';
 import {
@@ -20,25 +19,32 @@ import {
   generateSchemasFromVirtualFile,
 } from './schema-generator.js';
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
-import type {
-  SchemaNameCollision,
-  SchemaNameCollisionStrategy,
-} from '../config/types.js';
+import type { SchemaNameCollision } from '../config/types.js';
 
 type PlannedDeclaration = {
   readonly ref: DeclarationRef;
   readonly name: string;
 };
 
-type SchemaNamePlan = {
+export type SchemaNamePlan = {
   readonly declarations: ReadonlyMap<string, PlannedDeclaration>;
-  readonly inline: ReadonlySet<string>;
+  /**
+   * Declarations sharing a name, by the temporary name each is generated
+   * under; resolveSchemaNames decides their final names once their schemas
+   * are known
+   */
+  readonly shared: ReadonlyMap<string, SchemaNameCollision>;
 };
 
 export const EMPTY_PLAN: SchemaNamePlan = {
   declarations: new Map(),
-  inline: new Set(),
+  shared: new Map(),
 };
+
+// `AddressDto__oapiShared0`: unlike the internal `__oapi<n>` names, it
+// survives generation and is resolved afterwards
+const sharedName = (name: string, index: number) =>
+  `${name}__oapiShared${index}`;
 
 const declaredNamesCache = new Map<string, ReadonlySet<string>>();
 
@@ -94,22 +100,11 @@ export const defaultCollisionNames = (
   return relativePaths.map((_, index) => `${name}_${index + 1}`);
 };
 
-const formatCollisions = (
-  collisions: ReadonlyMap<string, readonly SchemaNameCollision[]>,
-) =>
-  [...collisions]
-    .map(
-      ([name, declarations]) =>
-        `  ${name}: ${declarations.map((declaration) => declaration.relativePath).join(', ')}`,
-    )
-    .join('\n');
-
-export const planSchemaNames = Effect.fn('SchemaIdentity.plan')(function* (
+export const planSchemaNames = (
   methods: readonly MethodInfo[],
   candidateFiles: readonly string[],
-  strategy: SchemaNameCollisionStrategy,
   baseDir: string,
-) {
+): SchemaNamePlan => {
   declaredNamesCache.clear();
 
   const reachable = collectReachable(methods);
@@ -122,97 +117,31 @@ export const planSchemaNames = Effect.fn('SchemaIdentity.plan')(function* (
   const toRelative = (filePath: string) =>
     relative(baseDir, filePath).split('\\').join('/');
 
-  const collisions = new Map<string, SchemaNameCollision[]>();
+  // Each declaration sharing a name is generated under a temporary name of
+  // its own; whether they collide depends on the schemas they produce
+  const declarations = new Map<string, PlannedDeclaration>();
+  const shared = new Map<string, SchemaNameCollision>();
   for (const [name, refs] of byName) {
     if (refs.length < 2) continue;
     const sorted = [...refs].sort((a, b) =>
       a.filePath.localeCompare(b.filePath),
     );
-    const declarations = sorted.map((ref) => ({
+    const entries = sorted.map((ref) => ({
       filePath: ref.filePath,
       relativePath: toRelative(ref.filePath),
       exported: ref.exported,
     }));
-    collisions.set(
-      name,
-      sorted.map((ref) => ({
+    for (const ref of sorted) {
+      const temporary = sharedName(name, shared.size);
+      shared.set(temporary, {
         name,
         filePath: ref.filePath,
         relativePath: toRelative(ref.filePath),
         exported: ref.exported,
         kind: ref.kind,
-        declarations,
-      })),
-    );
-  }
-
-  if (collisions.size > 0 && strategy === 'error') {
-    return yield* Effect.fail(
-      new SchemaNameCollisionError({
-        message: `Different declarations share a schema name:\n${formatCollisions(collisions)}\nRename them, or set options.schemaNameCollision to 'inline' or 'rename'.`,
-        names: [...collisions.keys()],
-      }),
-    );
-  }
-
-  const declarations = new Map<string, PlannedDeclaration>();
-  const inline = new Set<string>();
-  const otherSchemaNames = new Set(
-    [...byName.keys()].filter((name) => !collisions.has(name)),
-  );
-  const assigned = new Map<string, SchemaNameCollision>();
-
-  for (const [name, entries] of collisions) {
-    const finalNames =
-      typeof strategy === 'function'
-        ? entries.map((entry) => strategy(entry))
-        : defaultCollisionNames(
-            name,
-            entries.map((entry) => entry.relativePath),
-          );
-
-    for (const [index, entry] of entries.entries()) {
-      const finalName = finalNames[index]!;
-      if (typeof finalName !== 'string' || finalName.length === 0) {
-        return yield* Effect.fail(
-          new SchemaNameCollisionError({
-            message: `options.schemaNameCollision returned no name for ${name} in ${entry.relativePath}`,
-            names: [name],
-          }),
-        );
-      }
-      if (otherSchemaNames.has(finalName)) {
-        return yield* Effect.fail(
-          new SchemaNameCollisionError({
-            message: `options.schemaNameCollision named ${name} in ${entry.relativePath} "${finalName}", which is already the name of another schema`,
-            names: [name],
-          }),
-        );
-      }
-      const previous = assigned.get(finalName);
-      if (previous) {
-        return yield* Effect.fail(
-          new SchemaNameCollisionError({
-            message: `options.schemaNameCollision returned "${finalName}" for both ${previous.name} in ${previous.relativePath} and ${name} in ${entry.relativePath}; names must be unique`,
-            names: [...new Set([previous.name, name])],
-          }),
-        );
-      }
-      assigned.set(finalName, entry);
-      const ref = reachable.get(declarationKey(entry))!;
-      declarations.set(declarationKey(ref), { ref, name: finalName });
-      if (strategy === 'inline') inline.add(finalName);
-    }
-
-    if (strategy === 'inline') {
-      yield* Effect.logWarning(
-        `Schema name "${name}" is shared by different declarations; their schemas are inlined where used`,
-      ).pipe(
-        Effect.annotateLogs({
-          name,
-          declarations: entries.map((entry) => entry.relativePath).join(', '),
-        }),
-      );
+        declarations: entries,
+      });
+      declarations.set(declarationKey(ref), { ref, name: temporary });
     }
   }
 
@@ -237,8 +166,8 @@ export const planSchemaNames = Effect.fn('SchemaIdentity.plan')(function* (
     }
   }
 
-  return { declarations, inline } as SchemaNamePlan;
-});
+  return { declarations, shared };
+};
 
 const replaceName = (text: string, from: string, to: string) =>
   text.replace(identifierPattern(from, 'g'), to);
@@ -617,17 +546,3 @@ export const regenerateDeclarations = Effect.fn('SchemaIdentity.regenerate')(
     } as RegeneratedSchemas;
   },
 );
-
-// Generic instantiations of a colliding declaration, or over one, are part
-// of the collision: `FilterOption<X>`, `Page<AddressDto>`
-export const collisionInlinedNames = (
-  schemaNames: readonly string[],
-  plan: SchemaNamePlan,
-) => {
-  const patterns = [...plan.inline].map((name) => identifierPattern(name));
-  return new Set(
-    schemaNames.filter((name) =>
-      patterns.some((pattern) => pattern.test(name)),
-    ),
-  );
-};

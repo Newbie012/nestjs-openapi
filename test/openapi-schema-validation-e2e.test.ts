@@ -13,7 +13,11 @@ import { generate } from '../src/document/generate.js';
 const EXCLUDED: Readonly<Record<string, string>> = {
   'complex-generics/openapi.raw.config.ts':
     "genericNames: 'raw' keeps `<` and `>`, which component names do not allow",
+  'regressions/openapi.raw.config.ts':
+    "genericNames: 'raw' keeps `<` and `>`, which component names do not allow",
   'schema-collisions/openapi.error.config.ts':
+    "schemaNameCollision: 'error' fails generation on purpose",
+  'schema-same-shapes/openapi.error.config.ts':
     "schemaNameCollision: 'error' fails generation on purpose",
 };
 

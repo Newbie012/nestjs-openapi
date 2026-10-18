@@ -2,7 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, unlinkSync, readFileSync } from 'fs';
 import { Effect, Logger } from 'effect';
-import { generateEffect, type GenerateResult } from '../src/document/generate.js';
+import {
+  generateEffect,
+  type GenerateResult,
+} from '../src/document/generate.js';
 import { generatorServicesLayer } from '../src/runtime/service-layer.js';
 import type { OpenApiSchema, OpenApiSpec } from '../src/config/types.js';
 
@@ -114,30 +117,37 @@ describe('Regressions E2E', () => {
   });
 
   describe('a generic whose declaration collides', () => {
-    it('inlines its instantiations', () => {
-      expect(
-        Object.keys(spec.components?.schemas ?? {}).filter((name) =>
-          name.includes('FilterOption'),
-        ),
-      ).toEqual([]);
-      expect(propertiesOf('SearchFiltersDto')['dateRange']).toMatchObject({
-        type: 'object',
-        properties: {
-          value: { $ref: '#/components/schemas/DateRangeOptions' },
-        },
+    // Two different FilterOption<T> classes, each used with its own type
+    // argument: the instantiations' names already tell them apart
+    it('names each instantiation after its type argument', () => {
+      const schemas = spec.components?.schemas ?? {};
+
+      expect(propertiesOf('SearchFiltersDto')['dateRange']).toEqual({
+        $ref: '#/components/schemas/FilterOption_DateRangeOptions',
+      });
+      expect(schemas['FilterOption_DateRangeOptions']?.properties).toEqual({
+        value: { $ref: '#/components/schemas/DateRangeOptions' },
+        label: { type: 'string' },
+      });
+      expect(schemas['FilterOption_PriorityLevelDto']?.properties).toEqual({
+        option: { $ref: '#/components/schemas/PriorityLevelDto' },
+        count: { type: 'number' },
       });
     });
 
-    it('inlines them with raw generic names too', async () => {
+    it('names them the same way with raw generic names', async () => {
       const raw = await generateWithWarnings(
         'openapi.raw.config.ts',
         'openapi.raw.generated.json',
       );
       expect(
-        Object.keys(raw.spec.components?.schemas ?? {}).filter((name) =>
-          name.includes('FilterOption'),
-        ),
-      ).toEqual([]);
+        Object.keys(raw.spec.components?.schemas ?? {})
+          .filter((name) => name.includes('FilterOption'))
+          .sort(),
+      ).toEqual([
+        'FilterOption<DateRangeOptions>',
+        'FilterOption<PriorityLevelDto>',
+      ]);
       expect(raw.brokenRefCount).toBe(0);
     });
   });
