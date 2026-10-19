@@ -77,6 +77,7 @@ import {
   applyPlanToMethods,
   namingForPlan,
   planSchemaNames,
+  singleDeclarationSources,
   regenerateDeclarations,
 } from '../schema/schema-identity.js';
 import {
@@ -1532,7 +1533,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           [...schemaSourceFiles],
           tsconfig,
           generatedSchemas,
-          plannedSources,
+          new Map([
+            ...singleDeclarationSources(filteredMethodInfos, schemaNamePlan),
+            ...plannedSources,
+          ]),
           expansion,
           shouldExtractValidation,
           schemaNaming,
