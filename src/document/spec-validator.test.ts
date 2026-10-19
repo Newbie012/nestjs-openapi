@@ -357,6 +357,41 @@ describe('spec-validator', () => {
       ]);
     });
 
+    it('reports a required key that properties does not list', async () => {
+      const spec = {
+        openapi: '3.1.0',
+        info: { title: 'Items', version: '1.0' },
+        paths: {},
+        components: {
+          schemas: {
+            ItemDto: {
+              type: 'object',
+              properties: { id: { type: 'string' } },
+              required: ['id', 'ownerId'],
+              additionalProperties: false,
+            },
+            OpenItemDto: {
+              type: 'object',
+              properties: { id: { type: 'string' } },
+              required: ['id', 'ownerId'],
+              additionalProperties: { type: 'string' },
+            },
+            ComposedItemDto: {
+              allOf: [{ $ref: '#/components/schemas/OpenItemDto' }],
+              required: ['ownerId'],
+            },
+          },
+        },
+      } as unknown as OpenApiSpec;
+
+      expect(await validateStructure(spec)).toEqual([
+        {
+          path: '/components/schemas/ItemDto/required',
+          message: 'requires `ownerId`, which `properties` does not list',
+        },
+      ]);
+    });
+
     it('lists structural errors in the formatted result', () => {
       const formatted = formatValidationResult({
         valid: false,

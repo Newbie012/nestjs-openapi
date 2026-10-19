@@ -25,6 +25,7 @@ describe('Schema name collisions E2E', () => {
     'function',
     'error',
     'shadowed',
+    'outside-glob',
   ] as const;
   type Variant = (typeof variants)[number];
 
@@ -230,6 +231,23 @@ describe('Schema name collisions E2E', () => {
       expect(result.validation.brokenRefs).toEqual([]);
       expect(schemas['AddressDto']?.required).toEqual(['id', 'product']);
       expect(schemas['ProductDto']).toEqual(orderProduct);
+    });
+  });
+
+  describe('a same-name class outside dtoGlob, used only by filtered routes', () => {
+    it('keeps the reached declaration, without the other class metadata', async () => {
+      const { result, spec } = await run('outside-glob');
+
+      expect(result.validation.valid).toBe(true);
+      expect(spec.components?.schemas?.['ItemDto']).toEqual({
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: ['id', 'label'],
+        additionalProperties: false,
+      });
     });
   });
 });

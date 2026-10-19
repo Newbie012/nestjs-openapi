@@ -180,6 +180,55 @@ const findUntypedNullables = (
   ];
 };
 
+const NON_SCHEMA_KEYS = new Set([
+  'example',
+  'examples',
+  'default',
+  'enum',
+  'const',
+]);
+const COMPOSITION_KEYS = ['allOf', 'anyOf', 'oneOf', 'patternProperties'];
+
+const unlistedRequired = (record: Record<string, unknown>) => {
+  const required = record['required'];
+  if (!Array.isArray(required)) return [];
+  if (COMPOSITION_KEYS.some((key) => key in record)) return [];
+  const additional = record['additionalProperties'];
+  if (additional !== undefined && additional !== false) return [];
+  const properties = (record['properties'] ?? {}) as Record<string, unknown>;
+  return required.filter(
+    (key): key is string => typeof key === 'string' && !(key in properties),
+  );
+};
+
+const findUnlistedRequired = (
+  value: unknown,
+  pointer: string,
+): StructuralError[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      findUnlistedRequired(item, `${pointer}/${index}`),
+    );
+  }
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  const own = unlistedRequired(record).map((key) => ({
+    path: `${pointer}/required`,
+    message: `requires \`${key}\`, which \`properties\` does not list`,
+  }));
+  return [
+    ...own,
+    ...Object.entries(record)
+      .filter(([key]) => !NON_SCHEMA_KEYS.has(key))
+      .flatMap(([key, item]) =>
+        findUnlistedRequired(
+          item,
+          `${pointer}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`,
+        ),
+      ),
+  ];
+};
+
 type AjvError = {
   readonly instancePath?: string;
   readonly message?: string;
@@ -219,7 +268,12 @@ export async function validateStructure(
   const nullableErrors = spec.openapi.startsWith('3.0')
     ? findUntypedNullables(spec, '')
     : [];
-  return [...schemaErrors, ...nullableErrors];
+  return [
+    ...schemaErrors,
+    ...nullableErrors,
+    ...findUnlistedRequired(spec.components?.schemas, '/components/schemas'),
+    ...findUnlistedRequired(spec.paths, '/paths'),
+  ];
 }
 
 const describeValue = (value: unknown) => {

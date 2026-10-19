@@ -100,6 +100,24 @@ export const defaultCollisionNames = (
   return relativePaths.map((_, index) => `${name}_${index + 1}`);
 };
 
+export const singleDeclarationSources = (
+  methods: readonly MethodInfo[],
+  plan: SchemaNamePlan,
+) => {
+  const byName = new Map<string, DeclarationRef[]>();
+  for (const ref of collectReachable(methods).values()) {
+    byName.set(ref.name, [...(byName.get(ref.name) ?? []), ref]);
+  }
+  const sources = new Map<string, DeclarationRef>();
+  for (const [name, refs] of byName) {
+    const [ref] = refs;
+    if (refs.length !== 1 || ref!.generic) continue;
+    if (plan.declarations.has(declarationKey(ref!))) continue;
+    sources.set(name, ref!);
+  }
+  return sources;
+};
+
 export const planSchemaNames = (
   methods: readonly MethodInfo[],
   candidateFiles: readonly string[],
