@@ -650,4 +650,102 @@ describe('validation-mapper', () => {
       expect(result.properties!.entries).not.toHaveProperty('isArray');
     });
   });
+
+  describe('where constraints land', () => {
+    const constrain = (code: string, schema: Record<string, unknown>) => {
+      const sourceFile = createProjectWithCode(code);
+      const classDecl = sourceFile.getClasses()[0]!;
+      return applyConstraintsToSchema(
+        schema,
+        extractClassConstraints(classDecl),
+      ).properties;
+    };
+
+    it('puts { each: true } constraints on the items', () => {
+      const properties = constrain(
+        `
+        import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+        class FilterDto {
+          @IsString({ each: true })
+          @MaxLength(64, { each: true })
+          @MinLength(2, { each: true })
+          @Matches(/^[a-z]+$/, { each: true })
+          values: string[];
+
+          @MaxLength(64, { each: true })
+          optionalValues: string[] | null;
+        }
+      `,
+        {
+          type: 'object',
+          properties: {
+            values: { type: 'array', items: { type: 'string' } },
+            optionalValues: {
+              anyOf: [
+                { type: 'array', items: { type: 'string' } },
+                { type: 'null' },
+              ],
+            },
+          },
+        },
+      );
+
+      expect(properties?.['values']).toEqual({
+        type: 'array',
+        items: {
+          type: 'string',
+          maxLength: 64,
+          minLength: 2,
+          pattern: '^[a-z]+$',
+        },
+      });
+      expect(properties?.['optionalValues']).toEqual({
+        anyOf: [
+          { type: 'array', items: { type: 'string', maxLength: 64 } },
+          { type: 'null' },
+        ],
+      });
+    });
+
+    it('keeps string keywords off non-string schemas', () => {
+      const properties = constrain(
+        `
+        import { IsInt, IsNotEmpty, MaxLength, IsUUID } from 'class-validator';
+        class InstallationDto {
+          @IsInt()
+          @IsNotEmpty()
+          installationId: number;
+
+          @IsNotEmpty()
+          tags: string[];
+
+          @IsNotEmpty()
+          @MaxLength(10)
+          @IsUUID()
+          name: string;
+        }
+      `,
+        {
+          type: 'object',
+          properties: {
+            installationId: { type: 'number' },
+            tags: { type: 'array', items: { type: 'string' } },
+            name: { type: 'string' },
+          },
+        },
+      );
+
+      expect(properties?.['installationId']).toEqual({ type: 'integer' });
+      expect(properties?.['tags']).toEqual({
+        type: 'array',
+        items: { type: 'string' },
+      });
+      expect(properties?.['name']).toEqual({
+        type: 'string',
+        minLength: 1,
+        maxLength: 10,
+        format: 'uuid',
+      });
+    });
+  });
 });

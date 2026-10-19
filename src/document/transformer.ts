@@ -423,7 +423,11 @@ const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
     : tsTypeToOpenApiSchema(param.tsType);
   const constraints = param.constraints as ValidationConstraints | undefined;
   if (!constraints) return baseSchema;
-  if (!constraints.schemaOverride && !constraints.keywords) {
+  if (
+    !constraints.schemaOverride &&
+    !constraints.keywords &&
+    !constraints.items
+  ) {
     return applyParameterConstraints(baseSchema, constraints);
   }
   return applyPropertyConstraints(
