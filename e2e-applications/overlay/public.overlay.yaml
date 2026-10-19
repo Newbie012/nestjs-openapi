@@ -8,6 +8,9 @@ actions:
     remove: true
   - target: $.paths['/books/{id}'].delete
     remove: true
+  - target: $.paths['/books']
+    update:
+      summary: Books
   - target: $.paths['/books'].get
     update:
       summary: List books

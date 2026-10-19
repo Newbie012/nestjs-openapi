@@ -114,6 +114,20 @@ import { applyOperationExtensions } from './operation-extensions.js';
 import { applyOverlay } from './overlay.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
+
+// Path item keys that hold operations; an overlay may add others, such as
+// `summary` or `parameters`
+const OPERATION_KEYS = new Set([
+  'get',
+  'put',
+  'post',
+  'delete',
+  'options',
+  'head',
+  'patch',
+  'trace',
+  'query',
+]);
 const DEFAULT_DTO_GLOB = [
   '**/*.dto.ts',
   '**/*.entity.ts',
@@ -1788,7 +1802,9 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
     const pathCount = Object.keys(sortedSpec.paths).length;
     const operationCount = Object.values(sortedSpec.paths).reduce(
-      (acc, methods) => acc + Object.keys(methods).length,
+      (acc, pathItem) =>
+        acc +
+        Object.keys(pathItem).filter((key) => OPERATION_KEYS.has(key)).length,
       0,
     );
     const schemaCount = Object.keys(

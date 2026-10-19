@@ -27,6 +27,7 @@ describe('overlay E2E', () => {
       summary: 'List books',
       'x-rate-limit': { perMinute: 100 },
     });
+    expect(spec.paths['/books']).toMatchObject({ summary: 'Books' });
     expect(result).toMatchObject({ pathCount: 2, operationCount: 2 });
     expect(result.validation.valid).toBe(true);
   });
