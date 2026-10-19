@@ -80,6 +80,8 @@ export interface ValidationConstraints {
   // Visibility (from @ApiHideProperty)
   readonly hidden?: boolean;
 
+  readonly items?: ValidationConstraints;
+
   readonly schemaOverride?: JsonSchema;
   readonly keywords?: Readonly<Record<string, unknown>>;
   readonly enumComponent?: {
@@ -417,10 +419,18 @@ const withApiPropertyConstraints = (
   constraints: mergeApiPropertyConstraints(state.constraints, apiConstraints),
 });
 
+const appliesToEach = (call: DecoratorCall) =>
+  call.args.some((arg) => asBoolean(getProperty(arg, 'each')) === true);
+
 const createMappedDecoratorHandler =
   (mapper: DecoratorMapper): DecoratorHandler =>
-  (state, call) =>
-    withMergedConstraints(state, mapper(getDecoratorArgs(call)));
+  (state, call) => {
+    const constraints = mapper(getDecoratorArgs(call));
+    if (!appliesToEach(call)) return withMergedConstraints(state, constraints);
+    return withMergedConstraints(state, {
+      items: mergeConstraints(state.constraints.items ?? {}, constraints),
+    });
+  };
 
 const mappedDecoratorHandlers = Object.fromEntries(
   Object.entries(DECORATOR_MAPPINGS).map(([decoratorName, mapper]) => [
@@ -657,7 +667,7 @@ const collectHiddenProperties = (
 
 type CleanPropertyConstraints = Omit<
   ValidationConstraints,
-  'hidden' | 'isArray'
+  'hidden' | 'isArray' | 'items'
 >;
 
 const cleanPropertyConstraints = (
@@ -669,6 +679,7 @@ const cleanPropertyConstraints = (
     schemaOverride: _schemaOverride,
     keywords: _keywords,
     enumComponent: _enumComponent,
+    items: _items,
     ...cleanConstraints
   } = constraints;
   return cleanConstraints;
@@ -786,7 +797,70 @@ const applyDirectPropertyConstraints = (
     ...(enumValues === undefined ? {} : { enum: enumValues }),
   }) as JsonSchema;
 
+const STRING_KEYWORDS = ['minLength', 'maxLength', 'pattern'] as const;
+const STRING_FORMATS = new Set(
+  Object.values(DECORATOR_MAPPINGS).flatMap((mapper) => {
+    const { type, format } = mapper([]);
+    return type === undefined && format ? [format] : [];
+  }),
+);
+
+const schemaTypes = (schema: JsonSchema): readonly string[] | undefined => {
+  if (typeof schema.type === 'string') return [schema.type];
+  if (Array.isArray(schema.type)) return schema.type as string[];
+  const members = schema.anyOf ?? schema.oneOf;
+  if (!members || members.length === 0) return undefined;
+  const memberTypes = members.map(schemaTypes);
+  if (memberTypes.some((types) => types === undefined)) return undefined;
+  return memberTypes.flatMap((types) => types!);
+};
+
+const withoutStringKeywordsOnNonStrings = (schema: JsonSchema) => {
+  const types = schemaTypes(schema);
+  if (!types || types.includes('string')) return schema;
+  const record = schema as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(record).filter(
+      ([key, value]) =>
+        !(STRING_KEYWORDS as readonly string[]).includes(key) &&
+        !(key === 'format' && STRING_FORMATS.has(value as string)),
+    ),
+  ) as JsonSchema;
+};
+
+const withItemConstraints = (
+  schema: JsonSchema,
+  itemConstraints: ValidationConstraints,
+): JsonSchema => {
+  if (schema.type === 'array') {
+    return {
+      ...schema,
+      items: applyPropertyConstraints(schema.items ?? {}, itemConstraints),
+    } as JsonSchema;
+  }
+  if (!schema.anyOf?.some((member) => member.type === 'array')) return schema;
+  return {
+    ...schema,
+    anyOf: schema.anyOf.map((member) =>
+      member.type === 'array'
+        ? withItemConstraints(member, itemConstraints)
+        : member,
+    ),
+  } as JsonSchema;
+};
+
 export const applyPropertyConstraints = (
+  propertySchema: JsonSchema,
+  constraints: ValidationConstraints | undefined,
+): JsonSchema => {
+  const applied = applyOwnConstraints(propertySchema, constraints);
+  const withItems = constraints?.items
+    ? withItemConstraints(applied, constraints.items)
+    : applied;
+  return withoutStringKeywordsOnNonStrings(withItems);
+};
+
+const applyOwnConstraints = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints | undefined,
 ): JsonSchema =>
