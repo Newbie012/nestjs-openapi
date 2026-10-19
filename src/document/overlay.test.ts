@@ -104,6 +104,56 @@ describe('applyOverlay', () => {
     expect(output.tags).toEqual([{ name: 'books' }]);
   });
 
+  it('removes filtered items from several arrays without shifting the others', async () => {
+    const parameter = (name: string, location: string) => ({
+      name,
+      in: location,
+    });
+    const input = {
+      paths: {
+        '/books': {
+          get: {
+            parameters: [
+              parameter('x-trace', 'header'),
+              parameter('page', 'query'),
+              parameter('x-tenant', 'header'),
+              parameter('limit', 'query'),
+            ],
+          },
+        },
+        '/books/{id}': {
+          get: {
+            parameters: [
+              parameter('id', 'path'),
+              parameter('x-trace', 'header'),
+              parameter('x-tenant', 'header'),
+              parameter('fields', 'query'),
+            ],
+          },
+        },
+      },
+    };
+
+    const output = await Effect.runPromise(
+      applyOverlay(
+        input,
+        overlay([
+          { target: "$.paths.*.*.parameters[?@.in == 'header']", remove: true },
+        ]),
+        process.cwd(),
+      ),
+    );
+
+    expect(output.paths['/books'].get.parameters).toEqual([
+      parameter('page', 'query'),
+      parameter('limit', 'query'),
+    ]);
+    expect(output.paths['/books/{id}'].get.parameters).toEqual([
+      parameter('id', 'path'),
+      parameter('fields', 'query'),
+    ]);
+  });
+
   it('applies actions in order, each on the result of the previous one', async () => {
     const result = await run(
       overlay([

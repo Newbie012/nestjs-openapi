@@ -96,14 +96,17 @@ const mergeInto = (
   }
 };
 
-// Later array items first, so removing one does not shift the others
+// Later array items first, so removing one does not shift the others, and
+// children before their parents
 const removalOrder = (a: readonly Segment[], b: readonly Segment[]) => {
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
-    if (a[i] === b[i]) continue;
-    if (typeof a[i] === 'number' && typeof b[i] === 'number') {
-      return (b[i] as number) - (a[i] as number);
+    const left = a[i]!;
+    const right = b[i]!;
+    if (left === right) continue;
+    if (typeof left === 'number' && typeof right === 'number') {
+      return right - left;
     }
-    return 0;
+    return String(left) < String(right) ? -1 : 1;
   }
   return b.length - a.length;
 };
