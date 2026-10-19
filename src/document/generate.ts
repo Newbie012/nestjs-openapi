@@ -98,7 +98,7 @@ import {
   adaptExamplesForVersion,
   sanitizeComponentNames,
 } from '../schema/spec-compliance.js';
-import type { MethodInfo } from '../model/domain.js';
+import type { MethodInfo, ResolvedParameter } from '../model/domain.js';
 import type { PathTransform } from '../config/types.js';
 import { clearRunProjects, getRunProject } from '../analysis/run-project.js';
 import {
@@ -1206,10 +1206,31 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     const namedEnums = new Set<string>();
     const enumNameUses: EnumNameUse[] = [];
 
-    const routedMethods = documentedMethods.map((method) => ({
-      ...method,
-      path: finalizePath(method, options.basePath, options.transformPath),
-    }));
+    const routedMethods: MethodInfo[] = [];
+    for (const method of documentedMethods) {
+      const path = finalizePath(
+        method,
+        options.basePath,
+        options.transformPath,
+      );
+      const templated = new Set(
+        [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]),
+      );
+      const isUnrouted = (parameter: ResolvedParameter) =>
+        parameter.location === 'path' && !templated.has(parameter.name);
+      for (const parameter of method.parameters.filter(isUnrouted)) {
+        yield* Effect.logWarning(
+          `${method.httpMethod} ${path}: path parameter "${parameter.name}" is not in the route and is left out`,
+        );
+      }
+      routedMethods.push({
+        ...method,
+        path,
+        parameters: method.parameters.filter(
+          (parameter) => !isUnrouted(parameter),
+        ),
+      });
+    }
 
     const transformer = yield* TransformerService;
     let paths = yield* transformer.transformMethods(routedMethods);
