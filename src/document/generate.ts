@@ -116,7 +116,7 @@ import { applyOverlay } from './overlay.js';
 const DEFAULT_ENTRY = 'src/app.module.ts';
 
 // Path item keys that hold operations; an overlay may add others, such as
-// `summary` or `parameters`
+// `summary` or `parameters`. OpenAPI 3.2 also has `additionalOperations`
 const OPERATION_KEYS = new Set([
   'get',
   'put',
@@ -1800,11 +1800,17 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     );
     yield* OutputService.writeOutput(output, serializedSpec, format);
 
-    const pathCount = Object.keys(sortedSpec.paths).length;
-    const operationCount = Object.values(sortedSpec.paths).reduce(
+    // An overlay may remove `paths`, which OpenAPI 3.1 allows
+    const finalPaths = (sortedSpec.paths ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const pathCount = Object.keys(finalPaths).length;
+    const operationCount = Object.values(finalPaths).reduce(
       (acc, pathItem) =>
         acc +
-        Object.keys(pathItem).filter((key) => OPERATION_KEYS.has(key)).length,
+        Object.keys(pathItem).filter((key) => OPERATION_KEYS.has(key)).length +
+        Object.keys(pathItem.additionalOperations ?? {}).length,
       0,
     );
     const schemaCount = Object.keys(

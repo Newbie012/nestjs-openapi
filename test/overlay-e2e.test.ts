@@ -9,6 +9,8 @@ describe('overlay E2E', () => {
   const outputs = [
     'openapi.generated.json',
     'openapi.stale.generated.json',
+    'openapi.copy.generated.json',
+    'openapi.no-paths.generated.json',
   ].map((file) => resolve(fixtureDir, file));
 
   afterAll(() => {
@@ -39,5 +41,24 @@ describe('overlay E2E', () => {
       `action 1 (target "$.paths['/novels'].get", "Describe the novel listing") matched nothing`,
     );
     expect(existsSync(outputs[1]!)).toBe(false);
+  });
+
+  it('counts OpenAPI 3.2 additional operations an overlay adds', async () => {
+    const result = await generate(
+      resolve(fixtureDir, 'openapi.copy.config.ts'),
+    );
+
+    expect(result).toMatchObject({ pathCount: 4, operationCount: 5 });
+  });
+
+  it('writes a spec whose overlay removed every path', async () => {
+    const result = await generate(
+      resolve(fixtureDir, 'openapi.no-paths.config.ts'),
+    );
+    const spec = JSON.parse(readFileSync(outputs[3]!, 'utf-8'));
+
+    expect(spec).not.toHaveProperty('paths');
+    expect(result).toMatchObject({ pathCount: 0, operationCount: 0 });
+    expect(result.validation.valid).toBe(true);
   });
 });
