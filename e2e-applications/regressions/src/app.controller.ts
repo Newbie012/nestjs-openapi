@@ -8,6 +8,7 @@ import { SearchFiltersDto } from './search/models/filters';
 import { ActiveFiltersDto } from './active/active-filters';
 import { Owner } from './relations/owner.entity';
 import { Pet } from './relations/pet.entity';
+import { PatchNoteDto } from './nullable/patch-note.dto';
 
 @Controller()
 export class AppController {
@@ -39,6 +40,11 @@ export class AppController {
   @Get('owners')
   owner(): Owner {
     return null as never;
+  }
+
+  @Put('notes')
+  patchNote(@Body() body: PatchNoteDto): PatchNoteDto {
+    return body;
   }
 
   @Get('pets')

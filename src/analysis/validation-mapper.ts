@@ -11,6 +11,7 @@ import type {
   EnumDeclaration,
   EnumMember,
   PropertyDeclaration,
+  Type,
 } from 'ts-morph';
 import { Node, ts } from 'ts-morph';
 import type { GeneratedSchemas, JsonSchema } from '../schema/schema-generator.js';
@@ -544,25 +545,51 @@ const decoratorHandlers: Record<string, DecoratorHandler> = {
     apiPropertyDecoratorHandler({ ...state, isOptional: true }, call, context),
 };
 
+const typeHasMember = (
+  property: PropertyDeclaration,
+  isMember: (member: Type) => boolean,
+) => property.getType().getUnionTypes().some(isMember);
+
+const isValidated = (decorators: readonly DecoratorCall[]) =>
+  decorators.some((call) => call.name in DECORATOR_MAPPINGS);
+
 const createInitialPropertyValidationInfo = (
   property: PropertyDeclaration,
+  decorators: readonly DecoratorCall[],
 ): PropertyValidationInfo => ({
-  isOptional: property.hasQuestionToken(),
+  isOptional:
+    property.hasQuestionToken() ||
+    (!isValidated(decorators) &&
+      typeHasMember(property, (member) => member.isUndefined())),
   constraints: {},
 });
+
+const withNullSkippedByValidator = (
+  state: PropertyValidationInfo,
+  property: PropertyDeclaration,
+  decorators: readonly DecoratorCall[],
+): PropertyValidationInfo =>
+  state.constraints.type !== undefined &&
+  decorators.some((call) => call.name === 'IsOptional') &&
+  typeHasMember(property, (member) => member.isNull())
+    ? { ...state, constraints: { ...state.constraints, nullable: true } }
+    : state;
 
 const extractPropertyState = (
   property: PropertyDeclaration,
   expansion?: DecoratorExpansionOptions,
   naming: SchemaNaming = DEFAULT_SCHEMA_NAMING,
-): PropertyValidationInfo =>
-  getEffectiveDecorators(property, expansion).reduce<PropertyValidationInfo>(
-    (state, call) => {
+): PropertyValidationInfo => {
+  const decorators = getEffectiveDecorators(property, expansion);
+  const state = decorators.reduce<PropertyValidationInfo>(
+    (current, call) => {
       const handler = decoratorHandlers[call.name];
-      return handler ? handler(state, call, { naming, property }) : state;
+      return handler ? handler(current, call, { naming, property }) : current;
     },
-    createInitialPropertyValidationInfo(property),
+    createInitialPropertyValidationInfo(property, decorators),
   );
+  return withNullSkippedByValidator(state, property, decorators);
+};
 
 const hasConstraints = (constraints: ValidationConstraints): boolean =>
   Object.keys(constraints).length > 0;
