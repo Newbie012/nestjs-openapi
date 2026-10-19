@@ -13,3 +13,8 @@ nestjs-openapi@0.8.1:
   dir: ""
   intents:
     - big-trees-type
+nestjs-openapi@0.8.2:
+  dir: ""
+  intents:
+    - fresh-turkeys-exist
+    - loud-hairs-explode
