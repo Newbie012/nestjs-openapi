@@ -152,6 +152,26 @@ describe('Regressions E2E', () => {
     });
   });
 
+  describe('a validated property whose type allows null', () => {
+    it('keeps null when @IsOptional lets it through', () => {
+      expect(propertiesOf('PatchNoteDto')['reason']).toEqual({
+        type: 'string',
+        nullable: true,
+        maxLength: 250,
+      });
+    });
+
+    it('drops null when the validator rejects it', () => {
+      expect(propertiesOf('PatchNoteDto')['title']).toEqual({
+        type: 'string',
+      });
+    });
+
+    it('requires only what the validator or the type demands', () => {
+      expect(schemaOf('PatchNoteDto')?.required).toEqual(['title', 'summary']);
+    });
+  });
+
   describe('entities related through a transparent wrapper alias', () => {
     const checkerId = /(?:structure|class)-\d+/;
 
