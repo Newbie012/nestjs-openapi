@@ -537,6 +537,13 @@ export const OptionsConfig = Schema.Struct({
       ),
     ),
   ),
+  overlay: Schema.optional(
+    Schema.Union(
+      Schema.String,
+      Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+    ),
+  ),
+  overlayUnmatchedTarget: Schema.optional(Schema.Literal('error', 'warn')),
   query: Schema.optional(QueryOptionsConfig),
   schemas: Schema.optional(SchemaOptionsConfig),
   pathFilter: Schema.optional(PathFilter),

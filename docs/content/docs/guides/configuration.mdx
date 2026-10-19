@@ -419,6 +419,35 @@ options: {
 }
 ```
 
+### `overlay`
+
+Applies an [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/v1.0.0.html) document to the generated spec, before it is written. Give the overlay object, or the path of a JSON or YAML file, relative to the config file:
+
+```yaml
+# public.overlay.yaml
+overlay: 1.0.0
+info:
+  title: Public API
+  version: 1.0.0
+actions:
+  - target: $.paths['/admin/users']
+    description: Hide the admin routes
+    remove: true
+  - target: $.paths['/users'].get
+    update:
+      x-rate-limit: { perMinute: 100 }
+```
+
+```typescript
+options: {
+  overlay: 'public.overlay.yaml',
+}
+```
+
+Actions run in order, each on the result of the previous one. `target` is an [RFC 9535](https://www.rfc-editor.org/rfc/rfc9535) JSONPath. `update` is merged into each object it selects (nested objects merge, other values replace) or appended to each array it selects; `remove: true` deletes what it selects.
+
+An action whose `target` matches nothing fails generation and names the action, so a renamed route cannot silently drop a change. Set `overlayUnmatchedTarget: 'warn'` to log a warning and skip it instead.
+
 ### `query`
 
 Query parameter handling options.

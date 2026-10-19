@@ -86,6 +86,29 @@ export type OperationExtensionsHook = (
   context: OperationContext,
 ) => OperationExtensions | undefined;
 
+/** An action of an OpenAPI Overlay 1.0 document */
+export interface OverlayAction {
+  /** RFC 9535 JSONPath selecting the objects or arrays to change */
+  readonly target: string;
+  readonly description?: string;
+  /**
+   * Merged into each selected object (nested objects merge, other values
+   * replace), or appended to each selected array
+   */
+  readonly update?: unknown;
+  /** Removes each selected node from its parent; `update` is then ignored */
+  readonly remove?: boolean;
+}
+
+/** An OpenAPI Overlay 1.0 document (https://spec.openapis.org/overlay/v1.0.0.html) */
+export interface OverlayDocument {
+  /** The Overlay version, `1.0.x` */
+  readonly overlay: string;
+  readonly info: { readonly title: string; readonly version: string };
+  readonly extends?: string;
+  readonly actions: readonly OverlayAction[];
+}
+
 export type SchemaNameCollisionStrategy =
   | 'inline'
   | 'rename'
@@ -498,6 +521,35 @@ export interface OptionsConfig {
    * ```
    */
   readonly pathFilter?: RegExp | ((path: string) => boolean);
+
+  /**
+   * An OpenAPI Overlay 1.0 document applied to the generated spec, or the
+   * path of a JSON or YAML file holding one, relative to the config file.
+   * Actions run in order: `update` merges into or appends to what `target`
+   * selects, and `remove` deletes it.
+   *
+   * @example
+   * ```typescript
+   * overlay: {
+   *   overlay: '1.0.0',
+   *   info: { title: 'Public API', version: '1.0.0' },
+   *   actions: [
+   *     { target: "$.paths['/users'].get", update: { 'x-rate-limit': 100 } },
+   *     { target: "$.paths['/admin']", remove: true },
+   *   ],
+   * }
+   * ```
+   */
+  readonly overlay?: string | OverlayDocument;
+
+  /**
+   * What to do when an overlay action's `target` matches nothing, e.g.
+   * after a route was renamed: `'error'` fails generation, naming the
+   * action; `'warn'` logs a warning and skips it.
+   *
+   * @default 'error'
+   */
+  readonly overlayUnmatchedTarget?: 'error' | 'warn';
 
   /**
    * Query parameter handling options.

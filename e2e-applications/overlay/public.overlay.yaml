@@ -1,0 +1,15 @@
+overlay: 1.0.0
+info:
+  title: Public books API
+  version: 1.0.0
+actions:
+  - target: $.paths['/internal/health']
+    description: Hide internal routes
+    remove: true
+  - target: $.paths['/books/{id}'].delete
+    remove: true
+  - target: $.paths['/books'].get
+    update:
+      summary: List books
+      x-rate-limit:
+        perMinute: 100

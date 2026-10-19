@@ -81,6 +81,8 @@ export type {
   OperationContext,
   OperationExtensions,
   OperationExtensionsHook,
+  OverlayDocument,
+  OverlayAction,
 } from './config/types.js';
 
 /**
@@ -144,6 +146,7 @@ export {
   ConfigValidationError,
   SchemaNameCollisionError,
   OperationExtensionsError,
+  OverlayError,
   DtoGlobResolutionError,
   InvalidMethodError,
   PublicApiError,

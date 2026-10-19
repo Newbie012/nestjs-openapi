@@ -102,7 +102,7 @@ import {
   sanitizeComponentNames,
 } from '../schema/spec-compliance.js';
 import type { MethodInfo, ResolvedParameter } from '../model/domain.js';
-import type { PathTransform } from '../config/types.js';
+import type { OverlayDocument, PathTransform } from '../config/types.js';
 import { clearRunProjects, getRunProject } from '../analysis/run-project.js';
 import {
   applyMappedTypes,
@@ -111,6 +111,7 @@ import {
 } from '../analysis/mapped-types.js';
 import { OutputService } from './output-service.js';
 import { applyOperationExtensions } from './operation-extensions.js';
+import { applyOverlay } from './overlay.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
 const DEFAULT_DTO_GLOB = [
@@ -1762,6 +1763,15 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         ? adaptSpecForV30(spec)
         : transformSpecForVersion(spec, openApiVersion);
 
+    if (options.overlay) {
+      spec = yield* applyOverlay(
+        spec,
+        options.overlay as string | OverlayDocument,
+        configDir,
+        options.overlayUnmatchedTarget,
+      );
+    }
+
     // Sort keys to match NestJS Swagger output order
     const sortedSpec = sortObjectKeysDeep(spec, true);
 
@@ -1776,12 +1786,14 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     );
     yield* OutputService.writeOutput(output, serializedSpec, format);
 
-    const pathCount = Object.keys(paths).length;
-    const operationCount = Object.values(paths).reduce(
+    const pathCount = Object.keys(sortedSpec.paths).length;
+    const operationCount = Object.values(sortedSpec.paths).reduce(
       (acc, methods) => acc + Object.keys(methods).length,
       0,
     );
-    const schemaCount = Object.keys(schemas).length;
+    const schemaCount = Object.keys(
+      sortedSpec.components?.schemas ?? {},
+    ).length;
     yield* Effect.annotateCurrentSpan('finalPathCount', pathCount);
     yield* Effect.annotateCurrentSpan('finalOperationCount', operationCount);
     yield* Effect.annotateCurrentSpan('finalSchemaCount', schemaCount);

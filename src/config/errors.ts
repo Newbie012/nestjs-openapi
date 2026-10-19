@@ -411,9 +411,20 @@ export class OperationExtensionsError extends Schema.TaggedError<OperationExtens
   },
 ) {}
 
+export class OverlayError extends Schema.TaggedError<OverlayError>()(
+  'OverlayError',
+  {
+    message: Schema.String,
+    /** The overlay file, or `options.overlay` for an inline overlay */
+    source: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  },
+) {}
+
 export type GeneratorError =
   | SchemaNameCollisionError
   | OperationExtensionsError
+  | OverlayError
   | ProjectError
   | ConfigError
   | AnalysisError
