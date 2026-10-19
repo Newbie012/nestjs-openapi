@@ -9,3 +9,7 @@ nestjs-openapi@0.8.0:
   intents:
     - quiet-jars-mix
     - sweet-eels-smoke
+nestjs-openapi@0.8.1:
+  dir: ""
+  intents:
+    - big-trees-type
