@@ -6,6 +6,8 @@ import {
 } from './notifications/notification.dto';
 import { SearchFiltersDto } from './search/models/filters';
 import { ActiveFiltersDto } from './active/active-filters';
+import { Owner } from './relations/owner.entity';
+import { Pet } from './relations/pet.entity';
 
 @Controller()
 export class AppController {
@@ -32,5 +34,15 @@ export class AppController {
   @Get('filters/active')
   activeFilters(): ActiveFiltersDto {
     return new ActiveFiltersDto();
+  }
+
+  @Get('owners')
+  owner(): Owner {
+    return null as never;
+  }
+
+  @Get('pets')
+  pet(): Pet {
+    return null as never;
   }
 }

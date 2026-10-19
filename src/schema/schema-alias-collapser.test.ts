@@ -21,6 +21,46 @@ describe('schema-alias-collapser', () => {
     },
   });
 
+  it('collapses an alias whose ref is wrapped in allOf', () => {
+    const schemas: Record<string, OpenApiSchema> = {
+      'Relation<User>': {
+        allOf: [{ $ref: '#/components/schemas/User' }],
+        description: 'Wrapper alias',
+      },
+      User: { type: 'object', properties: { id: { type: 'string' } } },
+    };
+
+    const result = collapseAliasRefs(
+      createPaths('#/components/schemas/Relation<User>'),
+      schemas,
+    );
+
+    expect(
+      result.paths['/items'].get.responses['200'].content?.['application/json']
+        .schema,
+    ).toEqual({ $ref: '#/components/schemas/User' });
+    expect(Object.keys(result.schemas)).toEqual(['User']);
+  });
+
+  it('keeps an allOf that adds to the referenced schema', () => {
+    const schemas: Record<string, OpenApiSchema> = {
+      Admin: {
+        allOf: [
+          { $ref: '#/components/schemas/User' },
+          { type: 'object', properties: { role: { type: 'string' } } },
+        ],
+      },
+      User: { type: 'object', properties: { id: { type: 'string' } } },
+    };
+
+    const result = collapseAliasRefs(
+      createPaths('#/components/schemas/Admin'),
+      schemas,
+    );
+
+    expect(Object.keys(result.schemas).sort()).toEqual(['Admin', 'User']);
+  });
+
   it('should collapse alias chains and remove alias schemas', () => {
     const schemas: Record<string, OpenApiSchema> = {
       'AliasA': {

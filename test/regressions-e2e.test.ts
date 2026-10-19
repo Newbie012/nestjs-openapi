@@ -151,4 +151,41 @@ describe('Regressions E2E', () => {
       expect(raw.brokenRefCount).toBe(0);
     });
   });
+
+  describe('entities related through a transparent wrapper alias', () => {
+    const checkerId = /(?:structure|class)-\d+/;
+
+    it('refers to each entity directly, without wrapper components', () => {
+      const schemas = spec.components?.schemas ?? {};
+
+      expect(propertiesOf('Owner')['pet']).toEqual({
+        allOf: [{ $ref: '#/components/schemas/Pet' }],
+        nullable: true,
+        type: 'object',
+      });
+      expect(propertiesOf('Owner')['profile']).toEqual({
+        $ref: '#/components/schemas/Profile',
+      });
+      expect(propertiesOf('Profile')['owner']).toEqual({
+        $ref: '#/components/schemas/Owner',
+      });
+      expect(
+        Object.keys(schemas).filter((name) => name.startsWith('Relation')),
+      ).toEqual([]);
+    });
+
+    it('names preserved wrappers after the entity, never a checker ID', async () => {
+      const preserved = await generateWithWarnings(
+        'openapi.alias-refs.config.ts',
+        'openapi.alias-refs.generated.json',
+      );
+      const names = Object.keys(preserved.spec.components?.schemas ?? {});
+
+      expect(
+        names.filter((name) => name.startsWith('Relation')).sort(),
+      ).toEqual(['Relation_Owner', 'Relation_Pet', 'Relation_Profile']);
+      expect(names.filter((name) => checkerId.test(name))).toEqual([]);
+      expect(preserved.brokenRefCount).toBe(0);
+    });
+  });
 });

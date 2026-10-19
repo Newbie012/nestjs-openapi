@@ -422,6 +422,18 @@ const findStructureUsages = (
           }
         }
 
+        for (const member of [
+          ...(propSchema.anyOf ?? []),
+          ...(propSchema.oneOf ?? []),
+          ...(propSchema.allOf ?? []),
+        ]) {
+          const refName = member.$ref ? extractRefName(member.$ref) : '';
+          const structureRef = extractStructureRef(refName);
+          if (structureRef) {
+            recordUsage(structureRef, schemaName, propName, refName);
+          }
+        }
+
         // Check array items.$ref
         if (propSchema.items?.$ref) {
           const refName = extractRefName(propSchema.items.$ref);
@@ -473,6 +485,24 @@ const updateRefsWithMapping = (
     return { ...s, $ref: `#/components/schemas/${refName}` };
   });
 
+const SOLE_STRUCTURE_ARGUMENT = /^[^<]+<((?:structure|class)-\d+(?:-\d+)*)>$/;
+
+const isRefOnly = (schema: JsonSchema) =>
+  typeof schema.$ref === 'string' &&
+  Object.keys(schema).every((key) => key === '$ref' || key === 'description');
+
+const namesOfAliasedDeclarations = (schemas: GeneratedSchemas) => {
+  const names = new Map<string, string>();
+  for (const [name, schema] of Object.entries(schemas.definitions)) {
+    const structureRef = SOLE_STRUCTURE_ARGUMENT.exec(name)?.[1];
+    if (!structureRef || !isRefOnly(schema)) continue;
+    const target = extractRefName(schema.$ref!);
+    if (containsUglyStructureRef(target)) continue;
+    names.set(structureRef, target);
+  }
+  return names;
+};
+
 /** Find a unique name using cascading strategy: property → parent+property → suffix */
 const findUniqueName = (
   propertyName: string,
@@ -521,11 +551,11 @@ const normalizeStructureRefsInternal = (
   const structureUsages = findStructureUsages(schemas);
 
   // 3. Build mapping from structure refs to new names
-  const structureMapping = new Map<string, string>();
+  const structureMapping = namesOfAliasedDeclarations(schemas);
   const usedNames = new Set(reservedNames);
 
   for (const [structureRef, usages] of structureUsages) {
-    if (usages.length === 0) continue;
+    if (usages.length === 0 || structureMapping.has(structureRef)) continue;
 
     const { parent, property } = usages[0];
     const propertyPascal = toPascalCase(property);

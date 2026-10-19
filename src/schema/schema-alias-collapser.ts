@@ -11,11 +11,20 @@ const extractSchemaRefName = (ref: string): string | null =>
 const toSchemaRef = (name: string): string =>
   `${COMPONENT_SCHEMA_REF_PREFIX}${name}`;
 
-const isAliasSchema = (schema: OpenApiSchema): boolean => {
-  if (!schema.$ref) return false;
-  return Object.keys(schema as Record<string, unknown>).every((key) =>
-    ALIAS_SCHEMA_KEYS.has(key),
-  );
+const aliasTarget = (schema: OpenApiSchema) => {
+  const keys = Object.keys(schema as Record<string, unknown>);
+  if (schema.$ref) {
+    return keys.every((key) => ALIAS_SCHEMA_KEYS.has(key))
+      ? schema.$ref
+      : undefined;
+  }
+  const [wrapped, ...others] = schema.allOf ?? [];
+  if (!wrapped?.$ref || others.length > 0) return undefined;
+  const wrappedKeys = Object.keys(wrapped as Record<string, unknown>);
+  return wrappedKeys.length === 1 &&
+    keys.every((key) => key === 'allOf' || ALIAS_SCHEMA_KEYS.has(key))
+    ? wrapped.$ref
+    : undefined;
 };
 
 const rewriteSchemaRefs = (
@@ -150,8 +159,9 @@ const resolveAliasTargets = (
   const directAliases = new Map<string, string>();
 
   for (const [name, schema] of Object.entries(schemas)) {
-    if (!isAliasSchema(schema) || !schema.$ref) continue;
-    const target = extractSchemaRefName(schema.$ref);
+    const ref = aliasTarget(schema);
+    if (!ref) continue;
+    const target = extractSchemaRefName(ref);
     if (!target) continue;
     directAliases.set(name, target);
   }
