@@ -360,6 +360,18 @@ export const getEffectiveDecorators = (
     .getDecorators()
     .flatMap((decorator) => expandDecorator(decorator, options));
 
+// Class references keep only their name, so the values can go into a spec
+const withoutNodes = (value: unknown): unknown => {
+  if (value instanceof TypeRef) return new TypeRef(value.name);
+  if (Array.isArray(value)) return value.map(withoutNodes);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, withoutNodes(item)]),
+    );
+  }
+  return value;
+};
+
 // Decorators as written, top to bottom, with their arguments as plain values
 export const readDecoratorUses = (
   node: Decoratable,
@@ -368,7 +380,9 @@ export const readDecoratorUses = (
     name: decorator.getName(),
     args: decorator
       .getArguments()
-      .map((arg) => toUserValue(evaluate(arg, EMPTY_ENVIRONMENT))),
+      .map((arg) =>
+        withoutNodes(toUserValue(evaluate(arg, EMPTY_ENVIRONMENT))),
+      ),
   }));
 
 // In the order Nest runs them: the bottom decorator first, and each

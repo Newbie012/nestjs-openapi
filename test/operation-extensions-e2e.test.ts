@@ -72,4 +72,39 @@ describe('operationExtensions E2E', () => {
     expect(operation('/api/users/{id}', 'get')['x-owner']).toBe('profiles');
     expect(operation('/api/orders', 'get')['x-owner']).toBe('platform');
   });
+
+  describe('with a class passed to a decorator', () => {
+    const classArgsOutput = resolve(
+      fixtureDir,
+      'openapi.class-args.generated.json',
+    );
+
+    afterAll(() => {
+      if (existsSync(classArgsOutput)) unlinkSync(classArgsOutput);
+    });
+
+    it('gives the class by name, so the hook can return decorators into the spec', async () => {
+      const result = await generate(
+        resolve(fixtureDir, 'openapi.class-args.config.ts'),
+      );
+      const output: OpenApiSpec = JSON.parse(
+        readFileSync(classArgsOutput, 'utf-8'),
+      );
+      const get = (
+        output.paths['/orders/{id}'] as unknown as Record<
+          string,
+          Record<string, unknown>
+        >
+      )['get']!;
+
+      expect(result.validation.valid).toBe(true);
+      expect(get['x-decorators']).toEqual({
+        method: [
+          { name: 'Get', args: [':id'] },
+          { name: 'UseGuards', args: [{ name: 'OrderOwnerGuard' }] },
+        ],
+        controller: [{ name: 'Controller', args: ['orders'] }],
+      });
+    });
+  });
 });
