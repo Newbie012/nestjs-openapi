@@ -1,6 +1,10 @@
 import { Schema } from 'effect';
 import type { CustomDecoratorMapping } from '../analysis/decorators.js';
-import type { PathTransform, SchemaNameCollision } from '../config/types.js';
+import type {
+  OperationExtensionsHook,
+  PathTransform,
+  SchemaNameCollision,
+} from '../config/types.js';
 
 type CustomDecoratorMappingFunction = Extract<
   CustomDecoratorMapping,
@@ -147,6 +151,20 @@ export const MethodSecurityRequirement = Schema.Struct({
 });
 export type MethodSecurityRequirement = typeof MethodSecurityRequirement.Type;
 
+const DecoratorUse = Schema.Struct({
+  name: Schema.String,
+  args: Schema.Array(Schema.Unknown),
+});
+
+/** Where an operation came from, read only for `operationExtensions` */
+export const MethodSource = Schema.Struct({
+  entry: Schema.String,
+  module: Schema.String,
+  methodDecorators: Schema.Array(DecoratorUse),
+  controllerDecorators: Schema.Array(DecoratorUse),
+});
+export type MethodSource = typeof MethodSource.Type;
+
 export const MethodInfo = Schema.Struct({
   httpMethod: HttpMethod,
   path: Schema.String,
@@ -169,6 +187,7 @@ export const MethodInfo = Schema.Struct({
     Schema.Record({ key: Schema.String, value: Schema.Unknown }),
   ),
   extraModels: Schema.optional(Schema.Array(Schema.String)),
+  source: Schema.optional(MethodSource),
   referencedDeclarations: Schema.optional(Schema.Array(DeclarationRef)),
   /** Custom HTTP code from @HttpCode decorator */
   httpCode: Schema.OptionFromNullOr(Schema.Number),
@@ -478,6 +497,12 @@ export const OptionsConfig = Schema.Struct({
     functionSchema<PathTransform>(
       'PathTransformFunction',
       'A function that rewrites an operation path',
+    ),
+  ),
+  operationExtensions: Schema.optional(
+    functionSchema<OperationExtensionsHook>(
+      'OperationExtensionsFunction',
+      'A function that returns the extensions to add to an operation',
     ),
   ),
   extractValidation: Schema.optional(Schema.Boolean),

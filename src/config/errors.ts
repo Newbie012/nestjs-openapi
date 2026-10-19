@@ -402,8 +402,18 @@ export class SchemaNameCollisionError extends Schema.TaggedError<SchemaNameColli
   },
 ) {}
 
+export class OperationExtensionsError extends Schema.TaggedError<OperationExtensionsError>()(
+  'OperationExtensionsError',
+  {
+    message: Schema.String,
+    operationId: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  },
+) {}
+
 export type GeneratorError =
   | SchemaNameCollisionError
+  | OperationExtensionsError
   | ProjectError
   | ConfigError
   | AnalysisError

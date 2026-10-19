@@ -78,6 +78,9 @@ export type {
   SchemaNameCollision,
   SchemaNameCollisionStrategy,
   PathTransform,
+  OperationContext,
+  OperationExtensions,
+  OperationExtensionsHook,
 } from './config/types.js';
 
 /**
@@ -140,6 +143,7 @@ export {
   ConfigLoadError,
   ConfigValidationError,
   SchemaNameCollisionError,
+  OperationExtensionsError,
   DtoGlobResolutionError,
   InvalidMethodError,
   PublicApiError,

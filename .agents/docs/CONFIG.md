@@ -48,6 +48,7 @@ export default defineConfig({
     enums: 'ref', // or 'nest' (inline, like @nestjs/swagger)
     versioning: { type: 'uri', defaultVersion: '1' }, // as in app.enableVersioning()
     transformPath: (path, { controller, method, httpMethod }) => path,
+    operationExtensions: ({ decorators }) => ({ 'x-internal': false }),
     schemas: {
       aliasRefs: 'collapse',
       genericNames: 'sanitized',
@@ -105,6 +106,7 @@ When `files.tsconfig` is omitted, the Promise API (`generate()`) searches upward
 | `extractValidation` | `boolean` | `true` | Extract class-validator constraints |
 | `excludeDecorators` | `string[]` | `['ApiExcludeEndpoint', 'ApiExcludeController']` | Exclusion decorators |
 | `pathFilter` | `RegExp \| Function` | — | Filter routes |
+| `operationExtensions` | `(context) => Record<\`x-${string}\`, unknown> \| undefined` | — | `x-` extensions per operation, from its path, ids, module, entry and decorators; `@ApiExtension` wins |
 | `query.style` | `"inline" \| "ref"` | `"inline"` | How to represent query DTOs |
 | `schemas.aliasRefs` | `"collapse" \| "preserve"` | `"collapse"` | Collapse pass-through `$ref` aliases |
 | `schemas.genericNames` | `"sanitized" \| "raw"` | `"sanitized"` | `Page<User>` → `Page_User`, or keep the TypeScript name |

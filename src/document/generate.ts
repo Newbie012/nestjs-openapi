@@ -92,7 +92,10 @@ import {
   NAMED_ENUM_REF,
   type SchemaNaming,
 } from '../analysis/property-schema.js';
-import type { DecoratorExpansionOptions } from '../analysis/decorators.js';
+import {
+  readDecoratorUses,
+  type DecoratorExpansionOptions,
+} from '../analysis/decorators.js';
 import { clearSchemaProgramCache } from '../schema/schema-program.js';
 import {
   adaptExamplesForVersion,
@@ -107,6 +110,7 @@ import {
   getMappedTypeBase,
 } from '../analysis/mapped-types.js';
 import { OutputService } from './output-service.js';
+import { applyOperationExtensions } from './operation-extensions.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
 const DEFAULT_DTO_GLOB = [
@@ -925,6 +929,27 @@ const findTsConfigEffect = Effect.fn('Generate.findTsConfig')(function* (
   return undefined;
 });
 
+const withSource = (
+  infos: readonly MethodInfo[],
+  controller: ClassDeclaration,
+  module: ClassDeclaration,
+  entry: string,
+): readonly MethodInfo[] => {
+  const controllerDecorators = readDecoratorUses(controller);
+  return infos.map((info) => {
+    const method = controller.getMethod(info.methodName);
+    return {
+      ...info,
+      source: {
+        entry,
+        module: module.getName() ?? '',
+        methodDecorators: method ? readDecoratorUses(method) : [],
+        controllerDecorators,
+      },
+    };
+  });
+};
+
 /**
  * Internal Effect-based logic to extract method infos from a single entry
  */
@@ -933,6 +958,8 @@ const extractMethodInfosFromEntry = (
   entry: string,
   extractOptions: ExtractParametersOptions = {},
   scope: ModuleScope = {},
+  // The entry as written in the config, when operations record their source
+  sourceEntry?: string,
 ) =>
   Effect.fn('Generate.extractMethodInfosFromEntry')(function* (
     inputTsconfig: string,
@@ -968,17 +995,24 @@ const extractMethodInfosFromEntry = (
       return yield* EntryNotFoundError.classNotFound(inputEntry, 'Module');
     }
 
-    const controllers = yield* ModuleTraversalService.getDocumentedControllers(
-      entryClass,
-      scope,
-    );
+    const controllers =
+      yield* ModuleTraversalService.getDocumentedControllerModules(
+        entryClass,
+        scope,
+      );
 
     const methodInfos = yield* Effect.forEach(
       controllers,
-      (controller) =>
+      ({ controller, module }) =>
         MethodExtractionService.getControllerMethodInfos(
           controller,
           inputExtractOptions,
+        ).pipe(
+          Effect.map((infos) =>
+            sourceEntry === undefined
+              ? infos
+              : withSource(infos, controller, module, sourceEntry),
+          ),
         ),
       { concurrency: 'unbounded' },
     );
@@ -998,11 +1032,18 @@ const extractMethodInfosEffect = Effect.fn('Generate.extractMethodInfos')(
     entries: readonly string[],
     extractOptions: ExtractParametersOptions,
     scope: ModuleScope,
+    sourceEntries?: readonly string[],
   ) {
     const fromEntries = yield* Effect.forEach(
       entries,
-      (entry) =>
-        extractMethodInfosFromEntry(tsconfig, entry, extractOptions, scope),
+      (entry, index) =>
+        extractMethodInfosFromEntry(
+          tsconfig,
+          entry,
+          extractOptions,
+          scope,
+          sourceEntries?.[index],
+        ),
       { concurrency: 'unbounded' },
     );
 
@@ -1111,9 +1152,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     const security = openapi.security ?? {};
 
     const rawEntry = files.entry ?? DEFAULT_ENTRY;
-    const entries = (Array.isArray(rawEntry) ? rawEntry : [rawEntry]).map((e) =>
-      resolve(configDir, e),
-    );
+    const configEntries: readonly string[] = Array.isArray(rawEntry)
+      ? rawEntry
+      : [rawEntry];
+    const entries = configEntries.map((e) => resolve(configDir, e));
     const output = resolve(configDir, config.output);
 
     const tsconfig = yield* resolveTsconfigForGenerate(
@@ -1146,10 +1188,16 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     yield* Effect.annotateCurrentSpan('dtoGlobCount', dtoGlobArray.length);
     const [extractedMethodInfos, initialSchemas] = yield* Effect.all(
       [
-        extractMethodInfosEffect(tsconfig, entries, extractOptions, {
-          include: options.include,
-          deepScanRoutes: options.deepScanRoutes,
-        }).pipe(
+        extractMethodInfosEffect(
+          tsconfig,
+          entries,
+          extractOptions,
+          {
+            include: options.include,
+            deepScanRoutes: options.deepScanRoutes,
+          },
+          options.operationExtensions ? configEntries : undefined,
+        ).pipe(
           Effect.tap((methods) =>
             Effect.logDebug('Method extraction complete').pipe(
               Effect.annotateLogs({ methodCount: methods.length, entries }),
@@ -1234,6 +1282,13 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
     const transformer = yield* TransformerService;
     let paths = yield* transformer.transformMethods(routedMethods);
+    if (options.operationExtensions) {
+      paths = yield* applyOperationExtensions(
+        paths,
+        routedMethods,
+        options.operationExtensions,
+      );
+    }
     yield* Effect.annotateCurrentSpan(
       'initialPathCount',
       Object.keys(paths).length,

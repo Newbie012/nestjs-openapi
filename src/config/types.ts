@@ -5,7 +5,10 @@
  * should be kept in domain.ts.
  */
 
-import type { CustomDecoratorMapping } from '../analysis/decorators.js';
+import type {
+  CustomDecoratorMapping,
+  CustomDecoratorUse,
+} from '../analysis/decorators.js';
 
 export type {
   CustomDecoratorMapping,
@@ -44,6 +47,44 @@ export type PathTransform = (
     readonly httpMethod: string;
   },
 ) => string;
+
+/** What `operationExtensions` knows about an operation */
+export interface OperationContext {
+  /** Lowercase HTTP method, e.g. `get` */
+  readonly httpMethod: string;
+  /** The documented path, after `basePath` and `transformPath`, e.g. `/users/{id}` */
+  readonly path: string;
+  readonly operationId: string;
+  /** Controller class name */
+  readonly controller: string;
+  /** Method name */
+  readonly method: string;
+  /** Name of the module class that declares the controller */
+  readonly module: string;
+  /** The `files.entry` the operation was found from, as written in the config */
+  readonly entry: string;
+  /**
+   * Decorators as written on the method and on the controller, top to
+   * bottom, with their arguments evaluated statically: literals, arrays and
+   * objects as values, constants and enum members resolved, classes as
+   * `TypeRef`, and anything else `undefined`
+   */
+  readonly decorators: {
+    readonly method: readonly CustomDecoratorUse[];
+    readonly controller: readonly CustomDecoratorUse[];
+  };
+}
+
+/** Specification extensions to add to an operation */
+export type OperationExtensions = Readonly<Record<`x-${string}`, unknown>>;
+
+/**
+ * Returns extensions to add to an operation, or `undefined` for none.
+ * `@ApiExtension` values on the method or controller win over these.
+ */
+export type OperationExtensionsHook = (
+  context: OperationContext,
+) => OperationExtensions | undefined;
 
 export type SchemaNameCollisionStrategy =
   | 'inline'
@@ -326,6 +367,22 @@ export interface OptionsConfig {
    * ```
    */
   readonly transformPath?: PathTransform;
+
+  /**
+   * Adds `x-` extensions to each operation, from what the generator knows
+   * about it, including its decorators. Keys `@ApiExtension` sets on the
+   * method or controller win over the returned ones.
+   *
+   * @example
+   * ```typescript
+   * // @Roles('admin') becomes x-roles: ['admin']
+   * operationExtensions: ({ decorators }) => {
+   *   const roles = decorators.method.find((d) => d.name === 'Roles');
+   *   return roles ? { 'x-roles': roles.args } : undefined;
+   * },
+   * ```
+   */
+  readonly operationExtensions?: OperationExtensionsHook;
 
   /**
    * Extract validation constraints from class-validator decorators.

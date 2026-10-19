@@ -360,6 +360,17 @@ export const getEffectiveDecorators = (
     .getDecorators()
     .flatMap((decorator) => expandDecorator(decorator, options));
 
+// Decorators as written, top to bottom, with their arguments as plain values
+export const readDecoratorUses = (
+  node: Decoratable,
+): readonly CustomDecoratorUse[] =>
+  node.getDecorators().map((decorator) => ({
+    name: decorator.getName(),
+    args: decorator
+      .getArguments()
+      .map((arg) => toUserValue(evaluate(arg, EMPTY_ENVIRONMENT))),
+  }));
+
 // In the order Nest runs them: the bottom decorator first, and each
 // applyDecorators() list in order, so a later call overrides an earlier one
 export const getEffectiveDecoratorsInApplyOrder = (
