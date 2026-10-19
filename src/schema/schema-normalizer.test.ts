@@ -425,6 +425,40 @@ describe('schema-normalizer', () => {
       ).toBe('#/components/schemas/Tags');
     });
 
+    it('names a wrapper over a checker ID after the declaration it wraps', () => {
+      const schemas: GeneratedSchemas = {
+        definitions: {
+          Owner: {
+            type: 'object',
+            properties: {
+              pet: {
+                anyOf: [
+                  { $ref: '#/definitions/Box<class-123-4-5>' },
+                  { type: 'null' },
+                ],
+              },
+            },
+          },
+          Pet: { type: 'object', properties: { id: { type: 'string' } } },
+          'Box<class-123-4-5>': {
+            $ref: '#/definitions/Pet',
+            description: 'A transparent wrapper',
+          },
+        },
+      };
+
+      const result = normalizeStructureRefs(schemas);
+
+      expect(Object.keys(result.definitions).sort()).toEqual([
+        'Box<Pet>',
+        'Owner',
+        'Pet',
+      ]);
+      expect(result.definitions['Owner'].properties?.pet.anyOf?.[0]).toEqual({
+        $ref: '#/components/schemas/Box<Pet>',
+      });
+    });
+
     it('should preserve non-structure schemas unchanged', () => {
       const schemas: GeneratedSchemas = {
         definitions: {
