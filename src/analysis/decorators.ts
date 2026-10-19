@@ -360,6 +360,16 @@ export const getEffectiveDecorators = (
     .getDecorators()
     .flatMap((decorator) => expandDecorator(decorator, options));
 
+// In the order Nest runs them: the bottom decorator first, and each
+// applyDecorators() list in order, so a later call overrides an earlier one
+export const getEffectiveDecoratorsInApplyOrder = (
+  node: Decoratable,
+  options: DecoratorExpansionOptions = NO_MAPPINGS,
+) =>
+  [...node.getDecorators()]
+    .reverse()
+    .flatMap((decorator) => expandDecorator(decorator, options));
+
 export const findDecorators = (
   node: Decoratable,
   name: string,
