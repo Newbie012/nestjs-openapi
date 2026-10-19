@@ -475,11 +475,17 @@ const isInlineObjectTypeText = (typeText: string): boolean => {
   return trimmed.startsWith('{') && trimmed.endsWith('}');
 };
 
-/** Extract class properties as individual query parameters */
-const expandQueryDtoProperties = (
+const DTO_PARAMETER_DECORATORS = {
+  query: 'ApiQuery',
+  path: 'ApiParam',
+} as const;
+
+/** Extract class properties as individual query or path parameters */
+const expandDtoProperties = (
   method: MethodDeclaration,
   paramType: ReturnType<ParameterDeclaration['getType']>,
   expansion: DecoratorExpansionOptions | undefined,
+  location: keyof typeof DTO_PARAMETER_DECORATORS = 'query',
 ): ResolvedParameter[] => {
   const expandedParams: ResolvedParameter[] = [];
   const properties = paramType.getProperties();
@@ -545,18 +551,17 @@ const expandQueryDtoProperties = (
       }
     }
 
-    // Try to get description from @ApiQuery decorators on the method
     const description = findDescriptionByName(
       getEffectiveDecorators(method, expansion),
-      'ApiQuery',
+      DTO_PARAMETER_DECORATORS[location],
       propName,
     );
 
     expandedParams.push({
       name: propName,
-      location: 'query',
+      location,
       tsType: propTypeText,
-      required: !isOptional,
+      required: location === 'path' || !isOptional,
       description,
       constraints,
     });
@@ -653,7 +658,7 @@ const extractParameters = (
         isExpandableType(tsType)
       ) {
         // Expand DTO properties to individual query parameters
-        const expandedParams = expandQueryDtoProperties(
+        const expandedParams = expandDtoProperties(
           method,
           paramType,
           options.expansion,
@@ -663,6 +668,23 @@ const extractParameters = (
           return params;
         }
         // If expansion failed (no properties found), fall through to default behavior
+      }
+
+      if (
+        decoratorName === 'Param' &&
+        !hasExplicitName &&
+        isExpandableType(tsType)
+      ) {
+        const routeParams = expandDtoProperties(
+          method,
+          paramType,
+          options.expansion,
+          'path',
+        );
+        if (routeParams.length > 0) {
+          params.push(...routeParams);
+          return params;
+        }
       }
 
       const isOptional =
@@ -773,7 +795,7 @@ const expandDeclaredQueryType = (
       Node.isInterfaceDeclaration(declaration),
   );
   if (!classDecl) return [];
-  return expandQueryDtoProperties(method, classDecl.getType(), expansion);
+  return expandDtoProperties(method, classDecl.getType(), expansion);
 };
 
 // Method-level @ApiTags add to the controller's, as in @nestjs/swagger
