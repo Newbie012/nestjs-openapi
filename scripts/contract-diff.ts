@@ -24,7 +24,7 @@ interface Change {
 
 interface FileDiff {
   readonly file: string;
-  readonly status: 'added' | 'removed' | 'changed';
+  readonly status: 'not produced' | 'removed' | 'changed';
   readonly changes: ReadonlyArray<Change>;
 }
 
@@ -32,9 +32,11 @@ const run = (
   command: string,
   args: ReadonlyArray<string>,
   cwd: string = ROOT,
+  env: Readonly<Record<string, string>> = {},
 ): { ok: boolean; stdout: string; output: string } => {
   const result = spawnSync(command, args, {
     cwd,
+    env: { ...process.env, ...env },
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
   });
@@ -92,6 +94,18 @@ const copyFolder = (folder: string): void => {
     recursive: true,
     filter: (source) => !source.split(sep).includes('node_modules'),
   });
+};
+
+const removeContracts = (dir: string): void => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const full = join(dir, entry.name);
+    if (entry.name === '__contracts__') {
+      rmSync(full, { recursive: true, force: true });
+    } else {
+      removeContracts(full);
+    }
+  }
 };
 
 const firstLine = (output: string): string =>
@@ -167,7 +181,7 @@ const diffJson = (
 const readJson = (file: string): unknown =>
   JSON.parse(readFileSync(file, 'utf8'));
 
-const diffContracts = (
+export const diffContracts = (
   current: Map<string, string>,
   baseline: Map<string, string>,
 ): { diffs: FileDiff[]; total: number } => {
@@ -176,7 +190,7 @@ const diffContracts = (
   for (const file of files) {
     const now = current.get(file);
     const then = baseline.get(file);
-    if (now && !then) diffs.push({ file, status: 'added', changes: [] });
+    if (now && !then) diffs.push({ file, status: 'not produced', changes: [] });
     else if (!now && then) diffs.push({ file, status: 'removed', changes: [] });
     else if (now && then) {
       const changes = diffJson(readJson(then), readJson(now));
@@ -194,7 +208,7 @@ const caseAndVersion = (file: string): { name: string; version: string } => {
     : { name: base.slice(0, dot), version: base.slice(dot + 1) };
 };
 
-const renderReport = (
+export const renderReport = (
   ref: string,
   { diffs, total }: { diffs: FileDiff[]; total: number },
 ): string => {
@@ -203,7 +217,13 @@ const renderReport = (
     lines.push('No output changes.');
     return lines.join('\n');
   }
-  lines.push(`${diffs.length} of ${total} documents changed`, '');
+  const changed = diffs.filter((diff) => diff.status === 'changed').length;
+  const notProduced = diffs.filter((d) => d.status === 'not produced').length;
+  const removed = diffs.filter((diff) => diff.status === 'removed').length;
+  const parts = [`${changed} of ${total} documents changed`];
+  if (notProduced > 0) parts.push(`${notProduced} not produced by ${ref}`);
+  if (removed > 0) parts.push(`${removed} removed`);
+  lines.push(parts.join(', '), '');
   lines.push('| Case | Version | Changed paths |', '| --- | --- | --- |');
   for (const diff of diffs.slice(0, MAX_FILES)) {
     const { name, version } = caseAndVersion(diff.file);
@@ -216,7 +236,11 @@ const renderReport = (
   }
   for (const diff of diffs.slice(0, MAX_FILES)) {
     lines.push('', '<details>', `<summary>${diff.file}</summary>`, '');
-    if (diff.status !== 'changed') lines.push(`Document ${diff.status}.`);
+    if (diff.status === 'not produced') {
+      lines.push(`Document not produced by ${ref}.`);
+    } else if (diff.status === 'removed') {
+      lines.push('Document removed.');
+    }
     for (const change of diff.changes.slice(0, MAX_PATHS)) {
       lines.push(
         `- \`${change.path}\`: \`${change.before}\` → \`${change.after}\``,
@@ -263,20 +287,34 @@ const main = (): void => {
 
   copyFolder('test/contract');
   copyFolder('e2e-applications');
+  removeContracts(join(BASELINE, 'test/contract'));
 
-  const steps: ReadonlyArray<ReadonlyArray<string>> = [
-    ['--dir', BASELINE, 'install', '--frozen-lockfile'],
+  const install = run('pnpm', [
+    '--dir',
+    BASELINE,
+    'install',
+    '--frozen-lockfile',
+  ]);
+  if (!install.ok) {
+    finish(
+      args.out,
+      `${MARKER}\n## Generated output vs ${ref}\n\nNo baseline: ${ref} can't install dependencies (${firstLine(install.output)}).`,
+    );
+    return;
+  }
+
+  const generated = run(
+    'pnpm',
     ['--dir', BASELINE, 'exec', 'vitest', 'run', 'test/contract', '-u'],
-  ];
-  for (const step of steps) {
-    const result = run('pnpm', step);
-    if (!result.ok) {
-      finish(
-        args.out,
-        `${MARKER}\n## Generated output vs ${ref}\n\nNo baseline: ${ref} can't run the contract suite (${firstLine(result.output)}).`,
-      );
-      return;
-    }
+    ROOT,
+    { CONTRACT_RECORD_ONLY: '1' },
+  );
+  if (findContracts(BASELINE).size === 0) {
+    finish(
+      args.out,
+      `${MARKER}\n## Generated output vs ${ref}\n\nNo baseline: ${ref} can't run the contract suite (${firstLine(generated.output)}).`,
+    );
+    return;
   }
 
   const report = renderReport(
@@ -286,4 +324,4 @@ const main = (): void => {
   finish(args.out, report);
 };
 
-main();
+if (import.meta.main) main();
