@@ -401,6 +401,7 @@ export const OptionsConfig = Schema.Struct({
   include: Schema.optional(Schema.Array(Schema.String)),
   deepScanRoutes: Schema.optional(Schema.Boolean),
   enums: Schema.optional(Schema.Literal('nest', 'ref')),
+  order: Schema.optional(Schema.Literal('source', 'alphabetical')),
   versioning: Schema.optional(
     Schema.Struct({
       type: Schema.Literal('uri', 'header', 'media-type', 'custom'),

@@ -492,6 +492,21 @@ export interface OptionsConfig {
   readonly enums?: 'nest' | 'ref';
 
   /**
+   * Order of paths, operations, schema properties and component schemas.
+   *
+   * - `'source'`: declaration order. Paths follow the controllers as they are
+   *   reached from the entry module and their methods in class order;
+   *   properties follow the class; component schemas follow the order they
+   *   are first reached.
+   * - `'alphabetical'`: sort them A to Z.
+   *
+   * Other object keys stay in a fixed order either way.
+   *
+   * @default 'alphabetical'
+   */
+  readonly order?: 'source' | 'alphabetical';
+
+  /**
    * Versioning, as passed to `app.enableVersioning()`, which static analysis
    * cannot see. With `type: 'uri'`, paths get the version of their method
    * (`@Version()`) or controller (`@Controller({ version })`), or

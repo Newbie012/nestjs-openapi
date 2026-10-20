@@ -202,40 +202,160 @@ const OPENAPI_FIELD_ORDER = [
   'security',
 ];
 
+type KeyContext =
+  | 'root'
+  | 'paths'
+  | 'pathItem'
+  | 'components'
+  | 'schemas'
+  | 'schema'
+  | 'properties'
+  | 'value'
+  | 'other';
+
+const SCHEMA_CHILD_KEYS = new Set([
+  'items',
+  'additionalProperties',
+  'not',
+  'allOf',
+  'anyOf',
+  'oneOf',
+  'prefixItems',
+  'contains',
+  'propertyNames',
+  'if',
+  'then',
+  'else',
+  'unevaluatedItems',
+  'unevaluatedProperties',
+]);
+
+const VALUE_KEYS = new Set(['example', 'examples', 'default', 'enum', 'const']);
+
+const childContext = (parent: KeyContext, key: string): KeyContext => {
+  if (parent === 'value') return 'value';
+  if (parent === 'root') {
+    if (key === 'paths') return 'paths';
+    if (key === 'components') return 'components';
+    return 'other';
+  }
+  if (parent === 'paths') return 'pathItem';
+  if (parent === 'components') return key === 'schemas' ? 'schemas' : 'other';
+  if (parent === 'schemas' || parent === 'properties') return 'schema';
+  if (parent === 'schema') {
+    if (key === 'properties') return 'properties';
+    if (VALUE_KEYS.has(key)) return 'value';
+    if (SCHEMA_CHILD_KEYS.has(key)) return 'schema';
+    return 'other';
+  }
+  if (VALUE_KEYS.has(key)) return 'value';
+  if (key === 'schema') return 'schema';
+  return 'other';
+};
+
+const KEEPS_SOURCE_ORDER: ReadonlySet<KeyContext> = new Set([
+  'paths',
+  'pathItem',
+  'properties',
+]);
+
 /**
- * Recursively sort object keys.
+ * Recursively order object keys.
  * - Top-level OpenAPI fields are ordered per spec convention
- * - Nested objects are sorted alphabetically for consistency
+ * - With `'alphabetical'`, every other object is sorted A to Z
+ * - With `'source'`, paths, the operations of a path item and schema
+ *   properties keep the order they were built in; every other object is
+ *   still sorted A to Z
  */
-const sortObjectKeysDeep = <T>(obj: T, isTopLevel = false): T => {
+const orderObjectKeysDeep = <T>(
+  obj: T,
+  order: 'source' | 'alphabetical',
+  context: KeyContext = 'root',
+): T => {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => sortObjectKeysDeep(item, false)) as T;
+    return obj.map((item) =>
+      orderObjectKeysDeep(item, order, context === 'value' ? 'value' : 'other'),
+    ) as T;
   }
 
-  const sorted: Record<string, unknown> = {};
+  const ordered: Record<string, unknown> = {};
   const objRecord = obj as Record<string, unknown>;
   const keys = Object.keys(objRecord);
 
-  const sortedKeys = isTopLevel
-    ? keys.sort((a, b) => {
-        const aIndex = OPENAPI_FIELD_ORDER.indexOf(a);
-        const bIndex = OPENAPI_FIELD_ORDER.indexOf(b);
-        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-        if (aIndex !== -1) return -1;
-        if (bIndex !== -1) return 1;
-        return a.localeCompare(b);
-      })
-    : keys.sort();
+  const orderedKeys =
+    context === 'root'
+      ? keys.sort((a, b) => {
+          const aIndex = OPENAPI_FIELD_ORDER.indexOf(a);
+          const bIndex = OPENAPI_FIELD_ORDER.indexOf(b);
+          if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+          return a.localeCompare(b);
+        })
+      : order === 'source' && KEEPS_SOURCE_ORDER.has(context)
+        ? keys
+        : keys.sort();
 
-  for (const key of sortedKeys) {
-    sorted[key] = sortObjectKeysDeep(objRecord[key], false);
+  for (const key of orderedKeys) {
+    ordered[key] = orderObjectKeysDeep(
+      objRecord[key],
+      order,
+      childContext(context, key),
+    );
   }
 
-  return sorted as T;
+  return ordered as T;
+};
+
+const REF_PREFIX = '#/components/schemas/';
+
+/**
+ * Orders `components.schemas` by first reach: walking the ordered paths, then
+ * each schema as it is reached, in document order. Schemas nothing reaches
+ * follow, A to Z.
+ */
+const orderSchemasByReach = (spec: OpenApiSpec): OpenApiSpec => {
+  const schemas = spec.components?.schemas;
+  if (!schemas) return spec;
+  const reached = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (
+        key === '$ref' &&
+        typeof value === 'string' &&
+        value.startsWith(REF_PREFIX)
+      ) {
+        const name = value.slice(REF_PREFIX.length);
+        if (name in schemas && !reached.has(name)) {
+          reached.add(name);
+          visit(schemas[name]);
+        }
+      } else {
+        visit(value);
+      }
+    }
+  };
+  visit(spec.paths);
+  const names = [
+    ...reached,
+    ...Object.keys(schemas).filter((name) => !reached.has(name)),
+  ];
+  return {
+    ...spec,
+    components: {
+      ...spec.components,
+      schemas: Object.fromEntries(names.map((name) => [name, schemas[name]!])),
+    },
+  };
 };
 
 /**
@@ -1586,7 +1706,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
     }
 
-    const sortedSpec = sortObjectKeysDeep(spec, true);
+    const order = options.order ?? 'alphabetical';
+    const keyOrdered = orderObjectKeysDeep(spec, order);
+    const sortedSpec =
+      order === 'source' ? orderSchemasByReach(keyOrdered) : keyOrdered;
 
     yield* OutputService.ensureOutputDirectory(output);
 

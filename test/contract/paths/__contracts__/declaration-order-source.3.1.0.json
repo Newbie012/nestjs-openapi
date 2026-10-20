@@ -1,0 +1,199 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "declaration-order-source",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/tasks": {
+      "get": {
+        "operationId": "TasksController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tasks"
+        ]
+      },
+      "post": {
+        "operationId": "TasksController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/tasks/{id}": {
+      "get": {
+        "operationId": "TasksController_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tasks"
+        ]
+      },
+      "delete": {
+        "operationId": "TasksController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/accounts": {
+      "get": {
+        "operationId": "Accounts_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AccountDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TaskDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AccountDto"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "done",
+          "owner",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "AccountDto": {
+        "properties": {
+          "zeta": {
+            "type": "string"
+          },
+          "alpha": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "zeta",
+          "alpha"
+        ],
+        "type": "object"
+      },
+      "CreateTaskDto": {
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
