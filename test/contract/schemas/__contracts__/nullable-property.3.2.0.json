@@ -1,0 +1,56 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "nullable-property",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "get": {
+        "operationId": "ShapeController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShapeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShapeDto": {
+        "properties": {
+          "age": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "nickname"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

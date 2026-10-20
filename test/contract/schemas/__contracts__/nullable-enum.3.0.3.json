@@ -1,0 +1,79 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "nullable-enum",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "get": {
+        "operationId": "ShapeController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShapeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Color": {
+        "enum": [
+          "red",
+          "blue"
+        ],
+        "type": "string"
+      },
+      "ShapeDto": {
+        "properties": {
+          "color": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Color"
+              }
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "size": {
+            "enum": [
+              "small",
+              "large"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "free",
+              "paid",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "color",
+          "size",
+          "tier"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
