@@ -331,6 +331,9 @@
           },
           "401": {
             "description": "Unauthorized"
+          },
+          "default": {
+            "description": "Anything else"
           }
         },
         "tags": [

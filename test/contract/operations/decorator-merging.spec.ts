@@ -8,7 +8,8 @@ const contract = surface(import.meta.url);
  * response of the same status merges field by field), a method's
  * `@ApiExtension` wins over the controller's, the topmost decorator wins
  * over the ones below it, a method's `@ApiQuery` replaces the controller's of
- * the same name, and `@All()` documents every HTTP method
+ * the same name, an `@ApiResponse` without a status is the `default`
+ * response, and `@All()` documents every HTTP method
  */
 contract('decorator-merging', {
   spec: 'https://spec.openapis.org/oas/v3.0.3#operation-object',
@@ -58,6 +59,7 @@ export class ThingsController {
 
   @Post('two')
   @ApiConsumes('text/plain')
+  @ApiResponse({ description: 'Anything else' })
   two(@Body() body: ThingDto): ThingDto {
     return body;
   }
