@@ -13,6 +13,12 @@ import { generate } from '../src/document/generate.js';
 const EXCLUDED: Readonly<Record<string, string>> = {
   'complex-generics/openapi.raw.config.ts':
     "genericNames: 'raw' keeps `<` and `>`, which component names do not allow",
+  'overlay/openapi.copy.config.ts':
+    'adds an OpenAPI 3.2 `additionalOperations` entry, which 3.0 and 3.1 do not allow',
+  'overlay/openapi.no-paths.config.ts':
+    'removes `paths`, which OpenAPI 3.0 requires',
+  'overlay/openapi.stale.config.ts':
+    'targets a path that does not exist, which fails generation on purpose',
   'regressions/openapi.raw.config.ts':
     "genericNames: 'raw' keeps `<` and `>`, which component names do not allow",
   'schema-collisions/openapi.error.config.ts':
