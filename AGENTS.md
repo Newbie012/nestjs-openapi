@@ -18,7 +18,7 @@ Static analysis tool that generates OpenAPI specifications from NestJS applicati
 
 ## Releases
 
-A change users would notice needs a change intent: `pnpm change` writes one to `.changeset/`. Merging to `main` releases the pending intents. A refactor, test or docs change needs none.
+A change users would notice needs a change intent: `pnpm change` writes one to `.changeset/`. Merging to `main` releases the pending intents. A refactor, test or docs change needs none. When a change rewrites expected documents under `test/contract/**/__contracts__/`, its intent names what changed in the output, and a refactor rewrites none.
 
 ## Documentation
 
