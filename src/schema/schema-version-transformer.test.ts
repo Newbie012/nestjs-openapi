@@ -36,6 +36,33 @@ describe('schema-version-transformer', () => {
       expect(result.User.properties?.email.type).toBe('string');
     });
 
+    it('adds null as a branch of a nullable oneOf or anyOf for 3.1.0', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        Pet: {
+          type: 'object',
+          properties: {
+            exclusive: {
+              nullable: true,
+              oneOf: [{ type: 'string' }, { type: 'number' }],
+            },
+            either: {
+              nullable: true,
+              anyOf: [{ type: 'string' }, { type: 'number' }],
+            },
+          },
+        },
+      };
+
+      const pet = transformSchemasForVersion(schemas, '3.1.0').Pet;
+
+      expect(pet.properties?.exclusive).toEqual({
+        oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }],
+      });
+      expect(pet.properties?.either).toEqual({
+        anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }],
+      });
+    });
+
     it('should move metadata beside $ref for 3.1.0', () => {
       const schemas: Record<string, OpenApiSchema> = {
         User: {
@@ -853,6 +880,15 @@ describe('schema-version-transformer', () => {
       expect(
         adaptProperty({ type: 'number', minimum: 5, exclusiveMinimum: 0 }),
       ).toEqual({ type: 'number', minimum: 5 });
+    });
+
+    it('keeps the stricter of an upper bound and an exclusive upper bound', () => {
+      expect(
+        adaptProperty({ type: 'number', maximum: 10, exclusiveMaximum: 5 }),
+      ).toEqual({ type: 'number', maximum: 5, exclusiveMaximum: true });
+      expect(
+        adaptProperty({ type: 'number', maximum: 3, exclusiveMaximum: 5 }),
+      ).toEqual({ type: 'number', maximum: 3 });
     });
   });
 

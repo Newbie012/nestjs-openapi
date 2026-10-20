@@ -1,0 +1,77 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Non-exported Classes API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/outer": {
+      "get": {
+        "operationId": "OuterController_find",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OuterDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Outer"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuditedBase": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InnerDto": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "label"
+        ],
+        "type": "object"
+      },
+      "OuterDto": {
+        "properties": {
+          "audit": {
+            "$ref": "#/components/schemas/AuditedBase"
+          },
+          "inner": {
+            "$ref": "#/components/schemas/InnerDto"
+          }
+        },
+        "required": [
+          "inner",
+          "audit"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
