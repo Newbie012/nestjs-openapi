@@ -34,8 +34,10 @@
         "properties": {
           "labels": {
             "additionalProperties": {
-              "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "type": "object"
           }

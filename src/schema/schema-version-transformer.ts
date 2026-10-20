@@ -1,11 +1,10 @@
 import type {
-  OpenApiOperation,
   OpenApiPaths,
   OpenApiSchema,
   OpenApiSpec,
   OpenApiVersion,
 } from '../config/types.js';
-import { mapSubschemas } from './schema-walk.js';
+import { mapOperationSchemas, mapSubschemas } from './schema-walk.js';
 
 /**
  * Transforms schemas between OpenAPI 3.0 and 3.1/3.2 formats
@@ -125,22 +124,10 @@ const exclusiveBoundsFor = <S extends Record<string, unknown>>(
   return result as S;
 };
 
-const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
-  // Transform nested schemas first
-  const transformedOneOf = schema.oneOf?.map(transformSchemaToV31);
-  const transformedAnyOf = schema.anyOf?.map(transformSchemaToV31);
-  const transformedAllOf = schema.allOf?.map(transformSchemaToV31);
-  const transformedItems = schema.items
-    ? transformSchemaToV31(schema.items)
-    : undefined;
-  const transformedProperties = schema.properties
-    ? Object.fromEntries(
-        Object.entries(schema.properties).map(([key, value]) => [
-          key,
-          transformSchemaToV31(value),
-        ]),
-      )
-    : undefined;
+const transformSchemaToV31 = (input: OpenApiSchema): OpenApiSchema => {
+  const schema = mapSubschemas(input, (sub) =>
+    transformSchemaToV31(sub as OpenApiSchema),
+  ) as OpenApiSchema;
 
   // Remove OpenAPI 3.0 nullable keyword and represent nullability in 3.1 schema form.
   const { nullable, ...restWithoutNullable } = schema;
@@ -154,11 +141,6 @@ const transformSchemaToV31 = (schema: OpenApiSchema): OpenApiSchema => {
   const transformedSchema: OpenApiSchema = {
     ...replaceBinaryFormat(exclusiveBoundsFor(restWithoutNullable, 'v31')),
     ...(transformedType !== undefined && { type: transformedType }),
-    ...(transformedOneOf && { oneOf: transformedOneOf }),
-    ...(transformedAnyOf && { anyOf: transformedAnyOf }),
-    ...(transformedAllOf && { allOf: transformedAllOf }),
-    ...(transformedItems && { items: transformedItems }),
-    ...(transformedProperties && { properties: transformedProperties }),
   };
 
   if (!nullable) return hoistSingleRefAllOf(transformedSchema);
@@ -238,84 +220,8 @@ const transformMediaSchemaToV31 = (
 };
 
 /**
- * Transforms an operation's schemas (parameters, requestBody, responses)
- */
-const transformOperationToV31 = (
-  operation: OpenApiOperation,
-): OpenApiOperation => {
-  const parameters = operation.parameters?.map((param) => ({
-    ...param,
-    schema: transformSchemaToV31(param.schema),
-  }));
-
-  const requestBody = operation.requestBody
-    ? {
-        ...operation.requestBody,
-        content: Object.fromEntries(
-          Object.entries(operation.requestBody.content).map(
-            ([contentType, mediaType]) => [
-              contentType,
-              {
-                ...mediaType,
-                schema: transformMediaSchemaToV31(
-                  mediaType.schema,
-                  contentType,
-                ),
-              },
-            ],
-          ),
-        ),
-      }
-    : undefined;
-
-  const responses = Object.fromEntries(
-    Object.entries(operation.responses).map(([code, response]) => [
-      code,
-      response.content
-        ? {
-            ...response,
-            content: Object.fromEntries(
-              Object.entries(response.content).map(
-                ([contentType, mediaType]) => [
-                  contentType,
-                  {
-                    ...mediaType,
-                    schema: transformMediaSchemaToV31(
-                      mediaType.schema,
-                      contentType,
-                    ),
-                  },
-                ],
-              ),
-            ),
-          }
-        : response,
-    ]),
-  );
-
-  return {
-    ...operation,
-    ...(parameters && { parameters }),
-    ...(requestBody && { requestBody }),
-    responses,
-  };
-};
-
-const HTTP_METHODS = new Set([
-  'get',
-  'put',
-  'post',
-  'delete',
-  'options',
-  'head',
-  'patch',
-  'trace',
-]);
-
-/**
  * Transforms all path operations to match the target version.
- * Only transforms HTTP method entries, leaving path-level fields
- * (parameters, summary, description) untouched.
+ * Path-level fields (parameters, summary, description) stay untouched.
  */
 const transformPathsForVersion = (
   paths: OpenApiPaths,
@@ -323,17 +229,10 @@ const transformPathsForVersion = (
 ): OpenApiPaths => {
   if (version === '3.0.3') return paths;
 
-  return Object.fromEntries(
-    Object.entries(paths).map(([path, pathItem]) => [
-      path,
-      Object.fromEntries(
-        Object.entries(pathItem).map(([key, value]) =>
-          HTTP_METHODS.has(key)
-            ? [key, transformOperationToV31(value)]
-            : [key, value],
-        ),
-      ),
-    ]),
+  return mapOperationSchemas(paths, (schema, contentType) =>
+    contentType === undefined
+      ? transformSchemaToV31(schema as OpenApiSchema)
+      : transformMediaSchemaToV31(schema as OpenApiSchema, contentType),
   );
 };
 

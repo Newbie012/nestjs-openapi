@@ -888,4 +888,65 @@ describe('schema-version-transformer', () => {
       });
     });
   });
+
+  describe('subschemas under every keyword for 3.1', () => {
+    const nullableString: OpenApiSchema = { type: 'string', nullable: true };
+    const nullableTypeArray = { type: ['string', 'null'] };
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'transforms nullable under additionalProperties, not and patternProperties for %s',
+      (version) => {
+        const result = transformSchemasForVersion(
+          {
+            Map: { type: 'object', additionalProperties: nullableString },
+            Negated: { not: nullableString },
+            Patterned: {
+              type: 'object',
+              patternProperties: { '^x-': nullableString },
+            },
+          } as Record<string, OpenApiSchema>,
+          version,
+        );
+
+        expect(result['Map']).toEqual({
+          type: 'object',
+          additionalProperties: nullableTypeArray,
+        });
+        expect(result['Negated']).toEqual({ not: nullableTypeArray });
+        expect(result['Patterned']).toEqual({
+          type: 'object',
+          patternProperties: { '^x-': nullableTypeArray },
+        });
+      },
+    );
+
+    it.each([
+      ['query', (operation: object) => ({ query: operation })],
+      [
+        'additionalOperations',
+        (operation: object) => ({ additionalOperations: { COPY: operation } }),
+      ],
+    ])('transforms an operation under %s', (_name, pathItem) => {
+      const operation = {
+        responses: {
+          '200': {
+            description: 'ok',
+            content: { 'application/json': { schema: nullableString } },
+          },
+        },
+      };
+
+      const spec = transformSpecForVersion(
+        {
+          openapi: '3.0.3',
+          info: { title: 'Pets', version: '1.0.0' },
+          paths: { '/pets': pathItem(operation) },
+        } as unknown as OpenApiSpec,
+        '3.2.0',
+      );
+
+      expect(JSON.stringify(spec.paths)).toContain('["string","null"]');
+      expect(JSON.stringify(spec.paths)).not.toContain('nullable');
+    });
+  });
 });

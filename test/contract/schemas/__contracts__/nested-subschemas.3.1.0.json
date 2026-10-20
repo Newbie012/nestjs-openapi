@@ -40,19 +40,23 @@
           },
           "labels": {
             "additionalProperties": {
-              "nullable": true,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "type": "object"
           },
           "owners": {
             "additionalProperties": {
-              "allOf": [
+              "anyOf": [
                 {
                   "$ref": "#/components/schemas/UserDto"
+                },
+                {
+                  "type": "null"
                 }
-              ],
-              "nullable": true
+              ]
             },
             "type": "object"
           }
