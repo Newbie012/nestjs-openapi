@@ -11,8 +11,6 @@ type CustomDecoratorMappingFunction = Extract<
   (...args: never[]) => unknown
 >;
 
-// Parameter Types
-
 export const ParameterLocation = Schema.Literal(
   'path',
   'query',
@@ -24,22 +22,17 @@ export type ParameterLocation = typeof ParameterLocation.Type;
 
 /** Validation constraints that can be applied to parameters (plain interface for perf) */
 export interface ParameterConstraints {
-  // String constraints
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: string;
   readonly format?: string;
-  // Number constraints
   readonly minimum?: number;
   readonly maximum?: number;
   readonly exclusiveMinimum?: number | boolean;
   readonly exclusiveMaximum?: number | boolean;
-  // Array constraints
   readonly minItems?: number;
   readonly maxItems?: number;
-  // Enum constraint
   readonly enum?: readonly unknown[];
-  // Type override
   readonly type?: string;
   readonly description?: string;
   readonly isArray?: boolean;
@@ -51,7 +44,6 @@ export const ResolvedParameter = Schema.Struct({
   tsType: Schema.String,
   required: Schema.Boolean,
   description: Schema.OptionFromNullOr(Schema.String),
-  // Note: constraints uses plain interface to avoid Schema initialization overhead
 });
 export interface ResolvedParameter extends Schema.Schema.Type<
   typeof ResolvedParameter
@@ -62,8 +54,6 @@ export interface ResolvedParameter extends Schema.Schema.Type<
   readonly extra?: Readonly<Record<string, unknown>>;
 }
 
-// Return Type
-
 export const ReturnTypeInfo = Schema.Struct({
   type: Schema.OptionFromNullOr(Schema.String),
   inline: Schema.OptionFromNullOr(Schema.String),
@@ -71,8 +61,6 @@ export const ReturnTypeInfo = Schema.Struct({
   filePath: Schema.OptionFromNullOr(Schema.String),
 });
 export type ReturnTypeInfo = typeof ReturnTypeInfo.Type;
-
-// HTTP Method Info
 
 export const HttpMethod = Schema.Literal(
   'GET',
@@ -205,8 +193,6 @@ export const MethodInfo = Schema.Struct({
 });
 export type MethodInfo = typeof MethodInfo.Type;
 
-// Config Types
-
 export const OpenApiContactConfig = Schema.Struct({
   name: Schema.optional(Schema.String),
   email: Schema.optional(Schema.String),
@@ -316,8 +302,6 @@ export const SecurityRequirement = Schema.Record({
 export const OutputFormat = Schema.Literal('json', 'yaml');
 export type OutputFormat = typeof OutputFormat.Type;
 
-// Nested config schemas (new structure)
-
 export const FilesConfig = Schema.Struct({
   entry: Schema.optional(
     Schema.Union(Schema.String, Schema.Array(Schema.String)),
@@ -361,7 +345,6 @@ export const SchemaOptionsConfig = Schema.Struct({
 });
 export type SchemaOptionsConfig = typeof SchemaOptionsConfig.Type;
 
-// Schema for path filter functions: (path: string) => boolean
 const PathFilterFunction = Schema.declare(
   (input: unknown): input is (path: string) => boolean =>
     typeof input === 'function',
@@ -371,7 +354,6 @@ const PathFilterFunction = Schema.declare(
   },
 );
 
-// PathFilter can be either a RegExp or a filter function
 export const PathFilter = Schema.Union(
   Schema.instanceOf(RegExp),
   PathFilterFunction,

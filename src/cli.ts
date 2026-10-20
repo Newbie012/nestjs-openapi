@@ -7,7 +7,6 @@
  *   nestjs-openapi generate -c openapi.config.ts --quiet
  */
 
-// Register tsx TypeScript loader to support .ts config files
 import 'tsx';
 
 import { Cause, Effect, Exit, Option } from 'effect';
@@ -21,7 +20,6 @@ import { relative } from 'node:path';
 import { createRequire } from 'node:module';
 import type { TelemetryConfig } from './config/types.js';
 
-// Read version from package.json at runtime
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
 
@@ -129,13 +127,11 @@ const main = async (): Promise<void> => {
     },
   });
 
-  // Handle help
   if (args.help || args.h) {
     console.log(HELP_TEXT);
     process.exit(0);
   }
 
-  // Handle version
   if (args.version || args.v) {
     console.log(VERSION);
     process.exit(0);
@@ -143,20 +139,17 @@ const main = async (): Promise<void> => {
 
   const command = args._[0];
 
-  // Handle no command
   if (!command) {
     console.log(HELP_TEXT);
     process.exit(0);
   }
 
-  // Handle unknown commands
   if (command !== 'generate') {
     error(`Unknown command: ${command}`);
     console.log('\nRun "nestjs-openapi --help" for usage information.');
     process.exit(1);
   }
 
-  // Handle generate command
   const configPath = args.config || args.c;
   const format = args.format || args.f;
   const quiet = Boolean(args.quiet || args.q);
@@ -172,18 +165,15 @@ const main = async (): Promise<void> => {
     process.exit(1);
   }
 
-  // Validate format option
   if (format && format !== 'json' && format !== 'yaml') {
     error(`Invalid format: ${format}. Must be 'json' or 'yaml'.`);
     process.exit(1);
   }
 
-  if (
-    otelExporter &&
-    otelExporter !== 'console' &&
-    otelExporter !== 'otlp'
-  ) {
-    error(`Invalid --otel-exporter: ${otelExporter}. Must be 'console' or 'otlp'.`);
+  if (otelExporter && otelExporter !== 'console' && otelExporter !== 'otlp') {
+    error(
+      `Invalid --otel-exporter: ${otelExporter}. Must be 'console' or 'otlp'.`,
+    );
     process.exit(1);
   }
 
@@ -223,7 +213,6 @@ const main = async (): Promise<void> => {
         `  ${result.pathCount} paths, ${result.operationCount} operations`,
       );
 
-      // Show validation warnings: broken refs, or breaks of the specification
       if (!result.validation.valid) {
         console.log('');
         warning(

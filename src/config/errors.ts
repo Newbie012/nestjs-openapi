@@ -1,7 +1,5 @@
 import { Schema } from 'effect';
 
-// Project Errors
-
 export class ProjectInitError extends Schema.TaggedError<ProjectInitError>()(
   'ProjectInitError',
   {
@@ -45,8 +43,6 @@ export class EntryNotFoundError extends Schema.TaggedError<EntryNotFoundError>()
 }
 
 export type ProjectError = ProjectInitError | EntryNotFoundError;
-
-// Config Errors
 
 export class ConfigNotFoundError extends Schema.TaggedError<ConfigNotFoundError>()(
   'ConfigNotFoundError',
@@ -129,8 +125,6 @@ export type ConfigError =
   | ConfigLoadError
   | ConfigValidationError;
 
-// Analysis Errors
-
 export class InvalidMethodError extends Schema.TaggedError<InvalidMethodError>()(
   'InvalidMethodError',
   {
@@ -153,8 +147,6 @@ export class InvalidMethodError extends Schema.TaggedError<InvalidMethodError>()
 }
 
 export type AnalysisError = InvalidMethodError;
-
-// Schema / Validation Errors
 
 export class SchemaGenerationError extends Schema.TaggedError<SchemaGenerationError>()(
   'SchemaGenerationError',
@@ -244,8 +236,6 @@ export class PublicApiError extends Schema.TaggedError<PublicApiError>()(
     });
   }
 }
-
-// Runtime Module / Output Errors
 
 export class SpecFileNotFoundError extends Schema.TaggedError<SpecFileNotFoundError>()(
   'SpecFileNotFoundError',
@@ -341,10 +331,7 @@ export class OutputSerializationError extends Schema.TaggedError<OutputSerializa
     cause: Schema.optional(Schema.Unknown),
   },
 ) {
-  static json(
-    outputPath: string,
-    cause?: unknown,
-  ): OutputSerializationError {
+  static json(outputPath: string, cause?: unknown): OutputSerializationError {
     return new OutputSerializationError({
       outputPath,
       format: 'json',
@@ -353,10 +340,7 @@ export class OutputSerializationError extends Schema.TaggedError<OutputSerializa
     });
   }
 
-  static yaml(
-    outputPath: string,
-    cause?: unknown,
-  ): OutputSerializationError {
+  static yaml(outputPath: string, cause?: unknown): OutputSerializationError {
     return new OutputSerializationError({
       outputPath,
       format: 'yaml',

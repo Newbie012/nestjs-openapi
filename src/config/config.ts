@@ -43,13 +43,11 @@ const deepMerge = <T extends Record<string, unknown>>(
       typeof parentValue === 'object' &&
       !Array.isArray(parentValue)
     ) {
-      // Recursively merge objects
       result[key] = deepMerge(
         parentValue as Record<string, unknown>,
         childValue as Record<string, unknown>,
       ) as T[keyof T];
     } else {
-      // Replace value (including arrays)
       result[key] = childValue as T[keyof T];
     }
   }
@@ -169,13 +167,12 @@ const require = createRequire(import.meta.url);
 
 const importConfigModule = async (
   absolutePath: string,
-  forceFreshLoad: boolean,
+  isReload: boolean,
 ): Promise<unknown> => {
   const extension = extname(absolutePath).toLowerCase();
   const fileUrl = pathToFileURL(absolutePath).href;
 
-  // Fast path for one-shot CLI runs: avoid cache-busting on first load for JS configs.
-  if (!forceFreshLoad) {
+  if (!isReload) {
     if (extension === '.cjs') {
       return require(absolutePath);
     }
@@ -189,13 +186,12 @@ const importConfigModule = async (
     }
   }
 
-  if (extension === '.cjs' && forceFreshLoad) {
+  if (extension === '.cjs' && isReload) {
     const resolvedPath = require.resolve(absolutePath);
     delete require.cache[resolvedPath];
     return require(absolutePath);
   }
 
-  // Keep cache-busting for TS (and reload cases) for correctness in long-lived processes/tests.
   const cacheBustUrl = `${fileUrl}?t=${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return import(cacheBustUrl);
 };
@@ -268,7 +264,6 @@ const resolveConfigExtends: (
 ) {
   const absolutePath = resolve(configPath);
 
-  // Detect circular extends
   if (visited.has(absolutePath)) {
     return yield* ConfigLoadError.circularExtends(absolutePath);
   }
@@ -280,27 +275,22 @@ const resolveConfigExtends: (
     return rawConfig;
   }
 
-  // Resolve extends path relative to current config file
   const parentConfigPath = resolve(dirname(absolutePath), extendsPath);
 
   yield* Effect.logDebug('Resolving config extends').pipe(
     Effect.annotateLogs({ parent: parentConfigPath }),
   );
 
-  // Load parent config
   const parentRawConfig = yield* loadRawConfigFromFile(parentConfigPath);
 
-  // Recursively resolve parent's extends
   const resolvedParent = yield* resolveConfigExtends(
     parentRawConfig,
     parentConfigPath,
     visited,
   );
 
-  // Remove extends from child before merging (it's not a real config property)
   const { extends: _, ...childWithoutExtends } = rawConfig;
 
-  // Deep merge parent with child (child wins)
   return deepMerge(
     resolvedParent as Record<string, unknown>,
     childWithoutExtends,
@@ -309,13 +299,10 @@ const resolveConfigExtends: (
 
 export const loadConfigFromFile = Effect.fn('Config.loadConfigFromFile')(
   function* (configPath: string) {
-    // Load raw config
     const rawConfig = yield* loadRawConfigFromFile(configPath);
 
-    // Resolve extends chain
     const mergedConfig = yield* resolveConfigExtends(rawConfig, configPath);
 
-    // Validate merged config (pathFilter is now schema-validated)
     return yield* validateConfig(mergedConfig, configPath);
   },
 );
@@ -340,11 +327,9 @@ export const resolveConfig = (
   const openapi = config.openapi;
   const security = openapi.security ?? {};
 
-  // Normalize entry to array
   const rawEntry = files.entry ?? DEFAULT_ENTRY;
   const entry = Array.isArray(rawEntry) ? rawEntry : [rawEntry];
 
-  // Normalize dtoGlob to array, using defaults if not specified
   const rawDtoGlob = files.dtoGlob;
   const dtoGlob = rawDtoGlob
     ? Array.isArray(rawDtoGlob)
@@ -352,7 +337,6 @@ export const resolveConfig = (
       : [rawDtoGlob]
     : [...DEFAULT_DTO_GLOB];
 
-  // tsconfig is required - fail with typed config validation error
   const tsconfig = files.tsconfig;
   if (!tsconfig) {
     return Effect.fail(

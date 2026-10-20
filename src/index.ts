@@ -32,10 +32,6 @@
  * ```
  */
 
-// =============================================================================
-// Primary Public API
-// =============================================================================
-
 /**
  * Generate OpenAPI specification from a NestJS application
  */
@@ -108,10 +104,6 @@ export type {
   SwaggerOptions,
 } from './runtime/module.js';
 
-// =============================================================================
-// Advanced API (for users who need more control)
-// =============================================================================
-
 /**
  * Internal generate function (Effect-based)
  * Use this if you want to integrate with Effect-TS
@@ -124,7 +116,6 @@ export {
   type GenerateOptions,
 } from './internal.js';
 
-// Domain Types
 export type {
   ParameterLocation,
   ResolvedParameter,
@@ -135,7 +126,6 @@ export type {
   ResolvedConfig,
 } from './model/domain.js';
 
-// Errors
 export {
   ProjectInitError,
   EntryNotFoundError,
@@ -157,21 +147,18 @@ export {
   type GeneratorError,
 } from './config/errors.js';
 
-// Project
 export {
   makeProjectContext,
   type ProjectContext,
   type ProjectOptions,
 } from './analysis/project.js';
 
-// Module Exploration
 export {
   getModules,
   getAllControllers,
   type ModuleWithControllers,
 } from './analysis/modules.js';
 
-// Controller Analysis
 export {
   getControllerPrefix,
   getControllerName,
@@ -182,31 +169,17 @@ export {
   normalizePath,
 } from './analysis/controllers.js';
 
-// Method Analysis
-export {
-  getMethodInfo,
-  getControllerMethodInfos,
-} from './analysis/methods.js';
+export { getMethodInfo, getControllerMethodInfos } from './analysis/methods.js';
 
-// Transformation
-export {
-  transformMethod,
-  transformMethods,
-} from './document/transformer.js';
+export { transformMethod, transformMethods } from './document/transformer.js';
 
-// Schema merging
-export {
-  mergeSchemas,
-  type MergedResult,
-} from './schema/schema-merger.js';
+export { mergeSchemas, type MergedResult } from './schema/schema-merger.js';
 
-// Schema normalization
 export {
   normalizeStructureRefs,
   toPascalCase,
 } from './schema/schema-normalizer.js';
 
-// Schema generation
 export {
   generateSchemas,
   generateSchemasFromFiles,
@@ -217,7 +190,6 @@ export {
   type JsonSchema,
 } from './schema/schema-generator.js';
 
-// Validation mapping
 export {
   extractPropertyConstraints,
   isPropertyOptional,
@@ -233,7 +205,6 @@ export {
 
 export { OutputService } from './document/output-service.js';
 
-// Config utilities
 export {
   ConfigService,
   findConfigFile,
@@ -243,10 +214,8 @@ export {
   loadAndResolveConfig,
 } from './config/config.js';
 
-// Service layers
 export { generatorServicesLayer } from './runtime/service-layer.js';
 
-// AST Utilities
 export {
   resolveClassFromSymbol,
   getArrayInitializer,
@@ -262,7 +231,6 @@ export {
   type ModuleMetadata,
 } from './analysis/nest-ast.js';
 
-// Spec Validation
 export {
   validateSpec,
   categorizeBrokenRefs,

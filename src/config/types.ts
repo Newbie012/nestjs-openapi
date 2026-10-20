@@ -779,23 +779,18 @@ export interface OpenApiSchema {
   readonly contentEncoding?: string;
   /** 3.1+ replacement for format: 'binary' */
   readonly contentMediaType?: string;
-  // String validation constraints
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: string;
-  // Number validation constraints
   readonly minimum?: number;
   readonly maximum?: number;
   /** A number in 3.1; in 3.0, `true` makes `minimum` exclusive */
   readonly exclusiveMinimum?: number | boolean;
   /** A number in 3.1; in 3.0, `true` makes `maximum` exclusive */
   readonly exclusiveMaximum?: number | boolean;
-  // Array validation constraints
   readonly minItems?: number;
   readonly maxItems?: number;
-  // Default value
   readonly default?: unknown;
-  // Additional properties constraint
   readonly additionalProperties?: boolean | OpenApiSchema;
 }
 
