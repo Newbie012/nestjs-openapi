@@ -42,7 +42,7 @@ import {
 } from '../schema/schema-generator.js';
 import { normalizeStructureRefsEffect } from '../schema/schema-normalizer.js';
 import { collapseAliasRefs } from '../schema/schema-alias-collapser.js';
-import { expandConstSchemas } from '../schema/schema-const-expander.js';
+import { OPERATION_KEYS } from '../schema/schema-walk.js';
 import {
   forbidAdditionalProperties,
   mergeSchemasEffect,
@@ -115,19 +115,6 @@ import { applyOverlay } from './overlay.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
 
-// Path item keys that hold operations; an overlay may add others, such as
-// `summary` or `parameters`. OpenAPI 3.2 also has `additionalOperations`
-const OPERATION_KEYS = new Set([
-  'get',
-  'put',
-  'post',
-  'delete',
-  'options',
-  'head',
-  'patch',
-  'trace',
-  'query',
-]);
 const DEFAULT_DTO_GLOB = [
   '**/*.dto.ts',
   '**/*.entity.ts',
@@ -1728,10 +1715,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     );
     paths = adapted.paths as typeof paths;
     schemas = adapted.schemas;
-
-    // `const` is JSON Schema, and OpenAPI only adopted it in 3.1. For 3.0.3,
-    // rewrite it as a single-value `enum`, which that version understands.
-    schemas = expandConstSchemas(schemas, openApiVersion);
 
     const securitySchemes =
       security.schemes && security.schemes.length > 0

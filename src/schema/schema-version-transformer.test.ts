@@ -949,4 +949,118 @@ describe('schema-version-transformer', () => {
       expect(JSON.stringify(spec.paths)).not.toContain('nullable');
     });
   });
+
+  describe('adaptSpecForV30 const', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+
+    it('rewrites const as a single-value enum and keeps other keywords', () => {
+      const widget = widgetOf(
+        adaptSpecForV30(
+          specWith({ const: 'pod', type: 'string', description: 'The field' }),
+        ),
+      );
+
+      expect(widget).toEqual({
+        enum: ['pod'],
+        type: 'string',
+        description: 'The field',
+      });
+    });
+
+    it('lets an existing enum win over const', () => {
+      const widget = widgetOf(
+        adaptSpecForV30(
+          specWith({ const: 'a', enum: ['a', 'b'], type: 'string' }),
+        ),
+      );
+
+      expect(widget).toEqual({ enum: ['a', 'b'], type: 'string' });
+    });
+
+    it.each([
+      ['a falsy string', '', ['']],
+      ['zero', 0, [0]],
+      ['false', false, [false]],
+      ['null', null, [null]],
+    ])('expands %s rather than treating it as absent', (_, value, want) => {
+      const widget = widgetOf(adaptSpecForV30(specWith({ const: value })));
+
+      expect(widget?.enum).toEqual(want);
+    });
+
+    it('rewrites const nested in properties, items, anyOf and additionalProperties', () => {
+      const leaf = { const: 'x', type: 'string' };
+      const widget = widgetOf(
+        adaptSpecForV30(
+          specWith({
+            type: 'object',
+            properties: { kind: leaf, list: { type: 'array', items: leaf } },
+            anyOf: [leaf, { type: 'number' }],
+            additionalProperties: leaf,
+          }),
+        ),
+      );
+
+      const expanded = { enum: ['x'], type: 'string' };
+      expect(widget).toEqual({
+        type: 'object',
+        properties: {
+          kind: expanded,
+          list: { type: 'array', items: expanded },
+        },
+        anyOf: [expanded, { type: 'number' }],
+        additionalProperties: expanded,
+      });
+    });
+
+    it('rewrites const in an operation schema', () => {
+      const spec = adaptSpecForV30({
+        ...specWith({}),
+        paths: {
+          '/widgets': {
+            get: {
+              operationId: 'getWidgets',
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        const: 'card',
+                        type: 'string',
+                      } as OpenApiSchema,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        spec.paths['/widgets'].get.responses['200'].content?.[
+          'application/json'
+        ].schema,
+      ).toEqual({ enum: ['card'], type: 'string' });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)('keeps const for %s', (version) => {
+      const widget = widgetOf(
+        transformSpecForVersion(
+          specWith({ const: 'card', type: 'string' }),
+          version,
+        ),
+      );
+
+      expect(widget).toEqual({ const: 'card', type: 'string' });
+    });
+  });
 });

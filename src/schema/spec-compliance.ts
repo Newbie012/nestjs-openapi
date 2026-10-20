@@ -1,6 +1,9 @@
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
-
-const REF_PREFIX = '#/components/schemas/';
+import {
+  SCHEMA_REF_PREFIX,
+  mapOperationSchemas,
+  mapSubschemas,
+} from './schema-walk.js';
 
 const VALID_COMPONENT_NAME = /^[a-zA-Z0-9._-]+$/;
 
@@ -35,9 +38,9 @@ export const renameSchemaRefs = (
   renames: ReadonlyMap<string, string>,
 ): unknown => {
   const renameRef = (ref: string) => {
-    if (!ref.startsWith(REF_PREFIX)) return ref;
-    const name = ref.slice(REF_PREFIX.length);
-    return `${REF_PREFIX}${renames.get(name) ?? name}`;
+    if (!ref.startsWith(SCHEMA_REF_PREFIX)) return ref;
+    const name = ref.slice(SCHEMA_REF_PREFIX.length);
+    return `${SCHEMA_REF_PREFIX}${renames.get(name) ?? name}`;
   };
   return mapDeep(value, (record) => {
     let result = record;
@@ -98,9 +101,6 @@ export const sanitizeComponentNames = (
   };
 };
 
-const SCHEMA_KEYS = new Set(['schema', 'items', 'not', 'additionalProperties']);
-const SCHEMA_LIST_KEYS = new Set(['allOf', 'anyOf', 'oneOf']);
-
 // OpenAPI 3.0 schemas only have `example` (the first value is used); 3.1
 // (JSON Schema) wants an `examples` array, so a map of example objects
 // becomes the list of their values
@@ -115,28 +115,14 @@ const exampleValues = (examples: unknown) => {
 };
 
 const adaptSchemaExamples = (schema: unknown, version: string): unknown => {
-  if (Array.isArray(schema))
-    return schema.map((item) => adaptSchemaExamples(item, version));
-  if (!schema || typeof schema !== 'object') return schema;
+  const mapped = mapSubschemas(schema, (sub) =>
+    adaptSchemaExamples(sub, version),
+  );
+  if (!mapped || typeof mapped !== 'object' || Array.isArray(mapped))
+    return mapped;
 
-  const record = schema as Record<string, unknown>;
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (key === 'properties' && value && typeof value === 'object') {
-      result[key] = Object.fromEntries(
-        Object.entries(value).map(([name, item]) => [
-          name,
-          adaptSchemaExamples(item, version),
-        ]),
-      );
-    } else if (SCHEMA_KEYS.has(key) || SCHEMA_LIST_KEYS.has(key)) {
-      result[key] = adaptSchemaExamples(value, version);
-    } else {
-      result[key] = value;
-    }
-  }
-
-  const examples = record['examples'];
+  const result = mapped as Record<string, unknown>;
+  const examples = result['examples'];
   if (examples === undefined) return result;
   const values = exampleValues(examples);
 
@@ -152,26 +138,14 @@ export const adaptExamplesForVersion = (
   paths: OpenApiPaths,
   schemas: Record<string, OpenApiSchema>,
   version: string,
-) => {
-  const adaptOperationSchemas = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(adaptOperationSchemas);
-    if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        key === 'schema'
-          ? adaptSchemaExamples(item, version)
-          : adaptOperationSchemas(item),
-      ]),
-    );
-  };
-  return {
-    paths: adaptOperationSchemas(paths) as OpenApiPaths,
-    schemas: Object.fromEntries(
-      Object.entries(schemas).map(([name, schema]) => [
-        name,
-        adaptSchemaExamples(schema, version) as OpenApiSchema,
-      ]),
-    ),
-  };
-};
+) => ({
+  paths: mapOperationSchemas(paths, (schema) =>
+    adaptSchemaExamples(schema, version),
+  ),
+  schemas: Object.fromEntries(
+    Object.entries(schemas).map(([name, schema]) => [
+      name,
+      adaptSchemaExamples(schema, version) as OpenApiSchema,
+    ]),
+  ),
+});

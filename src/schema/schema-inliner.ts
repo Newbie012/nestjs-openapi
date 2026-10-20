@@ -1,6 +1,5 @@
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
-
-const REF_PREFIX = '#/components/schemas/';
+import { SCHEMA_REF_PREFIX } from './schema-walk.js';
 
 // A component that references itself, directly or not, cannot be inlined
 // and stays a component
@@ -19,8 +18,8 @@ export const inlineSchemas = (
 
     const record = value as Record<string, unknown>;
     const ref = record['$ref'];
-    if (typeof ref === 'string' && ref.startsWith(REF_PREFIX)) {
-      const name = ref.slice(REF_PREFIX.length);
+    if (typeof ref === 'string' && ref.startsWith(SCHEMA_REF_PREFIX)) {
+      const name = ref.slice(SCHEMA_REF_PREFIX.length);
       if (names.has(name) && schemas[name]) {
         if (stack.includes(name)) {
           kept.add(name);

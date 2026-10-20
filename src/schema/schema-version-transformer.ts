@@ -4,7 +4,11 @@ import type {
   OpenApiSpec,
   OpenApiVersion,
 } from '../config/types.js';
-import { mapOperationSchemas, mapSubschemas } from './schema-walk.js';
+import {
+  SCHEMA_REF_PREFIX,
+  mapOperationSchemas,
+  mapSubschemas,
+} from './schema-walk.js';
 
 /**
  * Transforms schemas between OpenAPI 3.0 and 3.1/3.2 formats
@@ -277,8 +281,6 @@ type SchemaRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is SchemaRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const COMPONENT_PREFIX = '#/components/schemas/';
-
 const ANNOTATION_KEYS = new Set([
   'description',
   'title',
@@ -300,8 +302,8 @@ const inferSchemaType = (
   if (typeof schema['type'] === 'string') return schema['type'];
 
   const ref = schema['$ref'];
-  if (typeof ref === 'string' && ref.startsWith(COMPONENT_PREFIX)) {
-    const name = ref.slice(COMPONENT_PREFIX.length);
+  if (typeof ref === 'string' && ref.startsWith(SCHEMA_REF_PREFIX)) {
+    const name = ref.slice(SCHEMA_REF_PREFIX.length);
     if (seen.has(name)) return undefined;
     return inferSchemaType(
       components[name],
@@ -386,12 +388,18 @@ const typeNullable = (
   };
 };
 
-// 3.0 has no `const`, wherever the schema ends up: components, or inlined
-// into an operation
+/**
+ * `ts-json-schema-generator` emits `const` for any type with exactly one
+ * inhabitant, and OpenAPI only adopted `const` in 3.1. For 3.0, in components
+ * and inlined operation schemas alike, `enum: [value]` says the same thing.
+ *
+ * An existing `enum` wins: it already constrains the value, so `const` is
+ * dropped rather than overwriting it.
+ */
 const constAsEnum = (schema: SchemaRecord): SchemaRecord => {
   if (!('const' in schema)) return schema;
   const { const: value, ...rest } = schema;
-  return { ...rest, enum: [value] };
+  return { ...rest, enum: (rest['enum'] as unknown[] | undefined) ?? [value] };
 };
 
 const adaptSchemaForV30 = (

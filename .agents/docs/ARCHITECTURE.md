@@ -44,7 +44,7 @@ src/
 │   ├── schema-name-resolution.ts # Equal same-name schemas share a component; collision strategies for the rest
 │   ├── schema-normalizer.ts, schema-alias-collapser.ts, schema-inliner.ts # Names, aliases, inlining
 │   ├── schema-merger.ts      # JSON Schema → OpenAPI components
-│   ├── schema-const-expander.ts, schema-version-transformer.ts # Per-version shapes
+│   ├── schema-version-transformer.ts, schema-walk.ts # Per-version shapes, the one subschema walker
 │   └── spec-compliance.ts    # Valid component names, version-specific `examples`
 ├── document/      # Assembling and writing the spec
 │   ├── generate.ts           # Main generation orchestration

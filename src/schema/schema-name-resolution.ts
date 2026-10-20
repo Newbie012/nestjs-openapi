@@ -6,13 +6,13 @@ import type {
   OpenApiSchema,
   SchemaNameCollisionStrategy,
 } from '../config/types.js';
+import { SCHEMA_REF_PREFIX } from './schema-walk.js';
 import {
   defaultCollisionNames,
   type SchemaNamePlan,
 } from './schema-identity.js';
 import { renameSchemaRefs } from './spec-compliance.js';
 
-const REF_PREFIX = '#/components/schemas/';
 const IDENTIFIER = /[A-Za-z_$][\w$]*/g;
 
 /** Two `enumName`s that name different values */
@@ -24,8 +24,8 @@ export interface EnumNameClash {
 type Schemas = Readonly<Record<string, OpenApiSchema>>;
 
 const refTarget = (ref: unknown) =>
-  typeof ref === 'string' && ref.startsWith(REF_PREFIX)
-    ? ref.slice(REF_PREFIX.length)
+  typeof ref === 'string' && ref.startsWith(SCHEMA_REF_PREFIX)
+    ? ref.slice(SCHEMA_REF_PREFIX.length)
     : undefined;
 
 const byJson = (a: unknown, b: unknown) =>
