@@ -54,7 +54,7 @@ These check things that are not the document, so they stay as small `test/*.test
 ```bash
 pnpm test              # All tests
 pnpm test:watch        # Interactive watch mode
-pnpm vitest run test/contract   # Contract cases only
+pnpm test:e2e          # Contract cases only (vitest run test/contract)
 ```
 
 ## Writing Unit Tests
