@@ -323,22 +323,31 @@ const NON_IMPORTABLE_TYPE_NAMES = new Set([
   'extends',
 ]);
 
-const extractTypeIdentifiers = (typeRef: string): Set<string> => {
+const parseTypeRef = (
+  typeRef: string,
+): { identifiers: Set<string>; unqualified: string } => {
+  const prefix = 'type __Ref = ';
   const source = ts.createSourceFile(
     'type-ref.ts',
-    `type __Ref = ${typeRef};`,
+    `${prefix}${typeRef};`,
     ts.ScriptTarget.Latest,
   );
   const names = new Set<string>();
+  const qualifiers: Array<{ start: number; end: number }> = [];
   const visit = (node: ts.Node): void => {
-    if (
+    if (ts.isTypeReferenceNode(node) && ts.isQualifiedName(node.typeName)) {
+      names.add(node.typeName.right.text);
+      qualifiers.push({
+        start: node.typeName.getStart(source),
+        end: node.typeName.right.getStart(source),
+      });
+    } else if (
       ts.isTypeReferenceNode(node) ||
       ts.isExpressionWithTypeArguments(node)
     ) {
       let name: ts.Node = ts.isTypeReferenceNode(node)
         ? node.typeName
         : node.expression;
-      while (ts.isQualifiedName(name)) name = name.left;
       while (ts.isPropertyAccessExpression(name)) name = name.expression;
       if (ts.isIdentifier(name)) names.add(name.text);
     }
@@ -350,10 +359,29 @@ const extractTypeIdentifiers = (typeRef: string): Set<string> => {
     ts.forEachChild(node, visit);
   };
   visit(source);
-  return new Set(
-    [...names].filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
-  );
+
+  let unqualified = typeRef;
+  for (const { start, end } of qualifiers.sort((a, b) => b.start - a.start)) {
+    unqualified =
+      unqualified.slice(0, start - prefix.length) +
+      unqualified.slice(end - prefix.length);
+  }
+
+  return {
+    identifiers: new Set(
+      [...names].filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
+    ),
+    unqualified,
+  };
 };
+
+/**
+ * The declarations a type reference needs imported. A namespace-qualified
+ * argument such as `Dtos.UserDto` names the declaration on its right, since
+ * the namespace import itself declares nothing to look up.
+ */
+const extractTypeIdentifiers = (typeRef: string): Set<string> =>
+  parseTypeRef(typeRef).identifiers;
 
 const toModuleImportPath = (fromDir: string, filePath: string): string => {
   const importPath = relative(fromDir, filePath).replace(/\\/g, '/');
@@ -488,7 +516,9 @@ const generateMissingGenericSchemasEffect = Effect.fn(
 
     const aliasName = `__MissingGenericRef${index}`;
     aliases.push({ aliasName, schemaName: genericRef });
-    aliasLines.push(`export type ${aliasName} = ${genericRef};`);
+    aliasLines.push(
+      `export type ${aliasName} = ${parseTypeRef(genericRef).unqualified};`,
+    );
   }
 
   if (aliases.length === 0) {
