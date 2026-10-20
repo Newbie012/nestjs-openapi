@@ -592,12 +592,15 @@ const resolveDtoFilesEffect = Effect.fn('Generate.resolveDtoFiles')(function* (
   return [...new Set(fileArrays.flat())];
 });
 
-const indexSchemaClasses = (
+export const indexSchemaClasses = (
   project: Project,
+  sourceFiles: ReadonlySet<string>,
   schemaNames: ReadonlySet<string>,
   plannedSources: ReadonlyMap<string, DeclarationRef>,
 ) => {
   const index = new Map<string, ClassDeclaration>();
+  const schemaFileFirst = (filePath: string) =>
+    sourceFiles.has(filePath) ? 0 : 1;
 
   for (const [name, ref] of plannedSources) {
     if (ref.kind !== 'class' || !schemaNames.has(name)) continue;
@@ -611,12 +614,20 @@ const indexSchemaClasses = (
     if (sourceFile.isDeclarationFile() || sourceFile.isInNodeModules()) {
       continue;
     }
+    const filePath = sourceFile.getFilePath();
 
     for (const classDecl of sourceFile.getClasses()) {
       const name = classDecl.getName();
       if (!name || !schemaNames.has(name) || plannedSources.has(name)) continue;
 
-      if (!index.has(name)) index.set(name, classDecl);
+      const current = index.get(name);
+      if (
+        !current ||
+        schemaFileFirst(filePath) <
+          schemaFileFirst(current.getSourceFile().getFilePath())
+      ) {
+        index.set(name, classDecl);
+      }
     }
   }
 
@@ -645,6 +656,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
     let schemas = inputSchemas;
     const classes = indexSchemaClasses(
       project,
+      new Set(sourceFilePaths),
       new Set(Object.keys(schemas.definitions)),
       plannedSources,
     );
