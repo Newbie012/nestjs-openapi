@@ -1,0 +1,132 @@
+name: Perf measure
+
+on:
+  push:
+    branches: ['perf/**']
+
+jobs:
+  pipeline:
+    name: Pipeline (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install -g --allow-scripts=pnpm "$(node -p "require('./package.json').packageManager")"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create base and flat worktrees
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/noa-base" 7024b9c
+          git worktree add --detach "$RUNNER_TEMP/noa-flat" 71abbd5
+          (cd "$RUNNER_TEMP/noa-base" && pnpm install --frozen-lockfile)
+          (cd "$RUNNER_TEMP/noa-flat" && pnpm install --frozen-lockfile)
+
+      - name: Generate benchmark project
+        run: node scripts/benchmark/large-project.mjs
+
+      - name: Compare
+        run: |
+          mkdir -p perf-out
+          RUNS=5 scripts/benchmark/compare-large.sh \
+            base="$RUNNER_TEMP/noa-base" flat="$RUNNER_TEMP/noa-flat" head=. | tee perf-out/table.md
+
+      - name: Diff outputs
+        run: |
+          cd .bench-large
+          {
+            for pair in "base flat" "base head"; do
+              set -- $pair
+              if diff -q "out-$1.json" "out-$2.json" >/dev/null; then
+                echo "out-$1.json and out-$2.json: identical"
+              else
+                echo "out-$1.json and out-$2.json: DIFFER"
+                diff "out-$1.json" "out-$2.json" | head -60
+              fi
+            done
+          } | tee ../perf-out/diff.txt
+          cp out-*.json ../perf-out/
+
+      - name: Summary
+        run: |
+          {
+            echo '## Pipeline benchmark (macos-latest, 5 runs each)'
+            cat perf-out/table.md
+            echo
+            echo '### Output comparison'
+            echo '```'
+            cat perf-out/diff.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline
+          path: perf-out
+
+  contracts:
+    name: Contract suite (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install -g --allow-scripts=pnpm "$(node -p "require('./package.json').packageManager")"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Timed runs
+        run: |
+          mkdir -p perf-out
+          for i in 1 2 3; do
+            /usr/bin/time -v -o "perf-out/time-$i.txt" node_modules/.bin/vitest run test/contract > "perf-out/vitest-$i.log" 2>&1 || echo "run $i failed"
+          done
+          {
+            echo '## Contract suite (ubuntu-latest)'
+            echo '| run | wall (s) | user (s) | sys (s) | max RSS (MB) |'
+            echo '|---|---:|---:|---:|---:|'
+            for i in 1 2 3; do
+              f="perf-out/time-$i.txt"
+              wall=$(awk -F': ' '/Elapsed \(wall clock\)/{n=split($NF,a,":"); s=0; for(k=1;k<=n;k++) s=s*60+a[k]; print s}' "$f")
+              user=$(awk -F': ' '/User time/{print $2}' "$f")
+              sys=$(awk -F': ' '/System time/{print $2}' "$f")
+              rss=$(awk -F': ' '/Maximum resident/{printf "%d", $2/1024}' "$f")
+              echo "| $i | $wall | $user | $sys | $rss |"
+            done
+          } | tee perf-out/timings.md
+
+      - name: CPU profile
+        run: |
+          mkdir -p perf-out/prof
+          NODE_OPTIONS="--cpu-prof --cpu-prof-dir=$PWD/perf-out/prof" node_modules/.bin/vitest run test/contract > perf-out/vitest-prof.log 2>&1 || echo "profile run failed"
+          node .github/perf/profile-summary.mjs perf-out/prof | tee perf-out/profile.md
+
+      - name: Summary
+        run: |
+          cat perf-out/timings.md >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo '### CPU profile (single run)' >> "$GITHUB_STEP_SUMMARY"
+          cat perf-out/profile.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contracts
+          path: |
+            perf-out/*.txt
+            perf-out/*.md
+            perf-out/*.log
