@@ -1,5 +1,7 @@
 import {
   Node,
+  SyntaxKind,
+  type Expression,
   type MethodDeclaration,
   type SourceFile,
   type Symbol as TsSymbol,
@@ -214,6 +216,54 @@ const walkReference = (
   }
 };
 
+const walkTypeNode = (typeNode: Node, state: WalkState, topLevel: boolean) => {
+  const references = Node.isTypeReference(typeNode)
+    ? [typeNode, ...typeNode.getDescendantsOfKind(SyntaxKind.TypeReference)]
+    : typeNode.getDescendantsOfKind(SyntaxKind.TypeReference);
+  for (const reference of references) {
+    const name = reference.getTypeName();
+    const identifier = Node.isQualifiedName(name) ? name.getRight() : name;
+    for (const declaration of resolveDeclarations(identifier)) {
+      recordDeclaration(declaration, state, topLevel);
+    }
+  }
+};
+
+const returnedExpressions = (fn: Node): readonly Expression[] => {
+  const body =
+    Node.isBodyable(fn) || Node.isBodied(fn) ? fn.getBody() : undefined;
+  if (!body) return [];
+  if (!Node.isBlock(body)) return Node.isExpression(body) ? [body] : [];
+  return body
+    .getDescendantsOfKind(SyntaxKind.ReturnStatement)
+    .filter(
+      (statement) =>
+        statement.getFirstAncestor(Node.isFunctionLikeDeclaration) === fn,
+    )
+    .flatMap((statement) => statement.getExpression() ?? []);
+};
+
+const unwrapExpression = (expression: Expression): Expression =>
+  Node.isAwaitExpression(expression) ||
+  Node.isParenthesizedExpression(expression)
+    ? unwrapExpression(expression.getExpression())
+    : expression;
+
+const writtenReturnTypes = (fn: Node, seen: Set<Node>): readonly Node[] => {
+  if (seen.has(fn) || !Node.isFunctionLikeDeclaration(fn)) return [];
+  seen.add(fn);
+  const annotated = fn.getReturnTypeNode();
+  if (annotated) return [annotated];
+  return returnedExpressions(fn).flatMap((expression) => {
+    const unwrapped = unwrapExpression(expression);
+    return Node.isCallExpression(unwrapped)
+      ? resolveDeclarations(unwrapped.getExpression()).flatMap((callee) =>
+          writtenReturnTypes(callee, seen),
+        )
+      : [];
+  });
+};
+
 const TYPE_BEARING_DECORATORS = /^Api(\w*Response|Body|Query|Param|Header)$/;
 
 export const collectReferencedDeclarations = (
@@ -230,10 +280,15 @@ export const collectReferencedDeclarations = (
   };
 
   walkType(getAwaitedReturnType(method), state, true);
+  for (const typeNode of writtenReturnTypes(method, new Set())) {
+    walkTypeNode(typeNode, state, true);
+  }
 
   for (const parameter of method.getParameters()) {
     if (parameter.getDecorators().length > 0) {
       walkType(parameter.getType(), state, true);
+      const typeNode = parameter.getTypeNode();
+      if (typeNode) walkTypeNode(typeNode, state, true);
     }
   }
 
