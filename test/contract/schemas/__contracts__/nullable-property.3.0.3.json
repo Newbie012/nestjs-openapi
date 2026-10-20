@@ -32,13 +32,13 @@
     "schemas": {
       "ShapeDto": {
         "properties": {
-          "age": {
-            "nullable": true,
-            "type": "number"
-          },
           "nickname": {
             "nullable": true,
             "type": "string"
+          },
+          "age": {
+            "nullable": true,
+            "type": "number"
           }
         },
         "required": [

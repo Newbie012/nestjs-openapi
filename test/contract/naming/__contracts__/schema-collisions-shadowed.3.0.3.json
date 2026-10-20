@@ -30,32 +30,6 @@
   },
   "components": {
     "schemas": {
-      "AddressDto": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "product": {
-            "$ref": "#/components/schemas/ProductDto"
-          }
-        },
-        "required": [
-          "id",
-          "product"
-        ],
-        "type": "object"
-      },
-      "ContactDto": {
-        "properties": {
-          "contactName": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "contactName"
-        ],
-        "type": "object"
-      },
       "OrderSummaryDto": {
         "properties": {
           "address": {
@@ -71,15 +45,30 @@
         ],
         "type": "object"
       },
-      "ProductDto": {
+      "AddressDto": {
         "properties": {
-          "barcode": {
+          "id": {
             "type": "string"
           },
+          "product": {
+            "$ref": "#/components/schemas/ProductDto"
+          }
+        },
+        "required": [
+          "id",
+          "product"
+        ],
+        "type": "object"
+      },
+      "ProductDto": {
+        "properties": {
           "name": {
             "type": "string"
           },
           "sku": {
+            "type": "string"
+          },
+          "barcode": {
             "type": "string"
           }
         },
@@ -87,6 +76,17 @@
           "name",
           "sku",
           "barcode"
+        ],
+        "type": "object"
+      },
+      "ContactDto": {
+        "properties": {
+          "contactName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactName"
         ],
         "type": "object"
       }

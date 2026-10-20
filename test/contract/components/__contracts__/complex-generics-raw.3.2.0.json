@@ -78,32 +78,6 @@
       }
     },
     "/articles/{id}": {
-      "delete": {
-        "operationId": "ArticleController_remove",
-        "parameters": [
-          {
-            "description": "Article ID",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Article deleted"
-          },
-          "404": {
-            "description": "Article not found"
-          }
-        },
-        "summary": "Delete an article",
-        "tags": [
-          "Articles"
-        ]
-      },
       "get": {
         "operationId": "ArticleController_findOne",
         "parameters": [
@@ -176,6 +150,32 @@
         "tags": [
           "Articles"
         ]
+      },
+      "delete": {
+        "operationId": "ArticleController_remove",
+        "parameters": [
+          {
+            "description": "Article ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Article deleted"
+          },
+          "404": {
+            "description": "Article not found"
+          }
+        },
+        "summary": "Delete an article",
+        "tags": [
+          "Articles"
+        ]
       }
     },
     "/articles/{id}/with-author": {
@@ -239,234 +239,6 @@
         "summary": "Get article with all comments",
         "tags": [
           "Articles"
-        ]
-      }
-    },
-    "/batch/articles": {
-      "delete": {
-        "operationId": "BatchController_batchDeleteArticles",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchResult<string>"
-                }
-              }
-            },
-            "description": "Batch deletion result"
-          }
-        },
-        "summary": "Batch delete articles",
-        "tags": [
-          "Batch"
-        ]
-      },
-      "post": {
-        "operationId": "BatchController_batchCreateArticles",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "$ref": "#/components/schemas/CreateArticleDto"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchResult<ArticleEntity>"
-                }
-              }
-            },
-            "description": "Batch operation result"
-          }
-        },
-        "summary": "Batch create articles",
-        "tags": [
-          "Batch"
-        ]
-      }
-    },
-    "/comments": {
-      "get": {
-        "operationId": "CommentController_findAll",
-        "parameters": [
-          {
-            "description": "Filter by article",
-            "in": "query",
-            "name": "articleId",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse<CommentEntity>"
-                }
-              }
-            },
-            "description": "Paginated list of comments"
-          }
-        },
-        "summary": "Get paginated comments",
-        "tags": [
-          "Comments"
-        ]
-      }
-    },
-    "/comments/{id}": {
-      "get": {
-        "operationId": "CommentController_findOne",
-        "parameters": [
-          {
-            "description": "Comment ID",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse<CommentEntity>"
-                }
-              }
-            },
-            "description": "Comment found"
-          }
-        },
-        "summary": "Get comment by ID",
-        "tags": [
-          "Comments"
-        ]
-      }
-    },
-    "/filters": {
-      "get": {
-        "operationId": "FilterController_getFilters",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FilterRules"
-                }
-              }
-            },
-            "description": "Current filter configuration"
-          }
-        },
-        "summary": "Get current filter rules",
-        "tags": [
-          "Filters"
-        ]
-      },
-      "post": {
-        "operationId": "FilterController_updateFilters",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FilterRules"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FilterRules"
-                }
-              }
-            },
-            "description": "Updated filter configuration"
-          }
-        },
-        "summary": "Update filter rules",
-        "tags": [
-          "Filters"
-        ]
-      }
-    },
-    "/search": {
-      "get": {
-        "operationId": "SearchController_search",
-        "parameters": [
-          {
-            "description": "Search query",
-            "in": "query",
-            "name": "q",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by entity type",
-            "in": "query",
-            "name": "type",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SearchResult"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Search results"
-          }
-        },
-        "summary": "Global search across all entities",
-        "tags": [
-          "Search"
         ]
       }
     },
@@ -627,103 +399,289 @@
           "Users"
         ]
       }
+    },
+    "/search": {
+      "get": {
+        "operationId": "SearchController_search",
+        "parameters": [
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by entity type",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Search results"
+          }
+        },
+        "summary": "Global search across all entities",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/batch/articles": {
+      "post": {
+        "operationId": "BatchController_batchCreateArticles",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/CreateArticleDto"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult<ArticleEntity>"
+                }
+              }
+            },
+            "description": "Batch operation result"
+          }
+        },
+        "summary": "Batch create articles",
+        "tags": [
+          "Batch"
+        ]
+      },
+      "delete": {
+        "operationId": "BatchController_batchDeleteArticles",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult<string>"
+                }
+              }
+            },
+            "description": "Batch deletion result"
+          }
+        },
+        "summary": "Batch delete articles",
+        "tags": [
+          "Batch"
+        ]
+      }
+    },
+    "/comments": {
+      "get": {
+        "operationId": "CommentController_findAll",
+        "parameters": [
+          {
+            "description": "Filter by article",
+            "in": "query",
+            "name": "articleId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse<CommentEntity>"
+                }
+              }
+            },
+            "description": "Paginated list of comments"
+          }
+        },
+        "summary": "Get paginated comments",
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/comments/{id}": {
+      "get": {
+        "operationId": "CommentController_findOne",
+        "parameters": [
+          {
+            "description": "Comment ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse<CommentEntity>"
+                }
+              }
+            },
+            "description": "Comment found"
+          }
+        },
+        "summary": "Get comment by ID",
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/filters": {
+      "get": {
+        "operationId": "FilterController_getFilters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterRules"
+                }
+              }
+            },
+            "description": "Current filter configuration"
+          }
+        },
+        "summary": "Get current filter rules",
+        "tags": [
+          "Filters"
+        ]
+      },
+      "post": {
+        "operationId": "FilterController_updateFilters",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilterRules"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterRules"
+                }
+              }
+            },
+            "description": "Updated filter configuration"
+          }
+        },
+        "summary": "Update filter rules",
+        "tags": [
+          "Filters"
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
-      "ApiResponse<ArticleEntity>": {
-        "description": "Generic API response wrapper",
+      "PaginatedResponse<ArticleEntity>": {
+        "description": "Generic paginated response",
         "properties": {
-          "data": {
-            "$ref": "#/components/schemas/ArticleEntity"
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleEntity"
+            },
+            "type": "array"
           },
-          "message": {
-            "type": "string"
+          "total": {
+            "type": "number"
           },
-          "success": {
-            "type": "boolean"
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
           }
         },
         "required": [
-          "success",
-          "data"
-        ],
-        "type": "object"
-      },
-      "ApiResponse<CommentEntity>": {
-        "description": "Generic API response wrapper",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/CommentEntity"
-          },
-          "message": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ],
-        "type": "object"
-      },
-      "ApiResponse<UserEntity>": {
-        "description": "Generic API response wrapper",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/UserEntity"
-          },
-          "message": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ],
-        "type": "object"
-      },
-      "ApiResponse<UserSettings>": {
-        "description": "Generic API response wrapper",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/UserSettings"
-          },
-          "message": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "data"
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalPages"
         ],
         "type": "object"
       },
       "ArticleEntity": {
         "description": "Article entity extending base",
         "properties": {
-          "authorId": {
-            "type": "string"
-          },
-          "content": {
+          "id": {
             "type": "string"
           },
           "createdAt": {
             "type": "string"
           },
-          "id": {
+          "updatedAt": {
             "type": "string"
           },
-          "published": {
-            "type": "boolean"
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
           },
           "tags": {
             "items": {
@@ -731,11 +689,8 @@
             },
             "type": "array"
           },
-          "title": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
+          "published": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -748,6 +703,71 @@
           "title",
           "updatedAt"
         ],
+        "type": "object"
+      },
+      "CreateArticleDto": {
+        "description": "Create DTO for articles",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "published": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ],
+        "type": "object"
+      },
+      "ApiResponse<ArticleEntity>": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArticleEntity"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "UpdateArticleDto": {
+        "description": "Update DTO for articles (partial)",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "published": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "ArticleWithAuthor": {
@@ -763,6 +783,43 @@
         "required": [
           "article",
           "author"
+        ],
+        "type": "object"
+      },
+      "UserEntity": {
+        "description": "User entity extending base",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "user",
+              "guest"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "email",
+          "id",
+          "name",
+          "role",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -785,17 +842,201 @@
         ],
         "type": "object"
       },
+      "CommentEntity": {
+        "description": "Comment entity extending base",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "articleId": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "articleId",
+          "authorId",
+          "createdAt",
+          "id",
+          "text",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PaginatedResponse<UserEntity>": {
+        "description": "Generic paginated response",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserEntity"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "ApiResponse<UserEntity>": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserEntity"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "PaginatedArticlesWithAuthors": {
+        "description": "Complex nested response - paginated articles with authors",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleWithAuthor"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "UserSettings": {
+        "description": "Settings with typed keys",
+        "properties": {
+          "theme": {
+            "enum": [
+              "light",
+              "dark",
+              "system"
+            ],
+            "type": "string"
+          },
+          "notifications": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "theme",
+          "notifications",
+          "language"
+        ],
+        "type": "object"
+      },
+      "ApiResponse<UserSettings>": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserSettings"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "SearchResult": {
+        "description": "Union type response",
+        "properties": {
+          "type": {
+            "enum": [
+              "user",
+              "article",
+              "comment"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "score"
+        ],
+        "type": "object"
+      },
       "BatchResult<ArticleEntity>": {
         "description": "Batch operation result",
         "properties": {
+          "succeeded": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleEntity"
+            },
+            "type": "array"
+          },
           "failed": {
             "items": {
               "properties": {
-                "error": {
-                  "type": "string"
-                },
                 "item": {
                   "$ref": "#/components/schemas/ArticleEntity"
+                },
+                "error": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -803,12 +1044,6 @@
                 "error"
               ],
               "type": "object"
-            },
-            "type": "array"
-          },
-          "succeeded": {
-            "items": {
-              "$ref": "#/components/schemas/ArticleEntity"
             },
             "type": "array"
           },
@@ -826,13 +1061,19 @@
       "BatchResult<string>": {
         "description": "Batch operation result",
         "properties": {
+          "succeeded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "failed": {
             "items": {
               "properties": {
-                "error": {
+                "item": {
                   "type": "string"
                 },
-                "item": {
+                "error": {
                   "type": "string"
                 }
               },
@@ -841,12 +1082,6 @@
                 "error"
               ],
               "type": "object"
-            },
-            "type": "array"
-          },
-          "succeeded": {
-            "items": {
-              "type": "string"
             },
             "type": "array"
           },
@@ -861,159 +1096,6 @@
         ],
         "type": "object"
       },
-      "CommentEntity": {
-        "description": "Comment entity extending base",
-        "properties": {
-          "articleId": {
-            "type": "string"
-          },
-          "authorId": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "articleId",
-          "authorId",
-          "createdAt",
-          "id",
-          "text",
-          "updatedAt"
-        ],
-        "type": "object"
-      },
-      "CreateArticleDto": {
-        "description": "Create DTO for articles",
-        "properties": {
-          "content": {
-            "type": "string"
-          },
-          "published": {
-            "type": "boolean"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "content"
-        ],
-        "type": "object"
-      },
-      "FilterRules": {
-        "description": "Filter rules with inline object types - tests structure ref normalization These inline types should be normalized to readable names based on property keys",
-        "properties": {
-          "k8sLabels": {
-            "$ref": "#/components/schemas/SelectRule<K8sLabels>",
-            "description": "Should normalize to \"K8sLabels\""
-          },
-          "metadata": {
-            "description": "Direct inline object (not wrapped in SelectRule) - should normalize to \"Metadata\"",
-            "properties": {
-              "timestamp": {
-                "type": "number"
-              },
-              "version": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "version",
-              "timestamp"
-            ],
-            "type": "object"
-          },
-          "namespaceLabels": {
-            "$ref": "#/components/schemas/SelectRule<NamespaceLabels>",
-            "description": "Should normalize to \"NamespaceLabels\""
-          },
-          "severity": {
-            "$ref": "#/components/schemas/SelectRule<(\"low\"|\"medium\"|\"high\"|\"critical\")>",
-            "description": "Another clean generic"
-          },
-          "tags": {
-            "$ref": "#/components/schemas/SelectRule<string>",
-            "description": "Clean generic - should remain as-is"
-          }
-        },
-        "type": "object"
-      },
-      "PaginatedArticlesWithAuthors": {
-        "description": "Complex nested response - paginated articles with authors",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ArticleWithAuthor"
-            },
-            "type": "array"
-          },
-          "page": {
-            "type": "number"
-          },
-          "pageSize": {
-            "type": "number"
-          },
-          "total": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "pageSize"
-        ],
-        "type": "object"
-      },
-      "PaginatedResponse<ArticleEntity>": {
-        "description": "Generic paginated response",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ArticleEntity"
-            },
-            "type": "array"
-          },
-          "page": {
-            "type": "number"
-          },
-          "pageSize": {
-            "type": "number"
-          },
-          "total": {
-            "type": "number"
-          },
-          "totalPages": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "pageSize",
-          "totalPages"
-        ],
-        "type": "object"
-      },
       "PaginatedResponse<CommentEntity>": {
         "description": "Generic paginated response",
         "properties": {
@@ -1023,13 +1105,13 @@
             },
             "type": "array"
           },
+          "total": {
+            "type": "number"
+          },
           "page": {
             "type": "number"
           },
           "pageSize": {
-            "type": "number"
-          },
-          "total": {
             "type": "number"
           },
           "totalPages": {
@@ -1045,86 +1127,99 @@
         ],
         "type": "object"
       },
-      "PaginatedResponse<UserEntity>": {
-        "description": "Generic paginated response",
+      "ApiResponse<CommentEntity>": {
+        "description": "Generic API response wrapper",
         "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/UserEntity"
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommentEntity"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "FilterRules": {
+        "description": "Filter rules with inline object types - tests structure ref normalization These inline types should be normalized to readable names based on property keys",
+        "properties": {
+          "namespaceLabels": {
+            "$ref": "#/components/schemas/SelectRule<NamespaceLabels>",
+            "description": "Should normalize to \"NamespaceLabels\""
+          },
+          "k8sLabels": {
+            "$ref": "#/components/schemas/SelectRule<K8sLabels>",
+            "description": "Should normalize to \"K8sLabels\""
+          },
+          "metadata": {
+            "description": "Direct inline object (not wrapped in SelectRule) - should normalize to \"Metadata\"",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "number"
+              }
             },
-            "type": "array"
-          },
-          "page": {
-            "type": "number"
-          },
-          "pageSize": {
-            "type": "number"
-          },
-          "total": {
-            "type": "number"
-          },
-          "totalPages": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "pageSize",
-          "totalPages"
-        ],
-        "type": "object"
-      },
-      "SearchResult": {
-        "description": "Union type response",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "score": {
-            "type": "number"
-          },
-          "type": {
-            "enum": [
-              "user",
-              "article",
-              "comment"
+            "required": [
+              "version",
+              "timestamp"
             ],
-            "type": "string"
+            "type": "object"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/SelectRule<string>",
+            "description": "Clean generic - should remain as-is"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/SelectRule<(\"low\"|\"medium\"|\"high\"|\"critical\")>",
+            "description": "Another clean generic"
           }
         },
-        "required": [
-          "type",
-          "id",
-          "score"
-        ],
         "type": "object"
       },
-      "SelectRule<(\"low\"|\"medium\"|\"high\"|\"critical\")>": {
+      "SelectRule<NamespaceLabels>": {
         "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
         "properties": {
-          "exclude": {
+          "include": {
             "items": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                "critical"
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
               ],
-              "type": "string"
+              "type": "object"
             },
             "type": "array"
           },
-          "include": {
+          "exclude": {
             "items": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                "critical"
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
               ],
-              "type": "string"
+              "type": "object"
             },
             "type": "array"
           }
@@ -1134,24 +1229,6 @@
       "SelectRule<K8sLabels>": {
         "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
         "properties": {
-          "exclude": {
-            "items": {
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "name",
-                "value"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
           "include": {
             "items": {
               "properties": {
@@ -1169,17 +1246,11 @@
               "type": "object"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "SelectRule<NamespaceLabels>": {
-        "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
-        "properties": {
+          },
           "exclude": {
             "items": {
               "properties": {
-                "key": {
+                "name": {
                   "type": "string"
                 },
                 "value": {
@@ -1187,25 +1258,7 @@
                 }
               },
               "required": [
-                "key",
-                "value"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "include": {
-            "items": {
-              "properties": {
-                "key": {
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
+                "name",
                 "value"
               ],
               "type": "object"
@@ -1218,102 +1271,49 @@
       "SelectRule<string>": {
         "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
         "properties": {
-          "exclude": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "include": {
             "items": {
               "type": "string"
             },
             "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "UpdateArticleDto": {
-        "description": "Update DTO for articles (partial)",
-        "properties": {
-          "content": {
-            "type": "string"
           },
-          "published": {
-            "type": "boolean"
-          },
-          "tags": {
+          "exclude": {
             "items": {
               "type": "string"
             },
             "type": "array"
-          },
-          "title": {
-            "type": "string"
           }
         },
         "type": "object"
       },
-      "UserEntity": {
-        "description": "User entity extending base",
+      "SelectRule<(\"low\"|\"medium\"|\"high\"|\"critical\")>": {
+        "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
         "properties": {
-          "createdAt": {
-            "type": "string"
+          "include": {
+            "items": {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
-          "email": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "enum": [
-              "admin",
-              "user",
-              "guest"
-            ],
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
+          "exclude": {
+            "items": {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           }
         },
-        "required": [
-          "createdAt",
-          "email",
-          "id",
-          "name",
-          "role",
-          "updatedAt"
-        ],
-        "type": "object"
-      },
-      "UserSettings": {
-        "description": "Settings with typed keys",
-        "properties": {
-          "language": {
-            "type": "string"
-          },
-          "notifications": {
-            "type": "boolean"
-          },
-          "theme": {
-            "enum": [
-              "light",
-              "dark",
-              "system"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "theme",
-          "notifications",
-          "language"
-        ],
         "type": "object"
       }
     }

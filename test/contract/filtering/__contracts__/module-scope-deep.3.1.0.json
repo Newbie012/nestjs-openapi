@@ -6,27 +6,6 @@
   },
   "servers": [],
   "paths": {
-    "/external": {
-      "get": {
-        "operationId": "ExternalController_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "External"
-        ]
-      }
-    },
     "/feature": {
       "get": {
         "operationId": "FeatureController_get",
@@ -45,6 +24,27 @@
         },
         "tags": [
           "Feature"
+        ]
+      }
+    },
+    "/external": {
+      "get": {
+        "operationId": "ExternalController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "External"
         ]
       }
     }

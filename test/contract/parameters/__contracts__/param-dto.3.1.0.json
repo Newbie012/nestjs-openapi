@@ -6,6 +6,45 @@
   },
   "servers": [],
   "paths": {
+    "/owners/{ownerId}/items/{itemId}": {
+      "get": {
+        "operationId": "OwnersController_item",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ownerId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The item",
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
     "/owners/{ownerId}": {
       "get": {
         "operationId": "OwnersController_owner",
@@ -62,45 +101,6 @@
             "required": true,
             "schema": {
               "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Owners"
-        ]
-      }
-    },
-    "/owners/{ownerId}/items/{itemId}": {
-      "get": {
-        "operationId": "OwnersController_item",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "ownerId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "The item",
-            "in": "path",
-            "name": "itemId",
-            "required": true,
-            "schema": {
-              "type": "string"
             }
           }
         ],

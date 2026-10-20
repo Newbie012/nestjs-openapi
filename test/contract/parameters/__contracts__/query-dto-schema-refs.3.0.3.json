@@ -41,6 +41,40 @@
         ]
       }
     },
+    "/items/search": {
+      "get": {
+        "operationId": "ItemsController_search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "_filter",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FilterQueryDto"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Search items with filters (DTO inlined)",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
     "/items/combined": {
       "get": {
         "operationId": "ItemsController_combined",
@@ -168,40 +202,6 @@
         ]
       }
     },
-    "/items/search": {
-      "get": {
-        "operationId": "ItemsController_search",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "_filter",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/FilterQueryDto"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Search items with filters (DTO inlined)",
-        "tags": [
-          "Items"
-        ]
-      }
-    },
     "/items/validated": {
       "get": {
         "operationId": "ItemsController_validatedSearch",
@@ -239,19 +239,16 @@
   },
   "components": {
     "schemas": {
-      "CombinedQueryDto": {
-        "description": "Combined query params DTO",
+      "PaginationQueryDto": {
+        "description": "Pagination DTO for testing query param inlining",
         "properties": {
-          "includeDeleted": {
-            "type": "boolean"
+          "page": {
+            "type": "number"
           },
           "limit": {
             "type": "number"
           },
-          "page": {
-            "type": "number"
-          },
-          "search": {
+          "sortBy": {
             "type": "string"
           }
         },
@@ -260,19 +257,12 @@
       "FilterQueryDto": {
         "description": "Filter DTO with required and optional fields",
         "properties": {
-          "category": {
-            "description": "Optional category filter",
-            "type": "string"
-          },
-          "dateFrom": {
-            "description": "Optional date range",
-            "type": "string"
-          },
-          "dateTo": {
-            "type": "string"
-          },
           "search": {
             "description": "Required search term",
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional category filter",
             "type": "string"
           },
           "status": {
@@ -283,6 +273,13 @@
               "pending"
             ],
             "type": "string"
+          },
+          "dateFrom": {
+            "description": "Optional date range",
+            "type": "string"
+          },
+          "dateTo": {
+            "type": "string"
           }
         },
         "required": [
@@ -290,37 +287,31 @@
         ],
         "type": "object"
       },
-      "PaginationQueryDto": {
-        "description": "Pagination DTO for testing query param inlining",
+      "CombinedQueryDto": {
+        "description": "Combined query params DTO",
         "properties": {
-          "limit": {
-            "type": "number"
+          "search": {
+            "type": "string"
           },
           "page": {
             "type": "number"
           },
-          "sortBy": {
-            "type": "string"
+          "limit": {
+            "type": "number"
+          },
+          "includeDeleted": {
+            "type": "boolean"
           }
         },
         "type": "object"
       },
-      "SortOrder": {
-        "description": "Sort order enum for testing enum validation",
-        "enum": [
-          "asc",
-          "desc"
-        ],
-        "type": "string"
-      },
       "ValidatedQueryDto": {
         "description": "DTO with validation decorators - tests that",
         "properties": {
-          "limit": {
-            "description": "Optional via both",
-            "maximum": 1000,
-            "minimum": 1,
-            "type": "integer"
+          "search": {
+            "description": "Required search term (no",
+            "minLength": 1,
+            "type": "string"
           },
           "page": {
             "description": "Optional via",
@@ -328,10 +319,11 @@
             "minimum": 1,
             "type": "integer"
           },
-          "search": {
-            "description": "Required search term (no",
-            "minLength": 1,
-            "type": "string"
+          "limit": {
+            "description": "Optional via both",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
           },
           "sortOrder": {
             "allOf": [
@@ -346,6 +338,14 @@
           "search"
         ],
         "type": "object"
+      },
+      "SortOrder": {
+        "description": "Sort order enum for testing enum validation",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
       }
     }
   },

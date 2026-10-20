@@ -30,13 +30,6 @@
   },
   "components": {
     "schemas": {
-      "Color": {
-        "enum": [
-          "red",
-          "blue"
-        ],
-        "type": "string"
-      },
       "ShapeDto": {
         "properties": {
           "color": {
@@ -78,6 +71,13 @@
           "tier"
         ],
         "type": "object"
+      },
+      "Color": {
+        "enum": [
+          "red",
+          "blue"
+        ],
+        "type": "string"
       }
     }
   },

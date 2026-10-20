@@ -502,7 +502,7 @@ export interface OptionsConfig {
    *
    * Other object keys stay in a fixed order either way.
    *
-   * @default 'alphabetical'
+   * @default 'source'
    */
   readonly order?: 'source' | 'alphabetical';
 

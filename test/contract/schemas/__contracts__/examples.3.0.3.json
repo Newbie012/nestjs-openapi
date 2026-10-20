@@ -32,13 +32,13 @@
     "schemas": {
       "ShapeDto": {
         "properties": {
-          "age": {
-            "example": 36,
-            "type": "number"
-          },
           "name": {
             "example": "Ada",
             "type": "string"
+          },
+          "age": {
+            "example": 36,
+            "type": "number"
           }
         },
         "required": [

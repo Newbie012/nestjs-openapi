@@ -6,48 +6,6 @@
   },
   "servers": [],
   "paths": {
-    "/external": {
-      "get": {
-        "operationId": "ExternalController_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "External"
-        ]
-      }
-    },
-    "/feature": {
-      "get": {
-        "operationId": "FeatureController_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Feature"
-        ]
-      }
-    },
     "/internal": {
       "get": {
         "operationId": "InternalController_get",
@@ -69,6 +27,27 @@
         ]
       }
     },
+    "/external": {
+      "get": {
+        "operationId": "ExternalController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "External"
+        ]
+      }
+    },
     "/shared": {
       "get": {
         "operationId": "SharedController_get",
@@ -87,6 +66,27 @@
         },
         "tags": [
           "Shared"
+        ]
+      }
+    },
+    "/feature": {
+      "get": {
+        "operationId": "FeatureController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Feature"
         ]
       }
     }

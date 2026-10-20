@@ -7,218 +7,6 @@
   },
   "servers": [],
   "paths": {
-    "/builtin-types/dto-array": {
-      "post": {
-        "operationId": "BuiltinTypesController_processDtoArray",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "$ref": "#/components/schemas/UserDto"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/UserDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Accept array of DTOs",
-        "tags": [
-          "BuiltinTypes"
-        ]
-      }
-    },
-    "/builtin-types/map-type": {
-      "post": {
-        "operationId": "BuiltinTypesController_processMap",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/UserDto"
-                },
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "summary": "Accept map type",
-        "tags": [
-          "BuiltinTypes"
-        ]
-      }
-    },
-    "/builtin-types/partial-type": {
-      "post": {
-        "operationId": "BuiltinTypesController_processPartial",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Partial_UserDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Accept partial DTO",
-        "tags": [
-          "BuiltinTypes"
-        ]
-      }
-    },
-    "/builtin-types/record-type": {
-      "post": {
-        "operationId": "BuiltinTypesController_processRecord",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "number"
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Accept record type",
-        "tags": [
-          "BuiltinTypes"
-        ]
-      }
-    },
-    "/builtin-types/string-array": {
-      "post": {
-        "operationId": "BuiltinTypesController_processStringArray",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Accept array of strings",
-        "tags": [
-          "BuiltinTypes"
-        ]
-      }
-    },
-    "/builtin-types/string-array-bracket": {
-      "post": {
-        "operationId": "BuiltinTypesController_processStringArrayBracket",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Accept array of strings (bracket syntax)",
-        "tags": [
-          "BuiltinTypes"
-        ]
-      }
-    },
     "/users": {
       "get": {
         "operationId": "UserController_findAll",
@@ -275,28 +63,6 @@
       }
     },
     "/users/{id}": {
-      "delete": {
-        "operationId": "UserController_remove",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "User deleted"
-          }
-        },
-        "summary": "Delete user",
-        "tags": [
-          "Users"
-        ]
-      },
       "get": {
         "operationId": "UserController_findOne",
         "parameters": [
@@ -364,60 +130,254 @@
         "tags": [
           "Users"
         ]
+      },
+      "delete": {
+        "operationId": "UserController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted"
+          }
+        },
+        "summary": "Delete user",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/builtin-types/string-array": {
+      "post": {
+        "operationId": "BuiltinTypesController_processStringArray",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Accept array of strings",
+        "tags": [
+          "BuiltinTypes"
+        ]
+      }
+    },
+    "/builtin-types/dto-array": {
+      "post": {
+        "operationId": "BuiltinTypesController_processDtoArray",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/UserDto"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Accept array of DTOs",
+        "tags": [
+          "BuiltinTypes"
+        ]
+      }
+    },
+    "/builtin-types/string-array-bracket": {
+      "post": {
+        "operationId": "BuiltinTypesController_processStringArrayBracket",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Accept array of strings (bracket syntax)",
+        "tags": [
+          "BuiltinTypes"
+        ]
+      }
+    },
+    "/builtin-types/record-type": {
+      "post": {
+        "operationId": "BuiltinTypesController_processRecord",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "number"
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Accept record type",
+        "tags": [
+          "BuiltinTypes"
+        ]
+      }
+    },
+    "/builtin-types/map-type": {
+      "post": {
+        "operationId": "BuiltinTypesController_processMap",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/UserDto"
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Accept map type",
+        "tags": [
+          "BuiltinTypes"
+        ]
+      }
+    },
+    "/builtin-types/partial-type": {
+      "post": {
+        "operationId": "BuiltinTypesController_processPartial",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Partial_UserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Accept partial DTO",
+        "tags": [
+          "BuiltinTypes"
+        ]
       }
     }
   },
   "components": {
     "schemas": {
-      "CreateUserDto": {
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "email"
-        ],
-        "type": "object"
-      },
-      "Partial_UserDto": {
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "UpdateUserDto": {
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "UserDto": {
         "properties": {
-          "email": {
-            "type": "string"
-          },
           "id": {
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "email": {
             "type": "string"
           }
         },
@@ -426,6 +386,46 @@
           "name",
           "email"
         ],
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ],
+        "type": "object"
+      },
+      "UpdateUserDto": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Partial_UserDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
         "type": "object"
       }
     }

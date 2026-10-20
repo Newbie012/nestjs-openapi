@@ -32,15 +32,15 @@
     "schemas": {
       "ShapeDto": {
         "properties": {
-          "age": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
           "nickname": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "age": {
+            "type": [
+              "number",
               "null"
             ]
           }

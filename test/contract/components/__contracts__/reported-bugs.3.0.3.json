@@ -6,6 +6,27 @@
   },
   "servers": [],
   "paths": {
+    "/foo": {
+      "get": {
+        "operationId": "AppController_getFoo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FooDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/article": {
       "get": {
         "operationId": "AppController_getArticle",
@@ -69,27 +90,6 @@
         ]
       }
     },
-    "/foo": {
-      "get": {
-        "operationId": "AppController_getFoo",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FooDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
     "/list": {
       "post": {
         "operationId": "AppController_list",
@@ -124,19 +124,30 @@
   },
   "components": {
     "schemas": {
+      "FooDto": {
+        "properties": {
+          "a": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "a"
+        ],
+        "type": "object"
+      },
       "ArticleDto": {
         "properties": {
+          "summary": {
+            "description": "x",
+            "nullable": true,
+            "type": "string"
+          },
           "details": {
             "description": "y",
             "nullable": true,
             "type": "string"
           },
           "id": {
-            "type": "string"
-          },
-          "summary": {
-            "description": "x",
-            "nullable": true,
             "type": "string"
           }
         },
@@ -161,11 +172,11 @@
           "cursor": {
             "type": "string"
           },
-          "extra": {
-            "type": "string"
-          },
           "sortBy": {
             "$ref": "#/components/schemas/SortByType"
+          },
+          "extra": {
+            "type": "string"
           }
         },
         "required": [
@@ -175,14 +186,22 @@
         ],
         "type": "object"
       },
-      "FooDto": {
+      "SortByType": {
         "properties": {
-          "a": {
+          "field": {
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
             "type": "string"
           }
         },
         "required": [
-          "a"
+          "field",
+          "direction"
         ],
         "type": "object"
       },
@@ -194,25 +213,6 @@
         },
         "required": [
           "sortBy"
-        ],
-        "type": "object"
-      },
-      "SortByType": {
-        "properties": {
-          "direction": {
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "type": "string"
-          },
-          "field": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "field",
-          "direction"
         ],
         "type": "object"
       }

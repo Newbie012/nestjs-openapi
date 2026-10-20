@@ -7,99 +7,6 @@
   },
   "servers": [],
   "paths": {
-    "/products": {
-      "get": {
-        "operationId": "ProductController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProductResponseDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "List of products"
-          }
-        },
-        "summary": "Get all products",
-        "tags": [
-          "Products"
-        ]
-      },
-      "post": {
-        "operationId": "ProductController_create",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateProductDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProductResponseDto"
-                }
-              }
-            },
-            "description": "Product created"
-          },
-          "400": {
-            "description": "Validation failed"
-          }
-        },
-        "summary": "Create a new product with validation",
-        "tags": [
-          "Products"
-        ]
-      }
-    },
-    "/products/{id}": {
-      "get": {
-        "operationId": "ProductController_findOne",
-        "parameters": [
-          {
-            "description": "Product UUID",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProductResponseDto"
-                }
-              }
-            },
-            "description": "Product found"
-          },
-          "404": {
-            "description": "Product not found"
-          }
-        },
-        "summary": "Get a product by ID",
-        "tags": [
-          "Products"
-        ]
-      }
-    },
     "/users": {
       "get": {
         "operationId": "UserController_findAll",
@@ -260,64 +167,157 @@
           "Users"
         ]
       }
+    },
+    "/products": {
+      "get": {
+        "operationId": "ProductController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProductResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of products"
+          }
+        },
+        "summary": "Get all products",
+        "tags": [
+          "Products"
+        ]
+      },
+      "post": {
+        "operationId": "ProductController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            },
+            "description": "Product created"
+          },
+          "400": {
+            "description": "Validation failed"
+          }
+        },
+        "summary": "Create a new product with validation",
+        "tags": [
+          "Products"
+        ]
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "operationId": "ProductController_findOne",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            },
+            "description": "Product found"
+          },
+          "404": {
+            "description": "Product not found"
+          }
+        },
+        "summary": "Get a product by ID",
+        "tags": [
+          "Products"
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
-      "CreateProductDto": {
-        "description": "DTO for creating a product with array validation",
+      "UserResponseDto": {
+        "description": "DTO representing a user response",
         "properties": {
-          "description": {
-            "maxLength": 1000,
+          "id": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
-            "maxLength": 100,
-            "minLength": 1,
-            "type": "string"
-          },
-          "price": {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          },
-          "stock": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 10,
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "name",
-          "price",
-          "tags"
-        ],
-        "type": "object"
-      },
-      "CreateUserDto": {
-        "description": "DTO for creating a user - demonstrates various validation decorators",
-        "properties": {
-          "age": {
-            "maximum": 150,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "bio": {
             "type": "string"
           },
           "email": {
             "format": "email",
             "type": "string"
           },
+          "age": {
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "website": {
+            "format": "uri",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "age",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "description": "DTO for creating a user - demonstrates various validation decorators",
+        "properties": {
           "name": {
             "maxLength": 50,
             "minLength": 2,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
             "type": "string"
           },
           "password": {
@@ -325,6 +325,11 @@
             "minLength": 8,
             "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)",
             "type": "string"
+          },
+          "age": {
+            "maximum": 150,
+            "minimum": 0,
+            "type": "integer"
           },
           "role": {
             "$ref": "#/components/schemas/UserRole"
@@ -344,6 +349,9 @@
           "website": {
             "format": "uri",
             "type": "string"
+          },
+          "bio": {
+            "type": "string"
           }
         },
         "required": [
@@ -353,120 +361,6 @@
           "age",
           "role",
           "roleAsString"
-        ],
-        "type": "object"
-      },
-      "ProductResponseDto": {
-        "description": "DTO for product response",
-        "properties": {
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "price": {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          },
-          "stock": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "description",
-          "price",
-          "tags",
-          "stock",
-          "createdAt"
-        ],
-        "type": "object"
-      },
-      "UpdateUserDto": {
-        "description": "DTO for updating a user - all fields optional",
-        "properties": {
-          "age": {
-            "maximum": 150,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "email": {
-            "format": "email",
-            "type": "string"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "name": {
-            "maxLength": 50,
-            "minLength": 2,
-            "type": "string"
-          },
-          "website": {
-            "format": "uri",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "UserResponseDto": {
-        "description": "DTO representing a user response",
-        "properties": {
-          "age": {
-            "type": "integer"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "email": {
-            "format": "email",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "website": {
-            "format": "uri",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "email",
-          "age",
-          "isActive",
-          "createdAt",
-          "updatedAt"
         ],
         "type": "object"
       },
@@ -487,6 +381,112 @@
           2
         ],
         "type": "number"
+      },
+      "UpdateUserDto": {
+        "description": "DTO for updating a user - all fields optional",
+        "properties": {
+          "name": {
+            "maxLength": 50,
+            "minLength": 2,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "age": {
+            "maximum": 150,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "website": {
+            "format": "uri",
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProductResponseDto": {
+        "description": "DTO for product response",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stock": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "price",
+          "tags",
+          "stock",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "CreateProductDto": {
+        "description": "DTO for creating a product with array validation",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "price": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "stock": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "price",
+          "tags"
+        ],
+        "type": "object"
       }
     }
   },

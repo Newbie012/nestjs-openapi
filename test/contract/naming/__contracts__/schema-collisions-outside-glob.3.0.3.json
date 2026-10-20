@@ -30,6 +30,21 @@
   },
   "components": {
     "schemas": {
+      "ItemListDto": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "ItemDto": {
         "additionalProperties": false,
         "properties": {
@@ -43,21 +58,6 @@
         "required": [
           "id",
           "label"
-        ],
-        "type": "object"
-      },
-      "ItemListDto": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ItemDto"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
         ],
         "type": "object"
       }

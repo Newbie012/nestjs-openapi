@@ -87,6 +87,41 @@
         ]
       }
     },
+    "/tasks/search": {
+      "post": {
+        "operationId": "TaskController_search",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Search results"
+          }
+        },
+        "summary": "Search tasks",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
     "/tasks/filter": {
       "get": {
         "operationId": "TaskController_filter",
@@ -128,71 +163,16 @@
           "Tasks"
         ]
       }
-    },
-    "/tasks/search": {
-      "post": {
-        "operationId": "TaskController_search",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SearchDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TaskDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Search results"
-          }
-        },
-        "summary": "Search tasks",
-        "tags": [
-          "Tasks"
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
-      "Channel": {
-        "description": "Single-member enum: TypeScript collapses its declared type to the member literal, so schema naming must walk back up to the enum declaration.",
-        "enum": [
-          "email"
-        ],
-        "type": "string"
-      },
-      "Color": {
-        "description": "Enums defined in a separate file (simulates enums from external packages)",
-        "enum": [
-          "red",
-          "green",
-          "blue",
-          "yellow"
-        ],
-        "type": "string"
-      },
       "ItemDto": {
         "description": "DTO covering all extractable",
         "properties": {
-          "codes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "uniqueItems": true
+          "name": {
+            "description": "Display name of the item",
+            "type": "string"
           },
           "color": {
             "allOf": [
@@ -202,9 +182,13 @@
             ],
             "description": "Item color"
           },
-          "currency": {
-            "default": "USD",
-            "example": "USD",
+          "status": {
+            "description": "Item status",
+            "enum": [
+              "active",
+              "deprecated",
+              "archived"
+            ],
             "type": "string"
           },
           "email": {
@@ -212,8 +196,20 @@
             "format": "email",
             "type": "string"
           },
-          "id": {
-            "readOnly": true,
+          "price": {
+            "description": "Item price",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "number"
+          },
+          "slug": {
+            "maxLength": 50,
+            "minLength": 3,
+            "type": "string"
+          },
+          "currency": {
+            "default": "USD",
+            "example": "USD",
             "type": "string"
           },
           "legacyCode": {
@@ -221,22 +217,35 @@
             "description": "Use slug instead",
             "type": "string"
           },
-          "name": {
-            "description": "Display name of the item",
-            "type": "string"
-          },
-          "notes": {
-            "nullable": true,
+          "id": {
+            "readOnly": true,
             "type": "string"
           },
           "password": {
             "type": "string",
             "writeOnly": true
           },
-          "price": {
-            "description": "Item price",
-            "maximum": 10000,
-            "minimum": 0,
+          "notes": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tags": {
+            "description": "Searchable tags",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tag List",
+            "type": "array"
+          },
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "weight": {
+            "multipleOf": 0.01,
             "type": "number"
           },
           "ratio": {
@@ -250,28 +259,6 @@
             "pattern": "^[A-Z]{2}-\\d+$",
             "type": "string"
           },
-          "slug": {
-            "maxLength": 50,
-            "minLength": 3,
-            "type": "string"
-          },
-          "status": {
-            "description": "Item status",
-            "enum": [
-              "active",
-              "deprecated",
-              "archived"
-            ],
-            "type": "string"
-          },
-          "tags": {
-            "description": "Searchable tags",
-            "items": {
-              "type": "string"
-            },
-            "title": "Tag List",
-            "type": "array"
-          },
           "variants": {
             "items": {
               "type": "string"
@@ -279,10 +266,6 @@
             "maxItems": 5,
             "minItems": 1,
             "type": "array"
-          },
-          "weight": {
-            "multipleOf": 0.01,
-            "type": "number"
           }
         },
         "required": [
@@ -306,6 +289,45 @@
         ],
         "type": "object"
       },
+      "Color": {
+        "description": "Enums defined in a separate file (simulates enums from external packages)",
+        "enum": [
+          "red",
+          "green",
+          "blue",
+          "yellow"
+        ],
+        "type": "string"
+      },
+      "TaskDto": {
+        "properties": {
+          "title": {
+            "description": "Task title",
+            "type": "string"
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              }
+            ],
+            "description": "Task priority"
+          },
+          "estimate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Size"
+              }
+            ],
+            "description": "T-shirt size estimate"
+          }
+        },
+        "required": [
+          "title",
+          "priority"
+        ],
+        "type": "object"
+      },
       "Priority": {
         "enum": [
           0,
@@ -316,8 +338,31 @@
         ],
         "type": "number"
       },
+      "Size": {
+        "enum": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "type": "string"
+      },
       "SearchDto": {
         "properties": {
+          "sortOrder": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string"
+          },
+          "sizes": {
+            "description": "Filter by sizes",
+            "items": {
+              "$ref": "#/components/schemas/Size"
+            },
+            "type": "array"
+          },
           "channel": {
             "allOf": [
               {
@@ -328,20 +373,6 @@
           },
           "fallbackChannel": {
             "$ref": "#/components/schemas/Channel"
-          },
-          "sizes": {
-            "description": "Filter by sizes",
-            "items": {
-              "$ref": "#/components/schemas/Size"
-            },
-            "type": "array"
-          },
-          "sortOrder": {
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "type": "string"
           }
         },
         "required": [
@@ -352,43 +383,12 @@
         ],
         "type": "object"
       },
-      "Size": {
+      "Channel": {
+        "description": "Single-member enum: TypeScript collapses its declared type to the member literal, so schema naming must walk back up to the enum declaration.",
         "enum": [
-          "S",
-          "M",
-          "L",
-          "XL"
+          "email"
         ],
         "type": "string"
-      },
-      "TaskDto": {
-        "properties": {
-          "estimate": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Size"
-              }
-            ],
-            "description": "T-shirt size estimate"
-          },
-          "priority": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Priority"
-              }
-            ],
-            "description": "Task priority"
-          },
-          "title": {
-            "description": "Task title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "priority"
-        ],
-        "type": "object"
       }
     }
   },

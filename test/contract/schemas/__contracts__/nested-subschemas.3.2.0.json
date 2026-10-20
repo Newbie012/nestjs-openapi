@@ -32,12 +32,6 @@
     "schemas": {
       "MapsDto": {
         "properties": {
-          "counts": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object"
-          },
           "labels": {
             "additionalProperties": {
               "type": [
@@ -57,6 +51,12 @@
                   "type": "null"
                 }
               ]
+            },
+            "type": "object"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "number"
             },
             "type": "object"
           }

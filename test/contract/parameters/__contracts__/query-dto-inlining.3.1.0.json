@@ -57,6 +57,82 @@
         ]
       }
     },
+    "/items/search": {
+      "get": {
+        "operationId": "ItemsController_search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "object"
+                },
+                {
+                  "type": "object"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Search items with filters (DTO inlined)",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
     "/items/combined": {
       "get": {
         "operationId": "ItemsController_combined",
@@ -208,82 +284,6 @@
         ]
       }
     },
-    "/items/search": {
-      "get": {
-        "operationId": "ItemsController_search",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "search",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "category",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "object"
-                },
-                {
-                  "type": "object"
-                },
-                {
-                  "type": "object"
-                }
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "dateFrom",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "dateTo",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Search items with filters (DTO inlined)",
-        "tags": [
-          "Items"
-        ]
-      }
-    },
     "/items/validated": {
       "get": {
         "operationId": "ItemsController_validatedSearch",
@@ -357,19 +357,12 @@
       "FilterQueryDto": {
         "description": "Filter DTO with required and optional fields",
         "properties": {
-          "category": {
-            "description": "Optional category filter",
-            "type": "string"
-          },
-          "dateFrom": {
-            "description": "Optional date range",
-            "type": "string"
-          },
-          "dateTo": {
-            "type": "string"
-          },
           "search": {
             "description": "Required search term",
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional category filter",
             "type": "string"
           },
           "status": {
@@ -379,6 +372,13 @@
               "inactive",
               "pending"
             ],
+            "type": "string"
+          },
+          "dateFrom": {
+            "description": "Optional date range",
+            "type": "string"
+          },
+          "dateTo": {
             "type": "string"
           }
         },

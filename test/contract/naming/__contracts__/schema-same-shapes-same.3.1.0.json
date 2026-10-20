@@ -6,48 +6,6 @@
   },
   "servers": [],
   "paths": {
-    "/same/forests": {
-      "get": {
-        "operationId": "AppController_forest",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ForestDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/same/groves": {
-      "get": {
-        "operationId": "AppController_grove",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GroveDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
     "/same/invoices": {
       "get": {
         "operationId": "AppController_invoice",
@@ -110,21 +68,159 @@
           "App"
         ]
       }
+    },
+    "/same/forests": {
+      "get": {
+        "operationId": "AppController_forest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForestDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/same/groves": {
+      "get": {
+        "operationId": "AppController_grove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroveDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
-      "BranchDto": {
+      "InvoiceDto": {
         "properties": {
-          "leaves": {
+          "total": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusDto"
+          },
+          "options": {
             "items": {
-              "$ref": "#/components/schemas/LeafDto"
+              "$ref": "#/components/schemas/ChoiceDto_string"
+            },
+            "type": "array"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethodDto"
+          }
+        },
+        "required": [
+          "total",
+          "status",
+          "options",
+          "method"
+        ],
+        "type": "object"
+      },
+      "MoneyDto": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object"
+      },
+      "StatusDto": {
+        "enum": [
+          "open",
+          "paid"
+        ],
+        "type": "string"
+      },
+      "ChoiceDto_string": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "type": "object"
+      },
+      "PaymentMethodDto": {
+        "enum": [
+          "cash",
+          "card"
+        ],
+        "type": "string"
+      },
+      "RefundDto": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusDto"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethodDto"
+          }
+        },
+        "required": [
+          "amount",
+          "status",
+          "method"
+        ],
+        "type": "object"
+      },
+      "TagFiltersDto": {
+        "properties": {
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceDto_TagDto"
+            },
+            "type": "array"
+          },
+          "names": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceDto_string"
             },
             "type": "array"
           }
         },
         "required": [
-          "leaves"
+          "tags",
+          "names"
         ],
         "type": "object"
       },
@@ -143,18 +239,14 @@
         ],
         "type": "object"
       },
-      "ChoiceDto_string": {
+      "TagDto": {
         "properties": {
-          "label": {
-            "type": "string"
-          },
-          "value": {
+          "slug": {
             "type": "string"
           }
         },
         "required": [
-          "label",
-          "value"
+          "slug"
         ],
         "type": "object"
       },
@@ -169,40 +261,17 @@
         ],
         "type": "object"
       },
-      "GroveDto": {
+      "BranchDto": {
         "properties": {
-          "root": {
-            "$ref": "#/components/schemas/BranchDto"
-          }
-        },
-        "required": [
-          "root"
-        ],
-        "type": "object"
-      },
-      "InvoiceDto": {
-        "properties": {
-          "method": {
-            "$ref": "#/components/schemas/PaymentMethodDto"
-          },
-          "options": {
+          "leaves": {
             "items": {
-              "$ref": "#/components/schemas/ChoiceDto_string"
+              "$ref": "#/components/schemas/LeafDto"
             },
             "type": "array"
-          },
-          "status": {
-            "$ref": "#/components/schemas/StatusDto"
-          },
-          "total": {
-            "$ref": "#/components/schemas/MoneyDto"
           }
         },
         "required": [
-          "total",
-          "status",
-          "options",
-          "method"
+          "leaves"
         ],
         "type": "object"
       },
@@ -214,83 +283,14 @@
         },
         "type": "object"
       },
-      "MoneyDto": {
+      "GroveDto": {
         "properties": {
-          "amount": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
+          "root": {
+            "$ref": "#/components/schemas/BranchDto"
           }
         },
         "required": [
-          "amount",
-          "currency"
-        ],
-        "type": "object"
-      },
-      "PaymentMethodDto": {
-        "enum": [
-          "cash",
-          "card"
-        ],
-        "type": "string"
-      },
-      "RefundDto": {
-        "properties": {
-          "amount": {
-            "$ref": "#/components/schemas/MoneyDto"
-          },
-          "method": {
-            "$ref": "#/components/schemas/PaymentMethodDto"
-          },
-          "status": {
-            "$ref": "#/components/schemas/StatusDto"
-          }
-        },
-        "required": [
-          "amount",
-          "status",
-          "method"
-        ],
-        "type": "object"
-      },
-      "StatusDto": {
-        "enum": [
-          "open",
-          "paid"
-        ],
-        "type": "string"
-      },
-      "TagDto": {
-        "properties": {
-          "slug": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "slug"
-        ],
-        "type": "object"
-      },
-      "TagFiltersDto": {
-        "properties": {
-          "names": {
-            "items": {
-              "$ref": "#/components/schemas/ChoiceDto_string"
-            },
-            "type": "array"
-          },
-          "tags": {
-            "items": {
-              "$ref": "#/components/schemas/ChoiceDto_TagDto"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "tags",
-          "names"
+          "root"
         ],
         "type": "object"
       }

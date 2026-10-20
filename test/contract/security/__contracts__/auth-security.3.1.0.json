@@ -97,10 +97,10 @@
     "schemas": {
       "LoginDto": {
         "properties": {
-          "password": {
+          "username": {
             "type": "string"
           },
-          "username": {
+          "password": {
             "type": "string"
           }
         },
@@ -115,11 +115,11 @@
           "accessToken": {
             "type": "string"
           },
-          "expiresIn": {
-            "type": "number"
-          },
           "refreshToken": {
             "type": "string"
+          },
+          "expiresIn": {
+            "type": "number"
           }
         },
         "required": [
@@ -131,10 +131,13 @@
       },
       "UserProfileDto": {
         "properties": {
-          "email": {
+          "id": {
             "type": "string"
           },
-          "id": {
+          "username": {
+            "type": "string"
+          },
+          "email": {
             "type": "string"
           },
           "roles": {
@@ -142,9 +145,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "username": {
-            "type": "string"
           }
         },
         "required": [

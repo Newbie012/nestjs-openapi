@@ -6,6 +6,153 @@
   },
   "servers": [],
   "paths": {
+    "/api/users": {
+      "get": {
+        "operationId": "UsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "x-context": {
+          "controller": "UsersController",
+          "decorators": {
+            "controller": [
+              {
+                "args": [
+                  "users"
+                ],
+                "name": "Controller"
+              },
+              {
+                "args": [
+                  "admin"
+                ],
+                "name": "Roles"
+              },
+              {
+                "args": [
+                  "x-owner",
+                  "accounts"
+                ],
+                "name": "ApiExtension"
+              }
+            ],
+            "method": [
+              {
+                "args": [],
+                "name": "Get"
+              }
+            ]
+          },
+          "entry": "src/users/users.module.ts",
+          "httpMethod": "get",
+          "method": "list",
+          "module": "UsersModule",
+          "operationId": "UsersController_list",
+          "path": "/api/users"
+        },
+        "x-owner": "accounts",
+        "x-roles": [
+          "admin"
+        ]
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "operationId": "UsersController_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "x-context": {
+          "controller": "UsersController",
+          "decorators": {
+            "controller": [
+              {
+                "args": [
+                  "users"
+                ],
+                "name": "Controller"
+              },
+              {
+                "args": [
+                  "admin"
+                ],
+                "name": "Roles"
+              },
+              {
+                "args": [
+                  "x-owner",
+                  "accounts"
+                ],
+                "name": "ApiExtension"
+              }
+            ],
+            "method": [
+              {
+                "args": [
+                  ":id"
+                ],
+                "name": "Get"
+              },
+              {
+                "args": [
+                  "x-owner",
+                  "profiles"
+                ],
+                "name": "ApiExtension"
+              }
+            ]
+          },
+          "entry": "src/users/users.module.ts",
+          "httpMethod": "get",
+          "method": "get",
+          "module": "UsersModule",
+          "operationId": "UsersController_get",
+          "path": "/api/users/{id}"
+        },
+        "x-owner": "profiles",
+        "x-roles": [
+          "admin"
+        ]
+      }
+    },
     "/api/orders": {
       "get": {
         "operationId": "OrdersController_list",
@@ -179,172 +326,10 @@
         },
         "x-owner": "platform"
       }
-    },
-    "/api/users": {
-      "get": {
-        "operationId": "UsersController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/UserDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Users"
-        ],
-        "x-context": {
-          "controller": "UsersController",
-          "decorators": {
-            "controller": [
-              {
-                "args": [
-                  "users"
-                ],
-                "name": "Controller"
-              },
-              {
-                "args": [
-                  "admin"
-                ],
-                "name": "Roles"
-              },
-              {
-                "args": [
-                  "x-owner",
-                  "accounts"
-                ],
-                "name": "ApiExtension"
-              }
-            ],
-            "method": [
-              {
-                "args": [],
-                "name": "Get"
-              }
-            ]
-          },
-          "entry": "src/users/users.module.ts",
-          "httpMethod": "get",
-          "method": "list",
-          "module": "UsersModule",
-          "operationId": "UsersController_list",
-          "path": "/api/users"
-        },
-        "x-owner": "accounts",
-        "x-roles": [
-          "admin"
-        ]
-      }
-    },
-    "/api/users/{id}": {
-      "get": {
-        "operationId": "UsersController_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Users"
-        ],
-        "x-context": {
-          "controller": "UsersController",
-          "decorators": {
-            "controller": [
-              {
-                "args": [
-                  "users"
-                ],
-                "name": "Controller"
-              },
-              {
-                "args": [
-                  "admin"
-                ],
-                "name": "Roles"
-              },
-              {
-                "args": [
-                  "x-owner",
-                  "accounts"
-                ],
-                "name": "ApiExtension"
-              }
-            ],
-            "method": [
-              {
-                "args": [
-                  ":id"
-                ],
-                "name": "Get"
-              },
-              {
-                "args": [
-                  "x-owner",
-                  "profiles"
-                ],
-                "name": "ApiExtension"
-              }
-            ]
-          },
-          "entry": "src/users/users.module.ts",
-          "httpMethod": "get",
-          "method": "get",
-          "module": "UsersModule",
-          "operationId": "UsersController_get",
-          "path": "/api/users/{id}"
-        },
-        "x-owner": "profiles",
-        "x-roles": [
-          "admin"
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
-      "OrderDto": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "total": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "id",
-          "total"
-        ],
-        "type": "object"
-      },
       "UserDto": {
         "properties": {
           "id": {
@@ -357,6 +342,21 @@
         "required": [
           "id",
           "name"
+        ],
+        "type": "object"
+      },
+      "OrderDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "total"
         ],
         "type": "object"
       }

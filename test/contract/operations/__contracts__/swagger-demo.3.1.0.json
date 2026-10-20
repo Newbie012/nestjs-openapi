@@ -63,31 +63,6 @@
       }
     },
     "/users/{id}": {
-      "delete": {
-        "operationId": "UserController_remove",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User deleted"
-          },
-          "404": {
-            "description": "User not found"
-          }
-        },
-        "summary": "Delete a user",
-        "tags": [
-          "users"
-        ]
-      },
       "get": {
         "operationId": "UserController_findOne",
         "parameters": [
@@ -161,11 +136,73 @@
         "tags": [
           "users"
         ]
+      },
+      "delete": {
+        "operationId": "UserController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Delete a user",
+        "tags": [
+          "users"
+        ]
       }
     }
   },
   "components": {
     "schemas": {
+      "UserDto": {
+        "description": "User DTO for the demo API",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "UserRole": {
+        "description": "User role enum",
+        "enum": [
+          "admin",
+          "user",
+          "guest"
+        ],
+        "type": "string"
+      },
       "CreateUserDto": {
         "description": "DTO for creating a new user",
         "properties": {
@@ -203,43 +240,6 @@
           }
         },
         "type": "object"
-      },
-      "UserDto": {
-        "description": "User DTO for the demo API",
-        "properties": {
-          "createdAt": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/UserRole"
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "name",
-          "role",
-          "createdAt"
-        ],
-        "type": "object"
-      },
-      "UserRole": {
-        "description": "User role enum",
-        "enum": [
-          "admin",
-          "user",
-          "guest"
-        ],
-        "type": "string"
       }
     }
   },

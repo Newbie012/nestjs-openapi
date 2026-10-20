@@ -27,6 +27,61 @@
         ]
       }
     },
+    "/notifications/settings": {
+      "get": {
+        "operationId": "AppController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationSettingsDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/settings/theme": {
+      "put": {
+        "operationId": "AppController_updateTheme",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateThemeDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateThemeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/filters": {
       "get": {
         "operationId": "AppController_filters",
@@ -69,6 +124,27 @@
         ]
       }
     },
+    "/owners": {
+      "get": {
+        "operationId": "AppController_owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Owner"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/notes": {
       "put": {
         "operationId": "AppController_patchNote",
@@ -100,51 +176,6 @@
         ]
       }
     },
-    "/notifications/settings": {
-      "get": {
-        "operationId": "AppController_settings",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/NotificationSettingsDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/owners": {
-      "get": {
-        "operationId": "AppController_owner",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Owner"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
     "/pets": {
       "get": {
         "operationId": "AppController_pet",
@@ -165,41 +196,158 @@
           "App"
         ]
       }
-    },
-    "/settings/theme": {
-      "put": {
-        "operationId": "AppController_updateTheme",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateThemeDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateThemeDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
+      "UserProfile": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sub": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "email_verified": {
+            "type": "boolean"
+          },
+          "address": {
+            "additionalProperties": {},
+            "properties": {
+              "formatted": {
+                "type": "string"
+              },
+              "country": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "displayName",
+          "groups",
+          "sub"
+        ],
+        "type": "object"
+      },
+      "NotificationSettingsDto": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/NotificationChannel"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationChannel"
+            },
+            "type": "array"
+          },
+          "unavailableReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelUnavailableReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "enum": [
+              "email",
+              "sms",
+              "push"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "channels",
+          "label"
+        ],
+        "type": "object"
+      },
+      "NotificationChannel": {
+        "enum": [
+          "email",
+          "sms",
+          "push"
+        ],
+        "type": "string"
+      },
+      "ChannelUnavailableReason": {
+        "enum": [
+          "not_configured",
+          "no_permission"
+        ],
+        "type": "string"
+      },
+      "UpdateThemeDto": {
+        "properties": {
+          "themeMode": {
+            "$ref": "#/components/schemas/ThemeMode"
+          }
+        },
+        "required": [
+          "themeMode"
+        ],
+        "type": "object"
+      },
+      "ThemeMode": {
+        "enum": [
+          "light",
+          "dark",
+          "system"
+        ],
+        "type": "string"
+      },
+      "SearchFiltersDto": {
+        "properties": {
+          "dateRange": {
+            "$ref": "#/components/schemas/FilterOption_DateRangeOptions"
+          }
+        },
+        "required": [
+          "dateRange"
+        ],
+        "type": "object"
+      },
+      "FilterOption_DateRangeOptions": {
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/DateRangeOptions"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object"
+      },
+      "DateRangeOptions": {
+        "properties": {
+          "days": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "type": "object"
+      },
       "ActiveFiltersDto": {
         "properties": {
           "priorityLevels": {
@@ -214,46 +362,13 @@
         ],
         "type": "object"
       },
-      "ChannelUnavailableReason": {
-        "enum": [
-          "not_configured",
-          "no_permission"
-        ],
-        "type": "string"
-      },
-      "DateRangeOptions": {
-        "properties": {
-          "days": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "days"
-        ],
-        "type": "object"
-      },
-      "FilterOption_DateRangeOptions": {
-        "properties": {
-          "label": {
-            "type": "string"
-          },
-          "value": {
-            "$ref": "#/components/schemas/DateRangeOptions"
-          }
-        },
-        "required": [
-          "value",
-          "label"
-        ],
-        "type": "object"
-      },
       "FilterOption_PriorityLevelDto": {
         "properties": {
-          "count": {
-            "type": "number"
-          },
           "option": {
             "$ref": "#/components/schemas/PriorityLevelDto"
+          },
+          "count": {
+            "type": "number"
           }
         },
         "required": [
@@ -262,48 +377,14 @@
         ],
         "type": "object"
       },
-      "NotificationChannel": {
-        "enum": [
-          "email",
-          "sms",
-          "push"
-        ],
-        "type": "string"
-      },
-      "NotificationSettingsDto": {
+      "PriorityLevelDto": {
         "properties": {
-          "channel": {
-            "$ref": "#/components/schemas/NotificationChannel"
-          },
-          "channels": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationChannel"
-            },
-            "type": "array"
-          },
-          "label": {
-            "enum": [
-              "email",
-              "sms",
-              "push"
-            ],
+          "level": {
             "type": "string"
-          },
-          "unavailableReason": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ChannelUnavailableReason"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [
-          "channel",
-          "channels",
-          "label"
+          "level"
         ],
         "type": "object"
       },
@@ -333,34 +414,6 @@
         ],
         "type": "object"
       },
-      "PatchNoteDto": {
-        "properties": {
-          "archived": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "reason": {
-            "maxLength": 250,
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "summary": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "summary"
-        ],
-        "type": "object"
-      },
       "Pet": {
         "properties": {
           "id": {
@@ -373,17 +426,6 @@
         "required": [
           "id",
           "owner"
-        ],
-        "type": "object"
-      },
-      "PriorityLevelDto": {
-        "properties": {
-          "level": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "level"
         ],
         "type": "object"
       },
@@ -402,73 +444,31 @@
         ],
         "type": "object"
       },
-      "SearchFiltersDto": {
+      "PatchNoteDto": {
         "properties": {
-          "dateRange": {
-            "$ref": "#/components/schemas/FilterOption_DateRangeOptions"
+          "reason": {
+            "maxLength": 250,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
         "required": [
-          "dateRange"
-        ],
-        "type": "object"
-      },
-      "ThemeMode": {
-        "enum": [
-          "light",
-          "dark",
-          "system"
-        ],
-        "type": "string"
-      },
-      "UpdateThemeDto": {
-        "properties": {
-          "themeMode": {
-            "$ref": "#/components/schemas/ThemeMode"
-          }
-        },
-        "required": [
-          "themeMode"
-        ],
-        "type": "object"
-      },
-      "UserProfile": {
-        "properties": {
-          "address": {
-            "additionalProperties": {},
-            "properties": {
-              "country": {
-                "type": "string"
-              },
-              "formatted": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "email_verified": {
-            "type": "boolean"
-          },
-          "groups": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "sub": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "displayName",
-          "groups",
-          "sub"
+          "title",
+          "summary"
         ],
         "type": "object"
       }

@@ -7,6 +7,83 @@
   },
   "servers": [],
   "paths": {
+    "/unions/payment-methods": {
+      "get": {
+        "operationId": "UnionsController_getPaymentMethods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethodDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get available payment methods",
+        "tags": [
+          "unions"
+        ]
+      }
+    },
+    "/unions/payment": {
+      "post": {
+        "operationId": "UnionsController_processPayment",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentMethodDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "type": "object"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "timestamp"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Process a payment",
+        "tags": [
+          "unions"
+        ]
+      }
+    },
     "/unions/code-sources": {
       "get": {
         "operationId": "UnionsController_getCodeSources",
@@ -83,87 +160,77 @@
           "unions"
         ]
       }
-    },
-    "/unions/payment": {
-      "post": {
-        "operationId": "UnionsController_processPayment",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PaymentMethodDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "success": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "type": "object"
-                    },
-                    "timestamp": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "timestamp"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Process a payment",
-        "tags": [
-          "unions"
-        ]
-      }
-    },
-    "/unions/payment-methods": {
-      "get": {
-        "operationId": "UnionsController_getPaymentMethods",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PaymentMethodDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Get available payment methods",
-        "tags": [
-          "unions"
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
+      "PaymentMethodDto": {
+        "anyOf": [
+          {
+            "properties": {
+              "cardNumber": {
+                "type": "string"
+              },
+              "expiryDate": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "credit_card"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "cardNumber",
+              "expiryDate"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "paypal"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "email"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "accountNumber": {
+                "type": "string"
+              },
+              "routingNumber": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "bank_transfer"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "accountNumber",
+              "routingNumber"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Discriminated Union DTOs for testing const value preservation"
+      },
       "CodeExecutionSourceDto": {
         "anyOf": [
           {
@@ -282,73 +349,6 @@
             "type": "object"
           }
         ]
-      },
-      "PaymentMethodDto": {
-        "anyOf": [
-          {
-            "properties": {
-              "cardNumber": {
-                "type": "string"
-              },
-              "expiryDate": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "credit_card"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "cardNumber",
-              "expiryDate"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "email": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "paypal"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "email"
-            ],
-            "type": "object"
-          },
-          {
-            "properties": {
-              "accountNumber": {
-                "type": "string"
-              },
-              "routingNumber": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "bank_transfer"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "accountNumber",
-              "routingNumber"
-            ],
-            "type": "object"
-          }
-        ],
-        "description": "Discriminated Union DTOs for testing const value preservation"
       }
     }
   },

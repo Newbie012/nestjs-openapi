@@ -32,9 +32,6 @@
     "schemas": {
       "ThingDto": {
         "properties": {
-          "asString": {
-            "type": "string"
-          },
           "name": {
             "description": "Display name",
             "type": [
@@ -42,13 +39,16 @@
               "null"
             ]
           },
-          "withBrackets": {
+          "asString": {
+            "type": "string"
+          },
+          "withIsArray": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "withIsArray": {
+          "withBrackets": {
             "items": {
               "type": "string"
             },

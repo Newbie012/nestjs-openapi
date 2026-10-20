@@ -6,6 +6,27 @@
   },
   "servers": [],
   "paths": {
+    "/shipments": {
+      "get": {
+        "operationId": "AppController_shipments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/orders": {
       "get": {
         "operationId": "AppController_orders",
@@ -16,69 +37,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderSummaryDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/plugins/a": {
-      "get": {
-        "operationId": "AppController_pluginA",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APluginStateDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/plugins/b": {
-      "get": {
-        "operationId": "AppController_pluginB",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BPluginStateDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/plugins/page": {
-      "get": {
-        "operationId": "AppController_pluginPage",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PageDto_APluginStateDto"
                 }
               }
             },
@@ -114,40 +72,16 @@
         ]
       }
     },
-    "/products/raw": {
+    "/plugins/a": {
       "get": {
-        "operationId": "AppController_rawProducts",
+        "operationId": "AppController_pluginA",
         "parameters": [],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/CatalogProductDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/shipments": {
-      "get": {
-        "operationId": "AppController_shipments",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShipmentDto"
+                  "$ref": "#/components/schemas/APluginStateDto"
                 }
               }
             },
@@ -179,22 +113,92 @@
           "App"
         ]
       }
+    },
+    "/products/raw": {
+      "get": {
+        "operationId": "AppController_rawProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogProductDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/page": {
+      "get": {
+        "operationId": "AppController_pluginPage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageDto_APluginStateDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/b": {
+      "get": {
+        "operationId": "AppController_pluginB",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BPluginStateDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
-      "APluginStateDto": {
+      "ShipmentDto": {
         "properties": {
-          "loaded": {
-            "type": "boolean"
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddressDto"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/ShippingContactDto"
           }
         },
         "required": [
-          "loaded"
+          "address",
+          "contact"
         ],
         "type": "object"
       },
-      "AddressPatchDto": {
+      "ShippingAddressDto": {
         "properties": {
           "name": {
             "nullable": true,
@@ -203,33 +207,13 @@
         },
         "type": "object"
       },
-      "BPluginStateDto": {
+      "ShippingContactDto": {
         "properties": {
-          "executed": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "executed"
-        ],
-        "type": "object"
-      },
-      "CatalogProductDto": {
-        "properties": {
-          "variants": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "vendor": {
+          "phone": {
+            "nullable": true,
             "type": "string"
           }
         },
-        "required": [
-          "variants",
-          "vendor"
-        ],
         "type": "object"
       },
       "OrderSummaryDto": {
@@ -262,6 +246,25 @@
         ],
         "type": "object"
       },
+      "OrdersProductDto": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "barcode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sku",
+          "barcode"
+        ],
+        "type": "object"
+      },
       "OrdersContactDto": {
         "properties": {
           "contactName": {
@@ -273,23 +276,42 @@
         ],
         "type": "object"
       },
-      "OrdersProductDto": {
+      "CatalogProductDto": {
         "properties": {
-          "barcode": {
-            "type": "string"
+          "variants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
-          "name": {
-            "type": "string"
-          },
-          "sku": {
+          "vendor": {
             "type": "string"
           }
         },
         "required": [
-          "name",
-          "sku",
-          "barcode"
+          "variants",
+          "vendor"
         ],
+        "type": "object"
+      },
+      "APluginStateDto": {
+        "properties": {
+          "loaded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "loaded"
+        ],
+        "type": "object"
+      },
+      "AddressPatchDto": {
+        "properties": {
+          "name": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "PageDto_APluginStateDto": {
@@ -310,37 +332,15 @@
         ],
         "type": "object"
       },
-      "ShipmentDto": {
+      "BPluginStateDto": {
         "properties": {
-          "address": {
-            "$ref": "#/components/schemas/ShippingAddressDto"
-          },
-          "contact": {
-            "$ref": "#/components/schemas/ShippingContactDto"
+          "executed": {
+            "type": "number"
           }
         },
         "required": [
-          "address",
-          "contact"
+          "executed"
         ],
-        "type": "object"
-      },
-      "ShippingAddressDto": {
-        "properties": {
-          "name": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ShippingContactDto": {
-        "properties": {
-          "phone": {
-            "nullable": true,
-            "type": "string"
-          }
-        },
         "type": "object"
       }
     }

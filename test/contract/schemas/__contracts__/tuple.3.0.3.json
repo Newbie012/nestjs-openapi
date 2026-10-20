@@ -47,6 +47,20 @@
             "minItems": 2,
             "type": "array"
           },
+          "rest": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "pairOfDto": {
             "items": {
               "anyOf": [
@@ -60,20 +74,6 @@
             },
             "maxItems": 2,
             "minItems": 2,
-            "type": "array"
-          },
-          "rest": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                }
-              ]
-            },
-            "minItems": 1,
             "type": "array"
           }
         },

@@ -30,40 +30,7 @@
         ]
       }
     },
-    "/books/copy": {
-      "additionalOperations": {
-        "COPY": {
-          "operationId": "copyBooks",
-          "responses": {
-            "204": {
-              "description": "Copied"
-            }
-          }
-        }
-      }
-    },
     "/books/{id}": {
-      "delete": {
-        "operationId": "BooksController_remove",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Books"
-        ]
-      },
       "get": {
         "operationId": "BooksController_get",
         "parameters": [
@@ -91,6 +58,27 @@
         "tags": [
           "Books"
         ]
+      },
+      "delete": {
+        "operationId": "BooksController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
       }
     },
     "/internal/health": {
@@ -112,6 +100,18 @@
         "tags": [
           "Internal"
         ]
+      }
+    },
+    "/books/copy": {
+      "additionalOperations": {
+        "COPY": {
+          "operationId": "copyBooks",
+          "responses": {
+            "204": {
+              "description": "Copied"
+            }
+          }
+        }
       }
     }
   },

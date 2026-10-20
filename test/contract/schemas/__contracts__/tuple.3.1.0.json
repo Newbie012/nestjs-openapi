@@ -46,6 +46,18 @@
             ],
             "type": "array"
           },
+          "rest": {
+            "items": {
+              "type": "number"
+            },
+            "minItems": 1,
+            "prefixItems": [
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
           "pairOfDto": {
             "items": false,
             "maxItems": 2,
@@ -56,18 +68,6 @@
               },
               {
                 "type": "number"
-              }
-            ],
-            "type": "array"
-          },
-          "rest": {
-            "items": {
-              "type": "number"
-            },
-            "minItems": 1,
-            "prefixItems": [
-              {
-                "type": "string"
               }
             ],
             "type": "array"

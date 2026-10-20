@@ -6,6 +6,85 @@
   },
   "servers": [],
   "paths": {
+    "/items/status": {
+      "get": {
+        "operationId": "ItemsController_status",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "s",
+            "required": true,
+            "schema": {
+              "enum": [
+                "on",
+                "off"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "enum": [
+                    "on",
+                    "off"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/level": {
+      "get": {
+        "operationId": "ItemsController_level",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "l",
+            "required": true,
+            "schema": {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "enum": [
+                      "a",
+                      "b"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
     "/items": {
       "get": {
         "operationId": "ItemsController_get",
@@ -66,91 +145,19 @@
           "Items"
         ]
       }
-    },
-    "/items/level": {
-      "get": {
-        "operationId": "ItemsController_level",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "l",
-            "required": true,
-            "schema": {
-              "enum": [
-                "a",
-                "b"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "enum": [
-                      "a",
-                      "b"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Items"
-        ]
-      }
-    },
-    "/items/status": {
-      "get": {
-        "operationId": "ItemsController_status",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "s",
-            "required": true,
-            "schema": {
-              "enum": [
-                "on",
-                "off"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "enum": [
-                    "on",
-                    "off"
-                  ],
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Items"
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
       "ItemDto": {
         "properties": {
+          "status": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "type": "string"
+          },
           "level": {
             "enum": [
               "a",
@@ -167,13 +174,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "status": {
-            "enum": [
-              "on",
-              "off"
-            ],
-            "type": "string"
           }
         },
         "required": [

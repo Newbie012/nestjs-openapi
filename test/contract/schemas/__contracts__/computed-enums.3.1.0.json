@@ -35,14 +35,6 @@
     "schemas": {
       "CheckoutDto": {
         "properties": {
-          "accounts": {
-            "properties": {
-              "paypal": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
           "paymentMethod": {
             "description": "Payment method",
             "enum": [
@@ -54,6 +46,14 @@
           },
           "region": {
             "type": "string"
+          },
+          "accounts": {
+            "properties": {
+              "paypal": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           }
         },
         "required": [

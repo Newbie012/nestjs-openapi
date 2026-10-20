@@ -29,85 +29,6 @@
         ]
       }
     },
-    "/api/notifications/stats": {
-      "get": {
-        "description": "Proxy request to notification service for statistics",
-        "operationId": "ProxyController_getNotificationStats",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "delivered": {
-                      "type": "number"
-                    },
-                    "pending": {
-                      "type": "number"
-                    },
-                    "totalSent": {
-                      "type": "number"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Notification statistics from notification service"
-          }
-        },
-        "summary": "Get notification stats (proxied)",
-        "tags": [
-          "proxy"
-        ]
-      }
-    },
-    "/api/users/{id}/profile": {
-      "get": {
-        "description": "Proxy request to user service for user profile",
-        "operationId": "ProxyController_getUserProfile",
-        "parameters": [
-          {
-            "description": "User ID",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "example": "usr_123",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "lastLogin": {
-                      "type": "string"
-                    },
-                    "preferences": {
-                      "type": "object"
-                    },
-                    "user": {
-                      "type": "object"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "User profile data from user service"
-          }
-        },
-        "summary": "Get user profile (proxied)",
-        "tags": [
-          "proxy"
-        ]
-      }
-    },
     "/health": {
       "get": {
         "description": "Get overall system health status including microservices",
@@ -142,12 +63,12 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "buildDate": {
-                      "example": "2025-09-18T14:00:00Z",
-                      "type": "string"
-                    },
                     "version": {
                       "example": "1.0.0",
+                      "type": "string"
+                    },
+                    "buildDate": {
+                      "example": "2025-09-18T14:00:00Z",
                       "type": "string"
                     }
                   },
@@ -163,15 +84,99 @@
           "gateway"
         ]
       }
+    },
+    "/api/users/{id}/profile": {
+      "get": {
+        "description": "Proxy request to user service for user profile",
+        "operationId": "ProxyController_getUserProfile",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "usr_123",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "user": {
+                      "type": "object"
+                    },
+                    "preferences": {
+                      "type": "object"
+                    },
+                    "lastLogin": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "User profile data from user service"
+          }
+        },
+        "summary": "Get user profile (proxied)",
+        "tags": [
+          "proxy"
+        ]
+      }
+    },
+    "/api/notifications/stats": {
+      "get": {
+        "description": "Proxy request to notification service for statistics",
+        "operationId": "ProxyController_getNotificationStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "totalSent": {
+                      "type": "number"
+                    },
+                    "pending": {
+                      "type": "number"
+                    },
+                    "delivered": {
+                      "type": "number"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Notification statistics from notification service"
+          }
+        },
+        "summary": "Get notification stats (proxied)",
+        "tags": [
+          "proxy"
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
       "ApiInfoDto": {
         "properties": {
-          "docsUrl": {
-            "description": "Available endpoints documentation URL",
-            "example": "/api/docs",
+          "name": {
+            "description": "API name",
+            "example": "Microservices API Gateway",
+            "type": "string"
+          },
+          "version": {
+            "description": "API version",
+            "example": "1.0.0",
             "type": "string"
           },
           "environment": {
@@ -179,9 +184,9 @@
             "example": "production",
             "type": "string"
           },
-          "name": {
-            "description": "API name",
-            "example": "Microservices API Gateway",
+          "docsUrl": {
+            "description": "Available endpoints documentation URL",
+            "example": "/api/docs",
             "type": "string"
           },
           "services": {
@@ -190,11 +195,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "version": {
-            "description": "API version",
-            "example": "1.0.0",
-            "type": "string"
           }
         },
         "required": [
@@ -208,13 +208,6 @@
       },
       "HealthCheckDto": {
         "properties": {
-          "services": {
-            "description": "Service dependencies health status",
-            "items": {
-              "$ref": "#/components/schemas/ServiceHealthDto"
-            },
-            "type": "array"
-          },
           "status": {
             "description": "Overall system status",
             "enum": [
@@ -235,6 +228,13 @@
             "description": "System uptime in seconds",
             "example": 3600,
             "type": "number"
+          },
+          "services": {
+            "description": "Service dependencies health status",
+            "items": {
+              "$ref": "#/components/schemas/ServiceHealthDto"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -247,21 +247,10 @@
       },
       "ServiceHealthDto": {
         "properties": {
-          "lastCheck": {
-            "description": "Last check timestamp",
-            "example": "2025-09-18T14:29:30Z",
-            "format": "date-time",
-            "type": "string"
-          },
           "name": {
             "description": "Service name",
             "example": "user-service",
             "type": "string"
-          },
-          "responseTime": {
-            "description": "Response time in milliseconds",
-            "example": 45,
-            "type": "number"
           },
           "status": {
             "description": "Service status",
@@ -271,6 +260,17 @@
               "unhealthy"
             ],
             "example": "healthy",
+            "type": "string"
+          },
+          "responseTime": {
+            "description": "Response time in milliseconds",
+            "example": 45,
+            "type": "number"
+          },
+          "lastCheck": {
+            "description": "Last check timestamp",
+            "example": "2025-09-18T14:29:30Z",
+            "format": "date-time",
             "type": "string"
           }
         },

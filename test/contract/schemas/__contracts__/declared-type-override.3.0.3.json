@@ -32,21 +32,21 @@
     "schemas": {
       "ThingDto": {
         "properties": {
-          "asString": {
-            "type": "string"
-          },
           "name": {
             "description": "Display name",
             "nullable": true,
             "type": "string"
           },
-          "withBrackets": {
+          "asString": {
+            "type": "string"
+          },
+          "withIsArray": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
-          "withIsArray": {
+          "withBrackets": {
             "items": {
               "type": "string"
             },

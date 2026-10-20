@@ -1706,7 +1706,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
     }
 
-    const order = options.order ?? 'alphabetical';
+    const order = options.order ?? 'source';
     const keyOrdered = orderObjectKeysDeep(spec, order);
     const sortedSpec =
       order === 'source' ? orderSchemasByReach(keyOrdered) : keyOrdered;

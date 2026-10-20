@@ -6,48 +6,6 @@
   },
   "servers": [],
   "paths": {
-    "/birds": {
-      "get": {
-        "operationId": "BirdsController_list[0]",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Birds"
-        ]
-      }
-    },
-    "/birds/all": {
-      "get": {
-        "operationId": "BirdsController_list[1]",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Birds"
-        ]
-      }
-    },
     "/cats": {
       "get": {
         "operationId": "CatsController_list",
@@ -74,6 +32,31 @@
           "perMinute": 60
         },
         "x-team": "cats-core"
+      }
+    },
+    "/cats/{id}": {
+      "get": {
+        "deprecated": true,
+        "operationId": "CatsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "One cat",
+        "tags": [
+          "Cats",
+          "Lookup"
+        ],
+        "x-team": "felines"
       }
     },
     "/cats/both": {
@@ -120,31 +103,6 @@
         "x-team": "felines"
       }
     },
-    "/cats/{id}": {
-      "get": {
-        "deprecated": true,
-        "operationId": "CatsController_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CatDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "One cat",
-        "tags": [
-          "Cats",
-          "Lookup"
-        ],
-        "x-team": "felines"
-      }
-    },
     "/dogs": {
       "get": {
         "operationId": "DogsController_list",
@@ -167,84 +125,8 @@
       }
     },
     "/dogs/any": {
-      "delete": {
-        "operationId": "DogsController_any_delete",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Dogs"
-        ]
-      },
       "get": {
         "operationId": "DogsController_any_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Dogs"
-        ]
-      },
-      "head": {
-        "operationId": "DogsController_any_head",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Dogs"
-        ]
-      },
-      "options": {
-        "operationId": "DogsController_any_options",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Dogs"
-        ]
-      },
-      "patch": {
-        "operationId": "DogsController_any_patch",
         "parameters": [],
         "responses": {
           "200": {
@@ -298,6 +180,124 @@
         },
         "tags": [
           "Dogs"
+        ]
+      },
+      "delete": {
+        "operationId": "DogsController_any_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dogs"
+        ]
+      },
+      "patch": {
+        "operationId": "DogsController_any_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dogs"
+        ]
+      },
+      "options": {
+        "operationId": "DogsController_any_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dogs"
+        ]
+      },
+      "head": {
+        "operationId": "DogsController_any_head",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dogs"
+        ]
+      }
+    },
+    "/birds": {
+      "get": {
+        "operationId": "BirdsController_list[0]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Birds"
+        ]
+      }
+    },
+    "/birds/all": {
+      "get": {
+        "operationId": "BirdsController_list[1]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Birds"
         ]
       }
     },

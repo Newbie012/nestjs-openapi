@@ -6,45 +6,33 @@
   },
   "servers": [],
   "paths": {
-    "/external": {
+    "/items/report": {
       "get": {
-        "operationId": "ExternalItemsController_list",
+        "operationId": "ItemsController_getReport",
         "parameters": [],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ItemDto"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ReportDto"
                 }
               }
             },
-            "description": ""
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDto"
-                }
-              }
-            },
-            "description": "Bad request"
+            "description": "The report"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "No such item"
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
         "tags": [
-          "External"
+          "Items"
         ]
       }
     },
@@ -99,6 +87,106 @@
         ]
       }
     },
+    "/items/search": {
+      "post": {
+        "operationId": "ItemsController_search",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "description": "Missing credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/purge": {
+      "post": {
+        "operationId": "ItemsController_purge",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Purged"
+          },
+          "401": {
+            "description": "Missing credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/schema": {
+      "get": {
+        "operationId": "ItemsController_bySchema",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "description": "Missing credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
     "/items/export": {
       "get": {
         "operationId": "ItemsController_export",
@@ -122,6 +210,36 @@
               }
             },
             "description": "The items as a file or as JSON"
+          },
+          "401": {
+            "description": "Missing credentials"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/paged": {
+      "get": {
+        "operationId": "ItemsController_paged",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
           },
           "401": {
             "description": "Missing credentials"
@@ -189,89 +307,9 @@
         ]
       }
     },
-    "/items/paged": {
+    "/external": {
       "get": {
-        "operationId": "ItemsController_paged",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ReportDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          },
-          "401": {
-            "description": "Missing credentials"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "tags": [
-          "Items"
-        ]
-      }
-    },
-    "/items/purge": {
-      "post": {
-        "operationId": "ItemsController_purge",
-        "parameters": [],
-        "responses": {
-          "204": {
-            "description": "Purged"
-          },
-          "401": {
-            "description": "Missing credentials"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "tags": [
-          "Items"
-        ]
-      }
-    },
-    "/items/report": {
-      "get": {
-        "operationId": "ItemsController_getReport",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportDto"
-                }
-              }
-            },
-            "description": "The report"
-          },
-          "401": {
-            "description": "Missing credentials"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "No such item"
-          }
-        },
-        "tags": [
-          "Items"
-        ]
-      }
-    },
-    "/items/schema": {
-      "get": {
-        "operationId": "ItemsController_bySchema",
+        "operationId": "ExternalItemsController_list",
         "parameters": [],
         "responses": {
           "200": {
@@ -287,27 +325,110 @@
             },
             "description": ""
           },
-          "401": {
-            "description": "Missing credentials"
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            },
+            "description": "Bad request"
           },
-          "403": {
-            "description": "Forbidden"
+          "401": {
+            "description": "Unauthorized"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
-          "Items"
+          "External"
         ]
       }
     },
-    "/items/search": {
+    "/people/properties": {
+      "get": {
+        "description": "Every @ApiProperty option, with Nest precedence",
+        "operationId": "PeopleController_properties",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyOptionsDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Property options",
+        "tags": [
+          "People"
+        ]
+      }
+    },
+    "/people": {
+      "get": {
+        "operationId": "PeopleController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonListResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "People"
+        ]
+      },
       "post": {
-        "operationId": "ItemsController_search",
+        "operationId": "PeopleController_create",
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SearchDto"
+                "$ref": "#/components/schemas/CreatePersonDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "People"
+        ]
+      },
+      "put": {
+        "operationId": "PeopleController_update",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePersonDto"
               }
             }
           },
@@ -318,119 +439,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ItemDto"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/PersonNameDto"
                 }
               }
             },
             "description": ""
-          },
-          "401": {
-            "description": "Missing credentials"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDto"
-                }
-              }
-            },
-            "description": "Unexpected error"
           }
         },
         "tags": [
-          "Items"
+          "People"
         ]
-      }
-    },
-    "/params": {
-      "get": {
-        "operationId": "ParamsController_page",
-        "parameters": [
-          {
-            "description": "Page size",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "example": 20,
-              "minimum": 1,
-              "type": "number"
+      },
+      "patch": {
+        "operationId": "PeopleController_patch",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchPersonDto"
+              }
             }
           },
-          {
-            "description": "Sort field",
-            "in": "query",
-            "name": "sortBy",
-            "required": true,
-            "schema": {
-              "enum": [
-                "name",
-                "createdAt"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "tags",
-            "required": false,
-            "schema": {
-              "example": "red,blue",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "colors",
-            "required": false,
-            "schema": {
-              "examples": [
-                "red",
-                "blue"
-              ],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          {
-            "in": "query",
-            "name": "bornSince",
-            "required": false,
-            "schema": {
-              "example": "2024-01-01",
-              "examples": [
-                "2024-01-01",
-                "2024-02-01"
-              ],
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Workspace id",
-            "in": "header",
-            "name": "x-workspace",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/AddressContactDto"
                 }
               }
             },
@@ -438,7 +476,7 @@
           }
         },
         "tags": [
-          "Params"
+          "People"
         ]
       }
     },
@@ -582,103 +620,88 @@
         ]
       }
     },
-    "/people": {
+    "/params": {
       "get": {
-        "operationId": "PeopleController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonListResponse"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "People"
-        ]
-      },
-      "patch": {
-        "operationId": "PeopleController_patch",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PatchPersonDto"
-              }
+        "operationId": "ParamsController_page",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "example": 20,
+              "minimum": 1,
+              "type": "number"
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddressContactDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "People"
-        ]
-      },
-      "post": {
-        "operationId": "PeopleController_create",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePersonDto"
-              }
+          {
+            "description": "Sort field",
+            "in": "query",
+            "name": "sortBy",
+            "required": true,
+            "schema": {
+              "enum": [
+                "name",
+                "createdAt"
+              ],
+              "type": "string"
             }
           },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "People"
-        ]
-      },
-      "put": {
-        "operationId": "PeopleController_update",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePersonDto"
-              }
+          {
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "example": "red,blue",
+              "type": "string"
             }
           },
-          "required": true
-        },
+          {
+            "in": "query",
+            "name": "colors",
+            "required": false,
+            "schema": {
+              "examples": [
+                "red",
+                "blue"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bornSince",
+            "required": false,
+            "schema": {
+              "example": "2024-01-01",
+              "examples": [
+                "2024-01-01",
+                "2024-02-01"
+              ],
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "header",
+            "name": "x-workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PersonNameDto"
+                  "type": "string"
                 }
               }
             },
@@ -686,89 +709,22 @@
           }
         },
         "tags": [
-          "People"
-        ]
-      }
-    },
-    "/people/properties": {
-      "get": {
-        "description": "Every @ApiProperty option, with Nest precedence",
-        "operationId": "PeopleController_properties",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PropertyOptionsDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Property options",
-        "tags": [
-          "People"
+          "Params"
         ]
       }
     }
   },
   "components": {
     "schemas": {
-      "Address": {
+      "ReportDto": {
         "additionalProperties": false,
         "properties": {
-          "street": {
+          "format": {
             "type": "string"
           }
         },
         "required": [
-          "street"
-        ],
-        "type": "object"
-      },
-      "AddressContactDto": {
-        "additionalProperties": false,
-        "properties": {
-          "email": {
-            "description": "Contact email",
-            "type": "string"
-          },
-          "street": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "street",
-          "email"
-        ],
-        "type": "object"
-      },
-      "Badge": {
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "label"
-        ],
-        "type": "object"
-      },
-      "CatDto": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "enum": [
-              "cat"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind"
+          "format"
         ],
         "type": "object"
       },
@@ -784,55 +740,16 @@
         ],
         "type": "object"
       },
-      "CreatePersonDto": {
+      "ItemDto": {
         "additionalProperties": false,
         "properties": {
-          "badge": {
-            "$ref": "#/components/schemas/Badge"
-          },
-          "inviteCode": {
-            "description": "Invitation code",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "nickname": {
+          "id": {
+            "description": "Item id",
             "type": "string"
           }
         },
         "required": [
-          "name",
-          "badge",
-          "inviteCode"
-        ],
-        "type": "object"
-      },
-      "DecoratorOnlyDto": {
-        "additionalProperties": false,
-        "properties": {
-          "value": {
-            "description": "Only named by decorators",
-            "type": "string"
-          }
-        },
-        "required": [
-          "value"
-        ],
-        "type": "object"
-      },
-      "DogDto": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "enum": [
-              "dog"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind"
+          "id"
         ],
         "type": "object"
       },
@@ -845,6 +762,52 @@
         },
         "required": [
           "message"
+        ],
+        "type": "object"
+      },
+      "SearchDto": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/FilterDto"
+          },
+          "otherFilter": {
+            "$ref": "#/components/schemas/OtherFilterDto"
+          },
+          "text": {
+            "description": "Free text",
+            "type": "string"
+          },
+          "page": {
+            "type": "number"
+          },
+          "plain": {
+            "$ref": "#/components/schemas/FilterDto"
+          }
+        },
+        "type": "object"
+      },
+      "FilterDto": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "type": "object"
+      },
+      "OtherFilterDto": {
+        "additionalProperties": false,
+        "properties": {
+          "other": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "other"
         ],
         "type": "object"
       },
@@ -864,50 +827,12 @@
         ],
         "type": "object"
       },
-      "ExternalLibraryRefDto": {
-        "additionalProperties": false,
-        "properties": {
-          "source": {
-            "description": "Where it came from",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "FilterDto": {
-        "additionalProperties": false,
-        "properties": {
-          "field": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "field"
-        ],
-        "type": "object"
-      },
-      "ItemDto": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "description": "Item id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
       "LibraryUsageDto": {
         "additionalProperties": false,
         "properties": {
-          "history": {
-            "description": "All references",
-            "items": {
-              "$ref": "#/components/schemas/ExternalLibraryRefDto"
-            },
-            "type": "array"
+          "ref": {
+            "$ref": "#/components/schemas/ExternalLibraryRefDto",
+            "description": "The library reference"
           },
           "previous": {
             "anyOf": [
@@ -920,9 +845,12 @@
             ],
             "description": "Previous reference"
           },
-          "ref": {
-            "$ref": "#/components/schemas/ExternalLibraryRefDto",
-            "description": "The library reference"
+          "history": {
+            "description": "All references",
+            "items": {
+              "$ref": "#/components/schemas/ExternalLibraryRefDto"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -932,208 +860,21 @@
         ],
         "type": "object"
       },
-      "OtherFilterDto": {
+      "ExternalLibraryRefDto": {
         "additionalProperties": false,
         "properties": {
-          "other": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "other"
-        ],
-        "type": "object"
-      },
-      "PatchPersonDto": {
-        "additionalProperties": false,
-        "properties": {
-          "badge": {
-            "$ref": "#/components/schemas/Badge"
-          },
-          "name": {
-            "type": "string"
-          },
-          "nickname": {
+          "source": {
+            "description": "Where it came from",
             "type": "string"
           }
         },
         "type": "object"
-      },
-      "PersonDto": {
-        "additionalProperties": false,
-        "properties": {
-          "badge": {
-            "$ref": "#/components/schemas/Badge"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "nickname": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "badge"
-        ],
-        "type": "object"
-      },
-      "PersonListResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PersonDto"
-            },
-            "type": "array"
-          },
-          "total": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "items",
-          "total"
-        ],
-        "type": "object"
-      },
-      "PersonNameDto": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "type": "object"
-      },
-      "Priority": {
-        "enum": [
-          "low",
-          "high"
-        ],
-        "type": "string"
       },
       "PropertyOptionsDto": {
         "additionalProperties": false,
         "properties": {
           "address": {
             "$ref": "#/components/schemas/Address"
-          },
-          "addressOrLabel": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Address"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "billingAddress": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Address"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "emails": {
-            "items": {
-              "format": "email",
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "fallbackPriority": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Priority"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "id": {
-            "format": "uuid",
-            "pattern": "^[a-f0-9-]+$",
-            "type": "string"
-          },
-          "keyedPet": {
-            "discriminator": {
-              "mapping": {
-                "cat": "#/components/schemas/CatDto",
-                "dog": "#/components/schemas/DogDto"
-              },
-              "propertyName": "kind"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/CatDto"
-              },
-              {
-                "$ref": "#/components/schemas/DogDto"
-              }
-            ]
-          },
-          "labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "legacyId": {
-            "deprecated": true,
-            "readOnly": true,
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              1,
-              2
-            ],
-            "type": "number"
-          },
-          "maybe": {
-            "description": "Maybe a number",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "name": {
-            "default": "anonymous",
-            "example": "Ada",
-            "maxLength": 40,
-            "minLength": 2,
-            "title": "Name",
-            "type": "string"
-          },
-          "numericString": {
-            "type": "number"
-          },
-          "order": {
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "type": "string"
-          },
-          "password": {
-            "type": "string",
-            "writeOnly": true
           },
           "payload": {
             "$ref": "#/components/schemas/DecoratorOnlyDto"
@@ -1143,6 +884,51 @@
               "$ref": "#/components/schemas/DecoratorOnlyDto"
             },
             "type": "array"
+          },
+          "rating": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "numericString": {
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^[a-f0-9-]+$",
+            "type": "string"
+          },
+          "name": {
+            "default": "anonymous",
+            "example": "Ada",
+            "maxLength": 40,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "legacyId": {
+            "deprecated": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
           },
           "pet": {
             "discriminator": {
@@ -1161,11 +947,25 @@
               }
             ]
           },
-          "plainPriority": {
-            "enum": [
-              "low",
-              "high"
-            ],
+          "keyedPet": {
+            "discriminator": {
+              "mapping": {
+                "cat": "#/components/schemas/CatDto",
+                "dog": "#/components/schemas/DogDto"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CatDto"
+              },
+              {
+                "$ref": "#/components/schemas/DogDto"
+              }
+            ]
+          },
+          "tagList": {
+            "description": "Comma-separated tags",
             "type": "string"
           },
           "previousAddress": {
@@ -1179,23 +979,52 @@
             ],
             "description": "The previous address"
           },
-          "priorities": {
+          "billingAddress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fallbackPriority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressOrLabel": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emails": {
             "items": {
-              "$ref": "#/components/schemas/Priority"
+              "format": "email",
+              "type": "string"
             },
             "type": "array"
           },
-          "priority": {
-            "enum": [
-              "low",
-              "high"
-            ],
-            "type": "string"
-          },
-          "rating": {
-            "maximum": 10,
-            "minimum": 1,
-            "type": "integer"
+          "maybe": {
+            "description": "Maybe a number",
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "sample": {
             "examples": [
@@ -1204,18 +1033,39 @@
             ],
             "type": "string"
           },
-          "tagList": {
-            "description": "Comma-separated tags",
+          "priority": {
+            "enum": [
+              "low",
+              "high"
+            ],
             "type": "string"
           },
-          "tags": {
+          "priorities": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Priority"
             },
-            "maxItems": 5,
-            "minItems": 1,
-            "type": "array",
-            "uniqueItems": true
+            "type": "array"
+          },
+          "level": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "number"
+          },
+          "order": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string"
+          },
+          "plainPriority": {
+            "enum": [
+              "low",
+              "high"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -1247,46 +1097,90 @@
         ],
         "type": "object"
       },
-      "ReportDto": {
+      "Address": {
         "additionalProperties": false,
         "properties": {
-          "format": {
+          "street": {
             "type": "string"
           }
         },
         "required": [
-          "format"
+          "street"
         ],
         "type": "object"
       },
-      "SearchDto": {
+      "DecoratorOnlyDto": {
         "additionalProperties": false,
         "properties": {
-          "filter": {
-            "$ref": "#/components/schemas/FilterDto"
-          },
-          "otherFilter": {
-            "$ref": "#/components/schemas/OtherFilterDto"
-          },
-          "page": {
-            "type": "number"
-          },
-          "plain": {
-            "$ref": "#/components/schemas/FilterDto"
-          },
-          "text": {
-            "description": "Free text",
+          "value": {
+            "description": "Only named by decorators",
             "type": "string"
           }
         },
+        "required": [
+          "value"
+        ],
         "type": "object"
       },
-      "UpdatePersonDto": {
+      "CatDto": {
         "additionalProperties": false,
         "properties": {
-          "badge": {
-            "$ref": "#/components/schemas/Badge"
+          "kind": {
+            "enum": [
+              "cat"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "DogDto": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "dog"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "Priority": {
+        "enum": [
+          "low",
+          "high"
+        ],
+        "type": "string"
+      },
+      "PersonListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonDto"
+            },
+            "type": "array"
           },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "PersonDto": {
+        "additionalProperties": false,
+        "properties": {
           "id": {
             "type": "string"
           },
@@ -1295,8 +1189,114 @@
           },
           "nickname": {
             "type": "string"
+          },
+          "badge": {
+            "$ref": "#/components/schemas/Badge"
           }
         },
+        "required": [
+          "id",
+          "name",
+          "badge"
+        ],
+        "type": "object"
+      },
+      "Badge": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "CreatePersonDto": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "badge": {
+            "$ref": "#/components/schemas/Badge"
+          },
+          "inviteCode": {
+            "description": "Invitation code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "badge",
+          "inviteCode"
+        ],
+        "type": "object"
+      },
+      "UpdatePersonDto": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "badge": {
+            "$ref": "#/components/schemas/Badge"
+          }
+        },
+        "type": "object"
+      },
+      "PersonNameDto": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "PatchPersonDto": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "badge": {
+            "$ref": "#/components/schemas/Badge"
+          }
+        },
+        "type": "object"
+      },
+      "AddressContactDto": {
+        "additionalProperties": false,
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "email": {
+            "description": "Contact email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "street",
+          "email"
+        ],
         "type": "object"
       }
     }

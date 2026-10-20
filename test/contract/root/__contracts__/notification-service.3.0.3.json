@@ -168,41 +168,16 @@
   },
   "components": {
     "schemas": {
-      "CreateNotificationDto": {
+      "NotificationDto": {
         "properties": {
-          "message": {
-            "description": "Notification message content",
-            "example": "Thank you for signing up. Get started by exploring our features.",
+          "id": {
+            "description": "Unique notification identifier",
+            "example": "notif_abc123def456",
             "type": "string"
           },
-          "metadata": {
-            "description": "Additional metadata for the notification",
-            "example": {
-              "campaign_id": "welcome_series_1",
-              "source": "signup"
-            },
-            "type": "object"
-          },
-          "priority": {
-            "default": "medium",
-            "description": "Priority level",
-            "enum": [
-              "low",
-              "medium",
-              "high",
-              "urgent"
-            ],
-            "type": "string"
-          },
-          "scheduledFor": {
-            "description": "Schedule delivery for later (optional)",
-            "example": "2025-09-18T16:00:00Z",
-            "format": "date-time",
-            "type": "string"
-          },
-          "title": {
-            "description": "Notification title",
-            "example": "Welcome to our platform!",
+          "userId": {
+            "description": "User ID who received the notification",
+            "example": "usr_123456789",
             "type": "string"
           },
           "type": {
@@ -216,77 +191,14 @@
             "example": "email",
             "type": "string"
           },
-          "userId": {
-            "description": "User ID to send notification to",
-            "example": "usr_123456789",
-            "type": "string"
-          }
-        },
-        "required": [
-          "userId",
-          "type",
-          "title",
-          "message",
-          "priority"
-        ],
-        "type": "object"
-      },
-      "NotificationDto": {
-        "properties": {
-          "createdAt": {
-            "description": "When notification was created",
-            "example": "2025-09-18T14:00:00Z",
-            "format": "date-time",
-            "type": "string"
-          },
-          "deliveredAt": {
-            "description": "When notification was delivered (null if not delivered)",
-            "example": "2025-09-18T14:05:30Z",
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "id": {
-            "description": "Unique notification identifier",
-            "example": "notif_abc123def456",
+          "title": {
+            "description": "Notification title",
+            "example": "Welcome to our platform!",
             "type": "string"
           },
           "message": {
             "description": "Notification message content",
             "example": "Thank you for signing up. Get started by exploring our features.",
-            "type": "string"
-          },
-          "metadata": {
-            "description": "Additional metadata",
-            "example": {
-              "campaign_id": "welcome_series_1",
-              "source": "signup"
-            },
-            "type": "object"
-          },
-          "priority": {
-            "description": "Priority level",
-            "enum": [
-              "low",
-              "medium",
-              "high",
-              "urgent"
-            ],
-            "example": "medium",
-            "type": "string"
-          },
-          "readAt": {
-            "description": "When user read the notification (null if not read)",
-            "example": "2025-09-18T14:30:00Z",
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "sentAt": {
-            "description": "When notification was sent (null if not sent)",
-            "example": "2025-09-18T14:05:00Z",
-            "format": "date-time",
-            "nullable": true,
             "type": "string"
           },
           "status": {
@@ -301,26 +213,51 @@
             "example": "delivered",
             "type": "string"
           },
-          "title": {
-            "description": "Notification title",
-            "example": "Welcome to our platform!",
-            "type": "string"
-          },
-          "type": {
-            "description": "Notification type",
+          "priority": {
+            "description": "Priority level",
             "enum": [
-              "email",
-              "push",
-              "sms",
-              "in_app"
+              "low",
+              "medium",
+              "high",
+              "urgent"
             ],
-            "example": "email",
+            "example": "medium",
             "type": "string"
           },
-          "userId": {
-            "description": "User ID who received the notification",
-            "example": "usr_123456789",
+          "createdAt": {
+            "description": "When notification was created",
+            "example": "2025-09-18T14:00:00Z",
+            "format": "date-time",
             "type": "string"
+          },
+          "sentAt": {
+            "description": "When notification was sent (null if not sent)",
+            "example": "2025-09-18T14:05:00Z",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "deliveredAt": {
+            "description": "When notification was delivered (null if not delivered)",
+            "example": "2025-09-18T14:05:30Z",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "readAt": {
+            "description": "When user read the notification (null if not read)",
+            "example": "2025-09-18T14:30:00Z",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Additional metadata",
+            "example": {
+              "campaign_id": "welcome_series_1",
+              "source": "signup"
+            },
+            "type": "object"
           }
         },
         "required": [
@@ -339,8 +276,96 @@
         ],
         "type": "object"
       },
+      "CreateNotificationDto": {
+        "properties": {
+          "userId": {
+            "description": "User ID to send notification to",
+            "example": "usr_123456789",
+            "type": "string"
+          },
+          "type": {
+            "description": "Notification type",
+            "enum": [
+              "email",
+              "push",
+              "sms",
+              "in_app"
+            ],
+            "example": "email",
+            "type": "string"
+          },
+          "title": {
+            "description": "Notification title",
+            "example": "Welcome to our platform!",
+            "type": "string"
+          },
+          "message": {
+            "description": "Notification message content",
+            "example": "Thank you for signing up. Get started by exploring our features.",
+            "type": "string"
+          },
+          "priority": {
+            "default": "medium",
+            "description": "Priority level",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ],
+            "type": "string"
+          },
+          "scheduledFor": {
+            "description": "Schedule delivery for later (optional)",
+            "example": "2025-09-18T16:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Additional metadata for the notification",
+            "example": {
+              "campaign_id": "welcome_series_1",
+              "source": "signup"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "userId",
+          "type",
+          "title",
+          "message",
+          "priority"
+        ],
+        "type": "object"
+      },
       "NotificationStatsDto": {
         "properties": {
+          "totalSent": {
+            "description": "Total notifications sent",
+            "example": 1542,
+            "type": "number"
+          },
+          "pending": {
+            "description": "Notifications pending delivery",
+            "example": 23,
+            "type": "number"
+          },
+          "delivered": {
+            "description": "Successfully delivered notifications",
+            "example": 1450,
+            "type": "number"
+          },
+          "failed": {
+            "description": "Failed delivery notifications",
+            "example": 69,
+            "type": "number"
+          },
+          "read": {
+            "description": "Read notifications",
+            "example": 892,
+            "type": "number"
+          },
           "byType": {
             "additionalProperties": {
               "type": "number"
@@ -353,31 +378,6 @@
               "sms": 120
             },
             "type": "object"
-          },
-          "delivered": {
-            "description": "Successfully delivered notifications",
-            "example": 1450,
-            "type": "number"
-          },
-          "failed": {
-            "description": "Failed delivery notifications",
-            "example": 69,
-            "type": "number"
-          },
-          "pending": {
-            "description": "Notifications pending delivery",
-            "example": 23,
-            "type": "number"
-          },
-          "read": {
-            "description": "Read notifications",
-            "example": 892,
-            "type": "number"
-          },
-          "totalSent": {
-            "description": "Total notifications sent",
-            "example": 1542,
-            "type": "number"
           }
         },
         "required": [

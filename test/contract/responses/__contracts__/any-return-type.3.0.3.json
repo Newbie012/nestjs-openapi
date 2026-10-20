@@ -49,6 +49,20 @@
         ]
       }
     },
+    "/test/void-return": {
+      "get": {
+        "operationId": "AnyController_getVoidReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Any"
+        ]
+      }
+    },
     "/test/string-return": {
       "get": {
         "operationId": "AnyController_getStringReturn",
@@ -62,20 +76,6 @@
                 }
               }
             },
-            "description": ""
-          }
-        },
-        "tags": [
-          "Any"
-        ]
-      }
-    },
-    "/test/void-return": {
-      "get": {
-        "operationId": "AnyController_getVoidReturn",
-        "parameters": [],
-        "responses": {
-          "200": {
             "description": ""
           }
         },

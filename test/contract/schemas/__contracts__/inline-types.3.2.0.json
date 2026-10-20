@@ -7,46 +7,9 @@
   },
   "servers": [],
   "paths": {
-    "/inline/array": {
+    "/inline/simple": {
       "get": {
-        "operationId": "InlineController_getArray",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "properties": {
-                      "id": {
-                        "type": "number"
-                      },
-                      "value": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "value"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "summary": "Get array of inline objects",
-        "tags": [
-          "inline"
-        ]
-      }
-    },
-    "/inline/nested": {
-      "get": {
-        "operationId": "InlineController_getNested",
+        "operationId": "InlineController_getSimple",
         "parameters": [],
         "responses": {
           "200": {
@@ -54,24 +17,16 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "user": {
-                      "properties": {
-                        "age": {
-                          "type": "number"
-                        },
-                        "name": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "age"
-                      ],
-                      "type": "object"
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "user"
+                    "name",
+                    "email"
                   ],
                   "type": "object"
                 }
@@ -80,7 +35,7 @@
             "description": ""
           }
         },
-        "summary": "Get nested inline object",
+        "summary": "Get simple inline object",
         "tags": [
           "inline"
         ]
@@ -119,9 +74,9 @@
         ]
       }
     },
-    "/inline/simple": {
+    "/inline/nested": {
       "get": {
-        "operationId": "InlineController_getSimple",
+        "operationId": "InlineController_getNested",
         "parameters": [],
         "responses": {
           "200": {
@@ -129,16 +84,24 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "email": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
+                    "user": {
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "age": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "age"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
-                    "name",
-                    "email"
+                    "user"
                   ],
                   "type": "object"
                 }
@@ -147,7 +110,44 @@
             "description": ""
           }
         },
-        "summary": "Get simple inline object",
+        "summary": "Get nested inline object",
+        "tags": [
+          "inline"
+        ]
+      }
+    },
+    "/inline/array": {
+      "get": {
+        "operationId": "InlineController_getArray",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "number"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get array of inline objects",
         "tags": [
           "inline"
         ]

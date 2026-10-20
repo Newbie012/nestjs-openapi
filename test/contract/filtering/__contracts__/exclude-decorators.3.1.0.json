@@ -7,95 +7,6 @@
   },
   "servers": [],
   "paths": {
-    "/admin/config": {
-      "get": {
-        "operationId": "AdminController_getConfig",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Configuration"
-          }
-        },
-        "summary": "Get public configuration",
-        "tags": [
-          "Admin"
-        ]
-      }
-    },
-    "/api/public/info": {
-      "get": {
-        "operationId": "PublicApiController_getInfo",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "version": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "version",
-                    "name"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "API info"
-          }
-        },
-        "summary": "Get public API info",
-        "tags": [
-          "Public"
-        ]
-      }
-    },
-    "/api/public/status": {
-      "get": {
-        "operationId": "PublicApiController_getStatus",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "online": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "online"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "API status"
-          }
-        },
-        "summary": "Get API status",
-        "tags": [
-          "Public"
-        ]
-      }
-    },
     "/items": {
       "get": {
         "operationId": "ItemsController_findAll",
@@ -184,10 +95,118 @@
           "Items"
         ]
       }
+    },
+    "/admin/config": {
+      "get": {
+        "operationId": "AdminController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Configuration"
+          }
+        },
+        "summary": "Get public configuration",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/public/info": {
+      "get": {
+        "operationId": "PublicApiController_getInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "name"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "API info"
+          }
+        },
+        "summary": "Get public API info",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/public/status": {
+      "get": {
+        "operationId": "PublicApiController_getStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "online": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "online"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "API status"
+          }
+        },
+        "summary": "Get API status",
+        "tags": [
+          "Public"
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "ItemDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "CreateItemDto": {
         "properties": {
           "name": {
@@ -196,25 +215,6 @@
         },
         "required": [
           "name"
-        ],
-        "type": "object"
-      },
-      "ItemDto": {
-        "properties": {
-          "createdAt": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "createdAt"
         ],
         "type": "object"
       }

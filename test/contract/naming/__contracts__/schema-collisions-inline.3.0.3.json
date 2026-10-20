@@ -6,6 +6,27 @@
   },
   "servers": [],
   "paths": {
+    "/shipments": {
+      "get": {
+        "operationId": "AppController_shipments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/orders": {
       "get": {
         "operationId": "AppController_orders",
@@ -16,6 +37,45 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "AppController_products",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "variants": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "vendor": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "variants",
+                      "vendor"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
                 }
               }
             },
@@ -56,24 +116,55 @@
         ]
       }
     },
-    "/plugins/b": {
+    "/shipments/patch": {
       "get": {
-        "operationId": "AppController_pluginB",
+        "operationId": "AppController_patch",
         "parameters": [],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "executed": {
-                      "type": "number"
-                    }
+                  "$ref": "#/components/schemas/AddressPatchDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/products/raw": {
+      "get": {
+        "operationId": "AppController_rawProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "variants": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "vendor": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "variants",
+                      "vendor"
+                    ],
+                    "type": "object"
                   },
-                  "required": [
-                    "executed"
-                  ],
-                  "type": "object"
+                  "type": "array"
                 }
               }
             },
@@ -129,115 +220,24 @@
         ]
       }
     },
-    "/products": {
+    "/plugins/b": {
       "get": {
-        "operationId": "AppController_products",
+        "operationId": "AppController_pluginB",
         "parameters": [],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "properties": {
-                      "variants": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      "vendor": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "variants",
-                      "vendor"
-                    ],
-                    "type": "object"
+                  "properties": {
+                    "executed": {
+                      "type": "number"
+                    }
                   },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/products/raw": {
-      "get": {
-        "operationId": "AppController_rawProducts",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "properties": {
-                      "variants": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      "vendor": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "variants",
-                      "vendor"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/shipments": {
-      "get": {
-        "operationId": "AppController_shipments",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShipmentDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
-    "/shipments/patch": {
-      "get": {
-        "operationId": "AppController_patch",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddressPatchDto"
+                  "required": [
+                    "executed"
+                  ],
+                  "type": "object"
                 }
               }
             },
@@ -252,13 +252,31 @@
   },
   "components": {
     "schemas": {
-      "AddressPatchDto": {
+      "ShipmentDto": {
         "properties": {
-          "name": {
-            "nullable": true,
-            "type": "string"
+          "address": {
+            "properties": {
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "contact": {
+            "properties": {
+              "phone": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
           }
         },
+        "required": [
+          "address",
+          "contact"
+        ],
         "type": "object"
       },
       "OrderSummaryDto": {
@@ -270,13 +288,13 @@
               },
               "product": {
                 "properties": {
-                  "barcode": {
-                    "type": "string"
-                  },
                   "name": {
                     "type": "string"
                   },
                   "sku": {
+                    "type": "string"
+                  },
+                  "barcode": {
                     "type": "string"
                   }
                 },
@@ -312,31 +330,13 @@
         ],
         "type": "object"
       },
-      "ShipmentDto": {
+      "AddressPatchDto": {
         "properties": {
-          "address": {
-            "properties": {
-              "name": {
-                "nullable": true,
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "contact": {
-            "properties": {
-              "phone": {
-                "nullable": true,
-                "type": "string"
-              }
-            },
-            "type": "object"
+          "name": {
+            "nullable": true,
+            "type": "string"
           }
         },
-        "required": [
-          "address",
-          "contact"
-        ],
         "type": "object"
       }
     }

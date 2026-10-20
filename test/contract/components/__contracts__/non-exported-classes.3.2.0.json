@@ -30,14 +30,18 @@
   },
   "components": {
     "schemas": {
-      "AuditedBase": {
+      "OuterDto": {
         "properties": {
-          "createdAt": {
-            "type": "string"
+          "inner": {
+            "$ref": "#/components/schemas/InnerDto"
+          },
+          "audit": {
+            "$ref": "#/components/schemas/AuditedBase"
           }
         },
         "required": [
-          "createdAt"
+          "inner",
+          "audit"
         ],
         "type": "object"
       },
@@ -56,18 +60,14 @@
         ],
         "type": "object"
       },
-      "OuterDto": {
+      "AuditedBase": {
         "properties": {
-          "audit": {
-            "$ref": "#/components/schemas/AuditedBase"
-          },
-          "inner": {
-            "$ref": "#/components/schemas/InnerDto"
+          "createdAt": {
+            "type": "string"
           }
         },
         "required": [
-          "inner",
-          "audit"
+          "createdAt"
         ],
         "type": "object"
       }

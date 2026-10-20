@@ -35,10 +35,10 @@
     "schemas": {
       "UpdateUserDto": {
         "properties": {
-          "email": {
+          "name": {
             "type": "string"
           },
-          "name": {
+          "email": {
             "type": "string"
           }
         },

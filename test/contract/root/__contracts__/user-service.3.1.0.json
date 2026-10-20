@@ -92,34 +92,6 @@
       }
     },
     "/users/{id}": {
-      "delete": {
-        "description": "Remove a user from the system",
-        "operationId": "UserController_remove",
-        "parameters": [
-          {
-            "description": "User unique identifier",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "example": "usr_123456789",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "User deleted successfully"
-          },
-          "404": {
-            "description": "User not found"
-          }
-        },
-        "summary": "Delete user",
-        "tags": [
-          "users"
-        ]
-      },
       "get": {
         "description": "Retrieve a specific user by their unique identifier",
         "operationId": "UserController_findOne",
@@ -200,6 +172,34 @@
         "tags": [
           "users"
         ]
+      },
+      "delete": {
+        "description": "Remove a user from the system",
+        "operationId": "UserController_remove",
+        "parameters": [
+          {
+            "description": "User unique identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "usr_123456789",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Delete user",
+        "tags": [
+          "users"
+        ]
       }
     },
     "/users/{id}/profile": {
@@ -242,6 +242,74 @@
   },
   "components": {
     "schemas": {
+      "UserDto": {
+        "properties": {
+          "id": {
+            "description": "Unique user identifier",
+            "example": "usr_123456789",
+            "type": "string"
+          },
+          "email": {
+            "description": "User email address",
+            "example": "john.doe@example.com",
+            "type": "string"
+          },
+          "firstName": {
+            "description": "User first name",
+            "example": "John",
+            "type": "string"
+          },
+          "lastName": {
+            "description": "User last name",
+            "example": "Doe",
+            "type": "string"
+          },
+          "fullName": {
+            "description": "Full display name",
+            "example": "John Doe",
+            "type": "string"
+          },
+          "role": {
+            "description": "User role in the system",
+            "enum": [
+              "admin",
+              "user",
+              "moderator"
+            ],
+            "example": "user",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Whether the user account is active",
+            "example": true,
+            "type": "boolean"
+          },
+          "createdAt": {
+            "description": "Account creation timestamp",
+            "example": "2025-09-18T10:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last account update timestamp",
+            "example": "2025-09-18T10:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName",
+          "fullName",
+          "role",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "CreateUserDto": {
         "properties": {
           "email": {
@@ -284,10 +352,6 @@
             "description": "User first name",
             "type": "string"
           },
-          "isActive": {
-            "description": "Whether the user account is active",
-            "type": "boolean"
-          },
           "lastName": {
             "description": "User last name",
             "type": "string"
@@ -300,85 +364,19 @@
               "moderator"
             ],
             "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "UserDto": {
-        "properties": {
-          "createdAt": {
-            "description": "Account creation timestamp",
-            "example": "2025-09-18T10:00:00Z",
-            "format": "date-time",
-            "type": "string"
-          },
-          "email": {
-            "description": "User email address",
-            "example": "john.doe@example.com",
-            "type": "string"
-          },
-          "firstName": {
-            "description": "User first name",
-            "example": "John",
-            "type": "string"
-          },
-          "fullName": {
-            "description": "Full display name",
-            "example": "John Doe",
-            "type": "string"
-          },
-          "id": {
-            "description": "Unique user identifier",
-            "example": "usr_123456789",
-            "type": "string"
           },
           "isActive": {
             "description": "Whether the user account is active",
-            "example": true,
             "type": "boolean"
-          },
-          "lastName": {
-            "description": "User last name",
-            "example": "Doe",
-            "type": "string"
-          },
-          "role": {
-            "description": "User role in the system",
-            "enum": [
-              "admin",
-              "user",
-              "moderator"
-            ],
-            "example": "user",
-            "type": "string"
-          },
-          "updatedAt": {
-            "description": "Last account update timestamp",
-            "example": "2025-09-18T10:00:00Z",
-            "format": "date-time",
-            "type": "string"
           }
         },
-        "required": [
-          "id",
-          "email",
-          "firstName",
-          "lastName",
-          "fullName",
-          "role",
-          "isActive",
-          "createdAt",
-          "updatedAt"
-        ],
         "type": "object"
       },
       "UserProfileDto": {
         "properties": {
-          "lastLogin": {
-            "description": "Last login timestamp",
-            "example": "2025-09-18T14:30:00Z",
-            "format": "date-time",
-            "type": "string"
+          "user": {
+            "$ref": "#/components/schemas/UserDto",
+            "description": "User information"
           },
           "preferences": {
             "description": "User preferences",
@@ -388,9 +386,11 @@
             },
             "type": "object"
           },
-          "user": {
-            "$ref": "#/components/schemas/UserDto",
-            "description": "User information"
+          "lastLogin": {
+            "description": "Last login timestamp",
+            "example": "2025-09-18T14:30:00Z",
+            "format": "date-time",
+            "type": "string"
           }
         },
         "required": [
