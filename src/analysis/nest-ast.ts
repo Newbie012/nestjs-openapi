@@ -4,6 +4,7 @@ import type {
   Decorator,
   Expression,
   ObjectLiteralExpression,
+  Symbol,
 } from 'ts-morph';
 import { ts } from 'ts-morph';
 import {
@@ -113,25 +114,94 @@ export const resolveClassFromExpression = (
   return Option.none();
 };
 
+const MAX_ARRAY_DEPTH = 16;
+
+interface ArrayElements {
+  readonly classes: ClassDeclaration[];
+  readonly unresolved: string[];
+}
+
+const unwrapExpression = (expr: Expression): Expression => {
+  const inner =
+    expr.asKind(ts.SyntaxKind.ParenthesizedExpression) ??
+    expr.asKind(ts.SyntaxKind.AsExpression) ??
+    expr.asKind(ts.SyntaxKind.SatisfiesExpression) ??
+    expr.asKind(ts.SyntaxKind.NonNullExpression) ??
+    expr.asKind(ts.SyntaxKind.TypeAssertionExpression);
+  return inner ? unwrapExpression(inner.getExpression()) : expr;
+};
+
+const initializerOfIdentifier = (id: Expression): Expression | undefined => {
+  const symbol = Option.getOrUndefined(getSymbolFromIdentifier(id));
+  if (!symbol) return undefined;
+  const target =
+    (symbol as { getAliasedSymbol?: () => Symbol }).getAliasedSymbol?.() ??
+    symbol;
+  return target
+    .getDeclarations()
+    .flatMap((declaration) => {
+      const variable = declaration.asKind(ts.SyntaxKind.VariableDeclaration);
+      return variable ? [variable.getInitializer()] : [];
+    })
+    .find((init): init is Expression => init !== undefined);
+};
+
+const collectArrayElements = (
+  expr: Expression,
+  out: ArrayElements,
+  depth: number,
+): void => {
+  if (depth > MAX_ARRAY_DEPTH) {
+    out.unresolved.push(expr.getText());
+    return;
+  }
+  const unwrapped = unwrapExpression(expr);
+  const arr = unwrapped.asKind(ts.SyntaxKind.ArrayLiteralExpression);
+  if (arr) {
+    for (const element of arr.getElements()) {
+      const spread = element.asKind(ts.SyntaxKind.SpreadElement);
+      if (spread) {
+        collectArrayElements(spread.getExpression(), out, depth + 1);
+        continue;
+      }
+      const candidate = resolveClassFromExpression(element);
+      if (Option.isSome(candidate)) {
+        out.classes.push(candidate.value);
+      } else {
+        out.unresolved.push(element.getText());
+      }
+    }
+    return;
+  }
+
+  const id = unwrapped.asKind(ts.SyntaxKind.Identifier);
+  const initializer = id ? initializerOfIdentifier(id) : undefined;
+  if (initializer) {
+    collectArrayElements(initializer, out, depth + 1);
+    return;
+  }
+  out.unresolved.push(expr.getText());
+};
+
+const resolveArrayElements = (propInit?: Expression): ArrayElements => {
+  const out: ArrayElements = { classes: [], unresolved: [] };
+  if (propInit) collectArrayElements(propInit, out, 0);
+  return out;
+};
+
+/**
+ * Classes listed in an array expression. Follows spreads and identifiers that
+ * point to array literals, across imports; anything computed at runtime is skipped
+ */
 export const resolveArrayOfClasses = (
   propInit?: Expression,
-): readonly ClassDeclaration[] => {
-  const arr = propInit?.asKind?.(ts.SyntaxKind.ArrayLiteralExpression);
-  if (!arr) return [];
-
-  return arr.getElements().flatMap((element) => {
-    if (element.isKind(ts.SyntaxKind.SpreadElement)) return [];
-
-    const candidate = resolveClassFromExpression(
-      element as unknown as Expression,
-    );
-    return Option.isSome(candidate) ? [candidate.value] : [];
-  });
-};
+): readonly ClassDeclaration[] => resolveArrayElements(propInit).classes;
 
 export interface ModuleMetadata {
   readonly controllers: readonly ClassDeclaration[];
   readonly imports: readonly ClassDeclaration[];
+  /** Source text of listed entries that could not be resolved statically */
+  readonly unresolved?: readonly string[];
 }
 
 export const getModuleMetadata = (mod: ClassDeclaration): ModuleMetadata => {
@@ -157,13 +227,21 @@ export const getModuleMetadata = (mod: ClassDeclaration): ModuleMetadata => {
     getArrayInitializer(obj, 'imports'),
   );
 
-  const controllers = resolveArrayOfClasses(controllersInit).filter(
+  const resolvedControllers = resolveArrayElements(controllersInit);
+  const resolvedImports = resolveArrayElements(importsInit);
+
+  const controllers = resolvedControllers.classes.filter(
     (cls) => cls.getName() !== undefined,
   );
 
-  const imports = resolveArrayOfClasses(importsInit);
-
-  const metadata = { controllers, imports };
+  const metadata = {
+    controllers,
+    imports: resolvedImports.classes,
+    unresolved: [
+      ...resolvedControllers.unresolved,
+      ...resolvedImports.unresolved,
+    ],
+  };
   moduleMetadataCache.set(mod, metadata);
   return metadata;
 };

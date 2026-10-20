@@ -42,7 +42,18 @@ export const getModules = Effect.fn('Modules.getModules')(function* (
     if (visited.has(key)) continue;
     visited.add(key);
 
-    const { controllers, imports } = getModuleMetadata(mod);
+    const { controllers, imports, unresolved = [] } = getModuleMetadata(mod);
+
+    if (unresolved.length > 0) {
+      yield* Effect.logDebug(
+        'Skipped module entries that cannot be resolved statically',
+      ).pipe(
+        Effect.annotateLogs({
+          module: mod.getName() ?? '<anonymous>',
+          entries: unresolved.join(', '),
+        }),
+      );
+    }
 
     if (controllers.length > 0) {
       results.push({ declaration: mod, controllers });

@@ -1,0 +1,74 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "spread-controllers-nested",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/a": {
+      "get": {
+        "operationId": "AController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "A"
+        ]
+      }
+    },
+    "/b": {
+      "get": {
+        "operationId": "BController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "B"
+        ]
+      }
+    },
+    "/c": {
+      "get": {
+        "operationId": "CController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "C"
+        ]
+      }
+    }
+  },
+  "tags": []
+}
