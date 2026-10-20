@@ -2,6 +2,25 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
 
+const noLineComments = {
+  meta: { type: 'suggestion', schema: [] },
+  create(context) {
+    return {
+      Program() {
+        for (const comment of context.sourceCode.getAllComments()) {
+          if (comment.type !== 'Line') continue;
+          if (/^\s*(eslint|@ts-|prettier)/.test(comment.value)) continue;
+          context.report({
+            loc: comment.loc,
+            message:
+              'No line comments in src: make the code say it, or assert the reason in a test. JSDoc documents exported API.',
+          });
+        }
+      },
+    };
+  },
+};
+
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -27,7 +46,9 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     ignores: ['src/**/*.test.ts'],
+    plugins: { local: { rules: { 'no-line-comments': noLineComments } } },
     rules: {
+      'local/no-line-comments': 'error',
       'no-restricted-syntax': [
         'error',
         {
