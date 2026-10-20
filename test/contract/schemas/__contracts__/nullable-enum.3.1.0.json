@@ -52,7 +52,8 @@
           "size": {
             "enum": [
               "small",
-              "large"
+              "large",
+              null
             ],
             "type": [
               "string",

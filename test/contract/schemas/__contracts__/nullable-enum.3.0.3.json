@@ -51,7 +51,8 @@
           "size": {
             "enum": [
               "small",
-              "large"
+              "large",
+              null
             ],
             "nullable": true,
             "type": "string"

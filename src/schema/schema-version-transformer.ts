@@ -128,13 +128,26 @@ const exclusiveBoundsFor = <S extends Record<string, unknown>>(
   return result as S;
 };
 
+/**
+ * `nullable` adds null to the allowed types but leaves every other constraint
+ * as it is, so an `enum` that does not list `null` still rejects it. A
+ * nullable schema's `enum` therefore lists `null` too.
+ */
+const withNullInEnum = <S extends Record<string, unknown>>(schema: S): S => {
+  const values = schema['enum'];
+  if (schema['nullable'] !== true || !Array.isArray(values)) return schema;
+  return values.includes(null)
+    ? schema
+    : { ...schema, enum: [...values, null] };
+};
+
 const transformSchemaToV31 = (input: OpenApiSchema): OpenApiSchema => {
   const schema = mapSubschemas(input, (sub) =>
     transformSchemaToV31(sub as OpenApiSchema),
   ) as OpenApiSchema;
 
   // Remove OpenAPI 3.0 nullable keyword and represent nullability in 3.1 schema form.
-  const { nullable, ...restWithoutNullable } = schema;
+  const { nullable, ...restWithoutNullable } = withNullInEnum(schema);
 
   // Simple primitive nullable: { type: "string", nullable: true } -> { type: ["string", "null"] }
   const transformedType =
@@ -443,7 +456,10 @@ const adaptSchemaForV30 = (
   );
   if (!isRecord(mapped)) return mapped;
   return typeNullable(
-    exclusiveBoundsFor(typeListAsAnyOf(constAsEnum(mapped)), 'v30'),
+    exclusiveBoundsFor(
+      typeListAsAnyOf(withNullInEnum(constAsEnum(mapped))),
+      'v30',
+    ),
     components,
   );
 };

@@ -1126,4 +1126,61 @@ describe('schema-version-transformer', () => {
       },
     );
   });
+
+  describe('nullable enums', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'lists null in the enum for %s',
+      (version) => {
+        expect(
+          widgetOf(
+            transformSpecForVersion(
+              specWith({ type: 'string', enum: ['a', 'b'], nullable: true }),
+              version,
+            ),
+          ),
+        ).toEqual({ type: ['string', 'null'], enum: ['a', 'b', null] });
+      },
+    );
+
+    it('does not list null twice', () => {
+      expect(
+        widgetOf(
+          transformSpecForVersion(
+            specWith({ type: 'string', enum: ['a', null], nullable: true }),
+            '3.1.0',
+          ),
+        ),
+      ).toEqual({ type: ['string', 'null'], enum: ['a', null] });
+    });
+
+    it('leaves the enum of a schema that is not nullable alone', () => {
+      expect(
+        widgetOf(
+          transformSpecForVersion(
+            specWith({ type: 'string', enum: ['a', 'b'] }),
+            '3.1.0',
+          ),
+        ),
+      ).toEqual({ type: 'string', enum: ['a', 'b'] });
+    });
+
+    it('lists null in the enum for 3.0, where nullable leaves enum as it is', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: 'string', enum: ['a', 'b'], nullable: true }),
+          ),
+        ),
+      ).toEqual({ type: 'string', enum: ['a', 'b', null], nullable: true });
+    });
+  });
 });
