@@ -7,7 +7,6 @@
 
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
-import { Effect } from 'effect';
 import {
   mapOperationSchemas,
   mapSchemaRefs,
@@ -272,7 +271,7 @@ const convertRefsInValue = (value: unknown): unknown => {
  * 2. Includes only the schemas that are actually referenced
  * 3. Recursively includes nested schema references
  */
-const mergeSchemasInternal = (
+export const mergeSchemas = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
   extraRoots: readonly string[] = [],
@@ -317,108 +316,6 @@ const mergeSchemasInternal = (
 
   return { paths, schemas };
 };
-
-export const mergeSchemas = (
-  paths: OpenApiPaths,
-  generatedSchemas: GeneratedSchemas,
-  extraRoots?: readonly string[],
-): MergedResult => mergeSchemasInternal(paths, generatedSchemas, extraRoots);
-
-export const mergeSchemasEffect = Effect.fn('SchemaMerger.mergeSchemas')(
-  function* (
-    paths: OpenApiPaths,
-    generatedSchemas: GeneratedSchemas,
-    extraRoots?: readonly string[],
-  ) {
-    return yield* Effect.succeed(
-      mergeSchemasInternal(paths, generatedSchemas, extraRoots),
-    );
-  },
-);
-
-/**
- * Merge multiple GeneratedSchemas objects into one
- */
-const mergeGeneratedSchemasInternal = (
-  ...schemas: GeneratedSchemas[]
-): GeneratedSchemas => {
-  const definitions: Record<string, JsonSchema> = {};
-
-  for (const schema of schemas) {
-    Object.assign(definitions, schema.definitions);
-  }
-
-  return { definitions };
-};
-
-export const mergeGeneratedSchemas = (
-  ...schemas: GeneratedSchemas[]
-): GeneratedSchemas => mergeGeneratedSchemasInternal(...schemas);
-
-export const mergeGeneratedSchemasEffect = Effect.fn(
-  'SchemaMerger.mergeGeneratedSchemas',
-)(function* (...schemas: GeneratedSchemas[]) {
-  return yield* Effect.succeed(mergeGeneratedSchemasInternal(...schemas));
-});
-
-/**
- * Filter schemas to only include those matching certain patterns
- */
-const filterSchemasInternal = (
-  schemas: GeneratedSchemas,
-  include?: readonly string[],
-  exclude?: readonly string[],
-): GeneratedSchemas => {
-  const definitions: Record<string, JsonSchema> = {};
-
-  for (const [name, schema] of Object.entries(schemas.definitions)) {
-    // Check include patterns
-    if (include && include.length > 0) {
-      const matches = include.some((pattern) => {
-        if (pattern.includes('*')) {
-          const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-          return regex.test(name);
-        }
-        return name === pattern;
-      });
-      if (!matches) continue;
-    }
-
-    // Check exclude patterns
-    if (exclude && exclude.length > 0) {
-      const excluded = exclude.some((pattern) => {
-        if (pattern.includes('*')) {
-          const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-          return regex.test(name);
-        }
-        return name === pattern;
-      });
-      if (excluded) continue;
-    }
-
-    definitions[name] = schema;
-  }
-
-  return { definitions };
-};
-
-export const filterSchemas = (
-  schemas: GeneratedSchemas,
-  include?: readonly string[],
-  exclude?: readonly string[],
-): GeneratedSchemas => filterSchemasInternal(schemas, include, exclude);
-
-export const filterSchemasEffect = Effect.fn('SchemaMerger.filterSchemas')(
-  function* (
-    schemas: GeneratedSchemas,
-    include?: readonly string[],
-    exclude?: readonly string[],
-  ) {
-    return yield* Effect.succeed(
-      filterSchemasInternal(schemas, include, exclude),
-    );
-  },
-);
 
 type SchemaNode = Record<string, unknown>;
 

@@ -664,24 +664,6 @@ export const extractClassValidationInfo = (
     { constraints: {}, required: [], optional: [] },
   );
 
-/**
- * Extract all property constraints from a class
- */
-export const extractClassConstraints = (
-  classDecl: ClassDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): Record<string, ValidationConstraints> =>
-  extractClassValidationInfo(classDecl, expansion).constraints;
-
-/**
- * Get required property names from a class (those without @IsOptional)
- */
-export const getRequiredProperties = (
-  classDecl: ClassDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): readonly string[] =>
-  extractClassValidationInfo(classDecl, expansion).required;
-
 const collectHiddenProperties = (
   propertyConstraints: Record<string, ValidationConstraints>,
 ): ReadonlySet<string> =>
@@ -1084,8 +1066,11 @@ export const mergeValidationConstraints = (
   return { definitions };
 };
 
-const serviceExtractClassValidationInfo = Effect.fn(
-  'ValidationMapperService.extractClassValidationInfo',
+/**
+ * Extracts class validation info, mapping a failure to `ValidationMappingError`.
+ */
+export const extractClassValidationInfoEffect = Effect.fn(
+  'Validation.extractClassValidationInfo',
 )(function* (
   classDecl: ClassDeclaration,
   expansion?: DecoratorExpansionOptions,
@@ -1111,57 +1096,3 @@ const serviceExtractClassValidationInfo = Effect.fn(
 
   return info;
 });
-
-const serviceMergeValidationConstraints = Effect.fn(
-  'ValidationMapperService.mergeValidationConstraints',
-)(function* (
-  schemas: GeneratedSchemas,
-  classConstraints: Map<string, Record<string, ValidationConstraints>>,
-  classRequired: Map<string, readonly string[]>,
-  classOptional?: Map<string, readonly string[]>,
-) {
-  const merged = mergeValidationConstraints(
-    schemas,
-    classConstraints,
-    classRequired,
-    classOptional,
-  );
-
-  yield* Effect.annotateCurrentSpan(
-    'inputDefinitionCount',
-    Object.keys(schemas.definitions).length,
-  );
-  yield* Effect.annotateCurrentSpan(
-    'outputDefinitionCount',
-    Object.keys(merged.definitions).length,
-  );
-  yield* Effect.annotateCurrentSpan(
-    'classConstraintCount',
-    classConstraints.size,
-  );
-  yield* Effect.annotateCurrentSpan('classRequiredCount', classRequired.size);
-
-  return merged;
-});
-
-export class ValidationMapperService extends Effect.Service<ValidationMapperService>()(
-  'ValidationMapperService',
-  {
-    effect: Effect.succeed({
-      extractClassValidationInfo: serviceExtractClassValidationInfo,
-      mergeValidationConstraints: serviceMergeValidationConstraints,
-    }),
-  },
-) {}
-
-/**
- * Effect-native wrapper with trace annotations for class validation extraction.
- */
-export const extractClassValidationInfoEffect =
-  serviceExtractClassValidationInfo;
-
-/**
- * Effect-native wrapper with trace annotations for schema merge.
- */
-export const mergeValidationConstraintsEffect =
-  serviceMergeValidationConstraints;

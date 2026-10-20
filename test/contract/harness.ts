@@ -14,12 +14,6 @@ import {
   type OpenApiVersion,
 } from '../../src/model/domain.js';
 import { runtimeLayerFor } from '../../src/runtime/runtime-layer.js';
-import { MethodExtractionService } from '../../src/analysis/methods.js';
-import { ModuleTraversalService } from '../../src/analysis/modules.js';
-import { ProjectService } from '../../src/analysis/project.js';
-import { SchemaService } from '../../src/schema/schema-service.js';
-import { TransformerService } from '../../src/document/transformer.js';
-import { ValidationMapperService } from '../../src/analysis/validation-mapper.js';
 
 /** Every OpenAPI version the generator supports, oldest first */
 export const OPENAPI_VERSIONS = ['3.0.3', '3.1.0', '3.2.0'] as const;
@@ -133,12 +127,6 @@ const generateDocument = (
   const servicesLayer = Layer.mergeAll(
     configLayer,
     outputLayer,
-    ProjectService.Default,
-    ModuleTraversalService.Default,
-    MethodExtractionService.Default,
-    SchemaService.Default,
-    TransformerService.Default,
-    ValidationMapperService.Default,
   );
 
   return generateEffect(join(caseDir, 'openapi.config.ts')).pipe(

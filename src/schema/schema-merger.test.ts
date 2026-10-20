@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   mergeSchemas,
-  mergeGeneratedSchemas,
-  filterSchemas,
   forbidAdditionalProperties,
 } from './schema-merger.js';
 import type { GeneratedSchemas } from './schema-generator.js';
@@ -508,79 +506,6 @@ describe('schema-merger', () => {
       expect(result.schemas['User'].properties?.name).toEqual({
         type: 'string',
       });
-    });
-  });
-
-  describe('mergeGeneratedSchemas', () => {
-    it('should merge multiple schema objects', () => {
-      const schemas1: GeneratedSchemas = {
-        definitions: {
-          User: { type: 'object' },
-        },
-      };
-
-      const schemas2: GeneratedSchemas = {
-        definitions: {
-          Post: { type: 'object' },
-        },
-      };
-
-      const result = mergeGeneratedSchemas(schemas1, schemas2);
-
-      expect(result.definitions['User']).toBeDefined();
-      expect(result.definitions['Post']).toBeDefined();
-    });
-
-    it('should override schemas with same name', () => {
-      const schemas1: GeneratedSchemas = {
-        definitions: {
-          User: { type: 'object', description: 'First' },
-        },
-      };
-
-      const schemas2: GeneratedSchemas = {
-        definitions: {
-          User: { type: 'object', description: 'Second' },
-        },
-      };
-
-      const result = mergeGeneratedSchemas(schemas1, schemas2);
-
-      expect(result.definitions['User'].description).toBe('Second');
-    });
-  });
-
-  describe('filterSchemas', () => {
-    it('should include only matching patterns', () => {
-      const schemas: GeneratedSchemas = {
-        definitions: {
-          CreateUserDto: { type: 'object' },
-          UpdateUserDto: { type: 'object' },
-          User: { type: 'object' },
-        },
-      };
-
-      const result = filterSchemas(schemas, ['*Dto']);
-
-      expect(result.definitions['CreateUserDto']).toBeDefined();
-      expect(result.definitions['UpdateUserDto']).toBeDefined();
-      expect(result.definitions['User']).toBeUndefined();
-    });
-
-    it('should exclude matching patterns', () => {
-      const schemas: GeneratedSchemas = {
-        definitions: {
-          InternalType: { type: 'object' },
-          User: { type: 'object' },
-          Post: { type: 'object' },
-        },
-      };
-
-      const result = filterSchemas(schemas, undefined, ['Internal*']);
-
-      expect(result.definitions['User']).toBeDefined();
-      expect(result.definitions['Post']).toBeDefined();
-      expect(result.definitions['InternalType']).toBeUndefined();
     });
   });
 

@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect';
+import { Option } from 'effect';
 import type {
   MethodDeclaration,
   ClassDeclaration,
@@ -1038,13 +1038,6 @@ const getMethodInfoVariants = (
   );
 };
 
-const getMethodInfoInternal = (
-  controller: ClassDeclaration,
-  method: MethodDeclaration,
-  options: ExtractParametersOptions = {},
-): Option.Option<MethodInfo> =>
-  Option.fromNullable(getMethodInfoVariants(controller, method, options)[0]);
-
 // @nestjs/swagger only reads @ApiExtension on methods; on a controller it
 // applies to all its methods, the method's own winning. On one target, the
 // decorator Nest applies last (the topmost) wins
@@ -1081,19 +1074,7 @@ export const getMethodInfo = (
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
 ): Option.Option<MethodInfo> =>
-  getMethodInfoInternal(controller, method, options);
-
-export const getMethodInfoEffect = Effect.fn('Methods.getMethodInfo')(
-  function* (
-    controller: ClassDeclaration,
-    method: MethodDeclaration,
-    options: ExtractParametersOptions = {},
-  ) {
-    return yield* Effect.succeed(
-      getMethodInfoInternal(controller, method, options),
-    );
-  },
-);
+  Option.fromNullable(getMethodInfoVariants(controller, method, options)[0]);
 
 export const getControllerMethodInfos = (
   controller: ClassDeclaration,
@@ -1102,42 +1083,3 @@ export const getControllerMethodInfos = (
   controller
     .getMethods()
     .flatMap((method) => getMethodInfoVariants(controller, method, options));
-
-export const getControllerMethodInfosEffect = Effect.fn(
-  'Methods.getControllerMethodInfos',
-)(function* (
-  controller: ClassDeclaration,
-  options: ExtractParametersOptions = {},
-) {
-  return yield* Effect.sync(() => getControllerMethodInfos(controller, options));
-});
-
-const serviceGetMethodInfo = Effect.fn('MethodExtractionService.getMethodInfo')(
-  function* (
-    controller: ClassDeclaration,
-    method: MethodDeclaration,
-    options: ExtractParametersOptions = {},
-  ) {
-    return yield* getMethodInfoEffect(controller, method, options);
-  },
-);
-
-const serviceGetControllerMethodInfos = Effect.fn(
-  'MethodExtractionService.getControllerMethodInfos',
-)(function* (
-  controller: ClassDeclaration,
-  options: ExtractParametersOptions = {},
-) {
-  return yield* getControllerMethodInfosEffect(controller, options);
-});
-
-export class MethodExtractionService extends Effect.Service<MethodExtractionService>()(
-  'MethodExtractionService',
-  {
-    accessors: true,
-    effect: Effect.succeed({
-      getMethodInfo: serviceGetMethodInfo,
-      getControllerMethodInfos: serviceGetControllerMethodInfos,
-    }),
-  },
-) {}

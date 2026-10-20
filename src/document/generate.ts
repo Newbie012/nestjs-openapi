@@ -26,26 +26,27 @@ import {
 } from '../config/errors.js';
 import {
   findMissingIncludes,
-  ModuleTraversalService,
+  getDocumentedControllerModules,
   type ModuleScope,
 } from '../analysis/modules.js';
 import {
-  MethodExtractionService,
+  getControllerMethodInfos,
   type ExtractParametersOptions,
 } from '../analysis/methods.js';
-import { TransformerService } from './transformer.js';
+import { transformMethods } from './transformer.js';
 import {
   generateNamedSchemas,
+  generateSchemas,
   generateSchemasFromVirtualFile,
   type GeneratedSchemas,
   type JsonSchema,
 } from '../schema/schema-generator.js';
-import { normalizeStructureRefsEffect } from '../schema/schema-normalizer.js';
+import { normalizeStructureRefs } from '../schema/schema-normalizer.js';
 import { collapseAliasRefs } from '../schema/schema-alias-collapser.js';
 import { OPERATION_KEYS } from '../schema/schema-walk.js';
 import {
   forbidAdditionalProperties,
-  mergeSchemasEffect,
+  mergeSchemas,
 } from '../schema/schema-merger.js';
 import { filterMethods } from '../analysis/filter.js';
 import {
@@ -67,12 +68,12 @@ import {
   resolveTypeLocationsFast,
 } from '../schema/type-resolver.js';
 import {
-  ValidationMapperService,
+  extractClassValidationInfoEffect,
+  mergeValidationConstraints,
   type ValidationConstraints,
 } from '../analysis/validation-mapper.js';
 import { runtimeLayerFor } from '../runtime/runtime-layer.js';
 import { generatorServicesLayer } from '../runtime/service-layer.js';
-import { SchemaService } from '../schema/schema-service.js';
 import {
   EMPTY_PLAN,
   applyPlanToMethods,
@@ -657,7 +658,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
         tsconfig,
       );
       const normalizedBases =
-        yield* normalizeStructureRefsEffect(generatedBases);
+        normalizeStructureRefs(generatedBases);
       schemas = {
         definitions: {
           ...normalizedBases.definitions,
@@ -804,8 +805,6 @@ const overlayValidationConstraintsEffect = Effect.fn(
   namedEnums: Set<string>,
   enumNameUses: EnumNameUse[],
 ) {
-  const validation = yield* ValidationMapperService;
-
   const classConstraints = new Map<
     string,
     Record<string, ValidationConstraints>
@@ -815,7 +814,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
 
   for (const [className, classDecl] of classes) {
     const { constraints, required, optional, unreadable } =
-      yield* validation.extractClassValidationInfo(
+      yield* extractClassValidationInfoEffect(
         classDecl,
         expansion,
         naming,
@@ -868,7 +867,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
   );
 
   // Merge constraints into schemas
-  return yield* validation.mergeValidationConstraints(
+  return mergeValidationConstraints(
     schemas,
     classConstraints,
     classRequired,
@@ -956,75 +955,59 @@ const withSource = (
 /**
  * Internal Effect-based logic to extract method infos from a single entry
  */
-const extractMethodInfosFromEntry = (
+const extractMethodInfosFromEntry = Effect.fn(
+  'Generate.extractMethodInfosFromEntry',
+)(function* (
   tsconfig: string,
   entry: string,
   extractOptions: ExtractParametersOptions = {},
   scope: ModuleScope = {},
   // The entry as written in the config, when operations record their source
   sourceEntry?: string,
-) =>
-  Effect.fn('Generate.extractMethodInfosFromEntry')(function* (
-    inputTsconfig: string,
-    inputEntry: string,
-    inputExtractOptions: ExtractParametersOptions,
-  ) {
-    const project = getRunProject(inputTsconfig);
+) {
+  const project = getRunProject(tsconfig);
 
-    // Add only the entry file - ts-morph will resolve imports on-demand
-    project.addSourceFilesAtPaths(inputEntry);
+  // Add only the entry file - ts-morph will resolve imports on-demand
+  project.addSourceFilesAtPaths(entry);
 
-    const entrySourceFile = project.getSourceFile(inputEntry);
-    if (!entrySourceFile) {
-      return yield* EntryNotFoundError.fileNotFound(inputEntry);
-    }
+  const entrySourceFile = project.getSourceFile(entry);
+  if (!entrySourceFile) {
+    return yield* EntryNotFoundError.fileNotFound(entry);
+  }
 
-    // Find the module class - try AppModule first, then any class with @Module decorator
-    let entryClass = entrySourceFile.getClass('AppModule');
-    if (!entryClass) {
-      // Try to find any class with @Module decorator
-      for (const cls of entrySourceFile.getClasses()) {
-        const hasModuleDecorator = cls
-          .getDecorators()
-          .some((d) => d.getName() === 'Module');
-        if (hasModuleDecorator) {
-          entryClass = cls;
-          break;
-        }
+  // Find the module class - try AppModule first, then any class with @Module decorator
+  let entryClass = entrySourceFile.getClass('AppModule');
+  if (!entryClass) {
+    // Try to find any class with @Module decorator
+    for (const cls of entrySourceFile.getClasses()) {
+      const hasModuleDecorator = cls
+        .getDecorators()
+        .some((d) => d.getName() === 'Module');
+      if (hasModuleDecorator) {
+        entryClass = cls;
+        break;
       }
     }
+  }
 
-    if (!entryClass) {
-      return yield* EntryNotFoundError.classNotFound(inputEntry, 'Module');
-    }
+  if (!entryClass) {
+    return yield* EntryNotFoundError.classNotFound(entry, 'Module');
+  }
 
-    const controllers =
-      yield* ModuleTraversalService.getDocumentedControllerModules(
-        entryClass,
-        scope,
-      );
+  const controllers = yield* getDocumentedControllerModules(entryClass, scope);
 
-    const methodInfos = yield* Effect.forEach(
-      controllers,
-      ({ controller, module }) =>
-        MethodExtractionService.getControllerMethodInfos(
-          controller,
-          inputExtractOptions,
-        ).pipe(
-          Effect.map((infos) =>
-            sourceEntry === undefined
-              ? infos
-              : withSource(infos, controller, module, sourceEntry),
-          ),
-        ),
-      { concurrency: 'unbounded' },
-    );
+  const methodInfos = controllers.map(({ controller, module }) => {
+    const infos = getControllerMethodInfos(controller, extractOptions);
+    return sourceEntry === undefined
+      ? infos
+      : withSource(infos, controller, module, sourceEntry);
+  });
 
-    return {
-      methodInfos: methodInfos.flat(),
-      missingIncludes: findMissingIncludes(entryClass, scope.include ?? []),
-    };
-  })(tsconfig, entry, extractOptions);
+  return {
+    methodInfos: methodInfos.flat(),
+    missingIncludes: findMissingIncludes(entryClass, scope.include ?? []),
+  };
+});
 
 /**
  * Internal Effect-based logic to extract method infos from multiple entries
@@ -1207,7 +1190,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             ),
           ),
         ),
-        SchemaService.generateSchemas({
+        generateSchemas({
           dtoGlob: dtoGlobArray as string[],
           tsconfig,
           basePath: configDir,
@@ -1283,8 +1266,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       });
     }
 
-    const transformer = yield* TransformerService;
-    let paths = yield* transformer.transformMethods(routedMethods);
+    let paths = transformMethods(routedMethods);
     if (options.operationExtensions) {
       paths = yield* applyOperationExtensions(
         paths,
@@ -1349,7 +1331,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }
       }
       if (reachedWithoutSchema.size > 0) {
-        const reachedSchemas = yield* normalizeStructureRefsEffect(
+        const reachedSchemas = normalizeStructureRefs(
           yield* generateNamedSchemas(reachedWithoutSchema, tsconfig),
         );
         generatedSchemas = {
@@ -1364,10 +1346,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       }
 
       // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
-      generatedSchemas = yield* normalizeStructureRefsEffect(generatedSchemas);
+      generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
       // First merge to get initial schemas
-      let mergeResult = yield* mergeSchemasEffect(
+      let mergeResult = mergeSchemas(
         paths as unknown as OpenApiSpec['paths'],
         generatedSchemas,
         extraModelRoots,
@@ -1484,7 +1466,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
           if (Object.keys(additionalSchemas.definitions).length > 0) {
             const normalizedAdditional =
-              yield* normalizeStructureRefsEffect(additionalSchemas);
+              normalizeStructureRefs(additionalSchemas);
 
             const combinedSchemas: GeneratedSchemas = {
               definitions: {
@@ -1501,7 +1483,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             };
             generatedSchemas = combinedSchemas;
 
-            mergeResult = yield* mergeSchemasEffect(
+            mergeResult = mergeSchemas(
               paths as unknown as OpenApiSpec['paths'],
               combinedSchemas,
               extraModelRoots,
@@ -1577,7 +1559,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
           if (Object.keys(genericSchemas.definitions).length > 0) {
             const normalizedGeneric =
-              yield* normalizeStructureRefsEffect(genericSchemas);
+              normalizeStructureRefs(genericSchemas);
             const combinedSchemas: GeneratedSchemas = {
               definitions: {
                 ...generatedSchemas.definitions,
@@ -1586,7 +1568,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             };
             generatedSchemas = combinedSchemas;
 
-            mergeResult = yield* mergeSchemasEffect(
+            mergeResult = mergeSchemas(
               paths as unknown as OpenApiSpec['paths'],
               combinedSchemas,
               extraModelRoots,
@@ -1622,7 +1604,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           namedEnums,
           enumNameUses,
         );
-        mergeResult = yield* mergeSchemasEffect(
+        mergeResult = mergeSchemas(
           paths as unknown as OpenApiSpec['paths'],
           generatedSchemas,
           extraModelRoots,

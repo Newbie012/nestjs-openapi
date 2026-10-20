@@ -56,7 +56,7 @@ src/
     └── module.ts, runtime-layer.ts, service-layer.ts
 ```
 
-Unit tests (`*.test.ts`) sit next to the module they test. `*-service.ts` files wrap a module's functions as an Effect service and sit next to it.
+Unit tests (`*.test.ts`) sit next to the module they test. Pure functions stay plain functions. A module becomes an Effect service (`config.ts`, `output-service.ts`) only when it does IO that a test replaces; `runtime/service-layer.ts` provides those two.
 
 ## Test Applications
 

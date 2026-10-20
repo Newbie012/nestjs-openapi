@@ -6,19 +6,11 @@
 
 import { Effect } from 'effect';
 import type { OpenApiPaths } from './model/domain.js';
-import { type GeneratorError, type ProjectError } from './config/errors.js';
-import { generateEffect, type GenerateResult } from './document/generate.js';
-import { MethodExtractionService } from './analysis/methods.js';
-import { ModuleTraversalService } from './analysis/modules.js';
-import { ProjectService } from './analysis/project.js';
-import {
-  runGeneratorApiPromise,
-  runProjectApiPromise,
-} from './public-api.js';
-import { runtimeLayerFor } from './runtime/runtime-layer.js';
-import { generatorServicesLayer } from './runtime/service-layer.js';
-import { TransformerService } from './document/transformer.js';
-import type { GenerateOverrides } from './config/types.js';
+import { getControllerMethodInfos } from './analysis/methods.js';
+import { getModules } from './analysis/modules.js';
+import { makeProjectContext } from './analysis/project.js';
+import { runProjectApiPromise } from './public-api.js';
+import { transformMethods } from './document/transformer.js';
 
 export interface GenerateOptions {
   readonly tsconfig: string;
@@ -34,15 +26,12 @@ export const generatePathsEffect = Effect.fn('Internal.generatePathsEffect')(
       Effect.annotateLogs({ entry: options.entry }),
     );
 
-    const { entryClass } = yield* ProjectService.makeProjectContext(options);
-    const modules = yield* ModuleTraversalService.getModules(entryClass);
+    const { entryClass } = yield* makeProjectContext(options);
+    const modules = yield* getModules(entryClass);
 
-    const methodInfos = yield* Effect.forEach(
-      modules.flatMap((mod) => mod.controllers),
-      (controller) => MethodExtractionService.getControllerMethodInfos(controller),
-      { concurrency: 'unbounded' },
-    );
-    const flatMethodInfos = methodInfos.flat();
+    const flatMethodInfos = modules
+      .flatMap((mod) => mod.controllers)
+      .flatMap((controller) => getControllerMethodInfos(controller));
 
     yield* Effect.logInfo('Collected method infos').pipe(
       Effect.annotateLogs({
@@ -51,8 +40,7 @@ export const generatePathsEffect = Effect.fn('Internal.generatePathsEffect')(
       }),
     );
 
-    const transformer = yield* TransformerService;
-    const paths = yield* transformer.transformMethods(flatMethodInfos);
+    const paths = transformMethods(flatMethodInfos);
 
     yield* Effect.logInfo('OpenAPI generation complete').pipe(
       Effect.annotateLogs({ paths: Object.keys(paths).length }),
@@ -63,42 +51,11 @@ export const generatePathsEffect = Effect.fn('Internal.generatePathsEffect')(
 );
 
 /**
- * Canonical config-file based Effect API.
- */
-export const generateFromConfigEffect = generateEffect;
-
-/**
  * Promise wrapper for path-only API.
  */
-export const generatePathsAsync = async (
+export const generatePathsAsync = (
   options: GenerateOptions,
-): Promise<OpenApiPaths> => {
-  const program = generatePathsEffect(options) as Effect.Effect<
-    OpenApiPaths,
-    ProjectError,
-    never
-  >;
-  return runProjectApiPromise(program.pipe(Effect.provide(generatorServicesLayer)));
-};
-
-/**
- * Promise wrapper for canonical config-file API.
- */
-export const generateFromConfigAsync = async (
-  configPath: string,
-  overrides?: GenerateOverrides,
-): Promise<GenerateResult> => {
-  const program = generateFromConfigEffect(configPath, overrides).pipe(
-    Effect.provide(generatorServicesLayer),
-    Effect.provide(
-      runtimeLayerFor(
-        overrides?.debug ?? false,
-        overrides?.telemetry,
-      ),
-    ),
-  ) as Effect.Effect<GenerateResult, GeneratorError, never>;
-  return runGeneratorApiPromise(program);
-};
+): Promise<OpenApiPaths> => runProjectApiPromise(generatePathsEffect(options));
 
 /**
  * Backward-compatible aliases.

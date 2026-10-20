@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Effect, Option } from 'effect';
+import { Option } from 'effect';
 import { Project } from 'ts-morph';
-import { MethodExtractionService } from './methods.js';
+import { getControllerMethodInfos } from './methods.js';
 
-describe('MethodExtractionService', () => {
-  it('provides getControllerMethodInfos accessor via Default layer', async () => {
+describe('getControllerMethodInfos', () => {
+  it('extracts method infos for a controller', () => {
     const project = new Project({
       useInMemoryFileSystem: true,
       compilerOptions: {
@@ -30,11 +30,7 @@ describe('MethodExtractionService', () => {
     );
 
     const controller = sourceFile.getClass('UsersController')!;
-    const result = await Effect.runPromise(
-      MethodExtractionService.getControllerMethodInfos(controller).pipe(
-        Effect.provide(MethodExtractionService.Default),
-      ),
-    );
+    const result = getControllerMethodInfos(controller);
 
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe('/users/:id');

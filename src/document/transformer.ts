@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect';
+import { Option } from 'effect';
 import type {
   MethodInfo,
   MethodSecurityRequirement,
@@ -681,7 +681,7 @@ const buildRequestBody = (
 const buildOpenApiPath = (path: string): string =>
   path.replace(/:([^/]+)/g, '{$1}') || '/';
 
-const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
+export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
   const path = buildOpenApiPath(methodInfo.path);
   const method = methodInfo.httpMethod.toLowerCase();
 
@@ -737,9 +737,6 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
   };
 };
 
-export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths =>
-  transformMethodInternal(methodInfo);
-
 type MutableOpenApiPaths = {
   [path: string]: {
     [method: string]: OpenApiOperation;
@@ -756,48 +753,4 @@ const mergeOpenApiPaths = (endpoints: readonly OpenApiPaths[]): OpenApiPaths =>
 
 export const transformMethods = (
   methodInfos: readonly MethodInfo[],
-): OpenApiPaths => mergeOpenApiPaths(methodInfos.map(transformMethodInternal));
-
-const serviceTransformMethod = Effect.fn('TransformerService.transformMethod')(
-  function* (methodInfo: MethodInfo) {
-    const paths = yield* Effect.sync(() => transformMethodInternal(methodInfo));
-
-    yield* Effect.annotateCurrentSpan(
-      'controllerName',
-      methodInfo.controllerName,
-    );
-    yield* Effect.annotateCurrentSpan('methodName', methodInfo.methodName);
-    yield* Effect.annotateCurrentSpan('httpMethod', methodInfo.httpMethod);
-    yield* Effect.annotateCurrentSpan('path', methodInfo.path);
-
-    return paths;
-  },
-);
-
-const serviceTransformMethods = Effect.fn(
-  'TransformerService.transformMethods',
-)(function* (methodInfos: readonly MethodInfo[]) {
-  const endpoints = yield* Effect.forEach(methodInfos, serviceTransformMethod, {
-    concurrency: 'unbounded',
-  });
-  const paths = mergeOpenApiPaths(endpoints);
-
-  yield* Effect.annotateCurrentSpan('methodCount', methodInfos.length);
-  yield* Effect.annotateCurrentSpan('pathCount', Object.keys(paths).length);
-
-  return paths;
-});
-
-export class TransformerService extends Effect.Service<TransformerService>()(
-  'TransformerService',
-  {
-    effect: Effect.succeed({
-      transformMethod: serviceTransformMethod,
-      transformMethods: serviceTransformMethods,
-    }),
-  },
-) {}
-
-export const transformMethodEffect = serviceTransformMethod;
-
-export const transformMethodsEffect = serviceTransformMethods;
+): OpenApiPaths => mergeOpenApiPaths(methodInfos.map(transformMethod));

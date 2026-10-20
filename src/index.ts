@@ -121,8 +121,6 @@ export {
   generateAsync,
   generatePathsEffect,
   generatePathsAsync,
-  generateFromConfigEffect,
-  generateFromConfigAsync,
   type GenerateOptions,
 } from './internal.js';
 
@@ -159,10 +157,8 @@ export {
   type GeneratorError,
 } from './config/errors.js';
 
-// Services
+// Project
 export {
-  ProjectService,
-  ProjectServiceLive,
   makeProjectContext,
   type ProjectContext,
   type ProjectOptions,
@@ -172,7 +168,6 @@ export {
 export {
   getModules,
   getAllControllers,
-  ModuleTraversalService,
   type ModuleWithControllers,
 } from './analysis/modules.js';
 
@@ -181,53 +176,34 @@ export {
   getControllerPrefix,
   getControllerName,
   isHttpMethod,
-  getHttpMethods,
   getDecoratorName,
   getControllerTags,
   getHttpDecorator,
-  isHttpDecorator,
   normalizePath,
 } from './analysis/controllers.js';
 
 // Method Analysis
 export {
   getMethodInfo,
-  getMethodInfoEffect,
   getControllerMethodInfos,
-  getControllerMethodInfosEffect,
-  MethodExtractionService,
 } from './analysis/methods.js';
 
 // Transformation
 export {
-  TransformerService,
   transformMethod,
-  transformMethodEffect,
   transformMethods,
-  transformMethodsEffect,
 } from './document/transformer.js';
 
 // Schema merging
 export {
   mergeSchemas,
-  mergeSchemasEffect,
-  mergeGeneratedSchemas,
-  mergeGeneratedSchemasEffect,
-  filterSchemas,
-  filterSchemasEffect,
   type MergedResult,
 } from './schema/schema-merger.js';
 
 // Schema normalization
 export {
-  normalizeSchemas,
-  normalizeSchemasEffect,
-  filterInternalSchemas,
-  filterInternalSchemasEffect,
   normalizeStructureRefs,
-  normalizeStructureRefsEffect,
   toPascalCase,
-  type NormalizerOptions,
 } from './schema/schema-normalizer.js';
 
 // Schema generation
@@ -241,27 +217,20 @@ export {
   type JsonSchema,
 } from './schema/schema-generator.js';
 
-export { SchemaService } from './schema/schema-service.js';
-
 // Validation mapping
 export {
-  ValidationMapperService,
   extractPropertyConstraints,
   isPropertyOptional,
   extractPropertyValidationInfo,
   extractClassValidationInfo,
   extractClassValidationInfoEffect,
-  extractClassConstraints,
-  getRequiredProperties,
   applyConstraintsToSchema,
   mergeValidationConstraints,
-  mergeValidationConstraintsEffect,
   type ValidationConstraints,
   type PropertyValidationInfo,
   type ClassValidationInfo,
 } from './analysis/validation-mapper.js';
 
-export { ValidationService } from './analysis/validation-service.js';
 export { OutputService } from './document/output-service.js';
 
 // Config utilities
@@ -281,7 +250,6 @@ export { generatorServicesLayer } from './runtime/service-layer.js';
 export {
   resolveClassFromSymbol,
   getArrayInitializer,
-  getStringLiteralValue,
   getSymbolFromIdentifier,
 } from './analysis/ast.js';
 

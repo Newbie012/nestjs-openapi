@@ -45,10 +45,6 @@ export const getControllerName = (controller: ClassDeclaration): string =>
 export const isHttpMethod = (method: MethodDeclaration): boolean =>
   method.getDecorators().some((d) => HTTP_DECORATORS.has(d.getName()));
 
-export const getHttpMethods = (
-  controller: ClassDeclaration,
-): readonly MethodDeclaration[] => controller.getMethods().filter(isHttpMethod);
-
 /** Handles both @Get and @Get() syntax */
 export const getDecoratorName = (decorator: Decorator): string => {
   const expr = decorator.getExpression();
@@ -82,9 +78,6 @@ export const getControllerTags = (
         getControllerName(controller).replace(/Controller$/i, ''),
       ];
 };
-
-export const isHttpDecorator = (decorator: Decorator): boolean =>
-  HTTP_DECORATORS.has(decorator.getName());
 
 export const getHttpDecorator = (
   method: MethodDeclaration,

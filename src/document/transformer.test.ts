@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Effect, Option } from 'effect';
-import { TransformerService, transformMethod } from './transformer.js';
+import { Option } from 'effect';
+import { transformMethod, transformMethods } from './transformer.js';
 import type { MethodInfo, ResolvedParameter } from '../model/domain.js';
 
 // Test helper to create method info with defaults
@@ -34,8 +34,8 @@ function createMethodInfo(overrides: Partial<MethodInfo> = {}): MethodInfo {
   };
 }
 
-describe('TransformerService', () => {
-  it('transforms method infos through the service layer', async () => {
+describe('transformMethods', () => {
+  it('transforms method infos into paths', () => {
     const methodInfo = createMethodInfo({
       path: '/users/:id',
       methodName: 'getUser',
@@ -43,12 +43,7 @@ describe('TransformerService', () => {
       controllerTags: ['users'],
     });
 
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const transformer = yield* TransformerService;
-        return yield* transformer.transformMethods([methodInfo]);
-      }).pipe(Effect.provide(TransformerService.Default)),
-    );
+    const result = transformMethods([methodInfo]);
 
     expect(result['/users/{id}']).toBeDefined();
     expect(result['/users/{id}'].get).toBeDefined();

@@ -158,37 +158,3 @@ export const getDocumentedControllerModules = Effect.fn(
     return true;
   }) as readonly DocumentedController[];
 });
-
-export const getDocumentedControllers = Effect.fn(
-  'Modules.getDocumentedControllers',
-)(function* (root: ClassDeclaration, scope: ModuleScope = {}) {
-  const documented = yield* getDocumentedControllerModules(root, scope);
-  return documented.map(
-    ({ controller }) => controller,
-  ) as readonly ClassDeclaration[];
-});
-
-const serviceGetModules = Effect.fn('ModuleTraversalService.getModules')(
-  function* (root: ClassDeclaration) {
-    return yield* getModules(root);
-  },
-);
-
-const serviceGetAllControllers = Effect.fn(
-  'ModuleTraversalService.getAllControllers',
-)(function* (root: ClassDeclaration) {
-  return yield* getAllControllers(root);
-});
-
-export class ModuleTraversalService extends Effect.Service<ModuleTraversalService>()(
-  'ModuleTraversalService',
-  {
-    accessors: true,
-    effect: Effect.succeed({
-      getModules: serviceGetModules,
-      getAllControllers: serviceGetAllControllers,
-      getDocumentedControllers,
-      getDocumentedControllerModules,
-    }),
-  },
-) {}
