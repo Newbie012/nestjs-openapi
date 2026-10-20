@@ -33,9 +33,13 @@
       "ShapeDto": {
         "properties": {
           "value": {
-            "type": [
-              "string",
-              "number"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
             ]
           }
         },

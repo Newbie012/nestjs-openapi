@@ -111,9 +111,6 @@ export class ShapeDto {
 contract('primitive-union', {
   spec: SCHEMA_OBJECT_30,
   config: { files: FILES },
-  knownInvalid: [
-    { version: '3.0.3', reason: 'type array in 3.0', plan: '004' },
-  ],
   source: appWith(`
 export class ShapeDto {
   value: string | number;

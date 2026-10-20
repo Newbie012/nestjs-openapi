@@ -402,6 +402,38 @@ const constAsEnum = (schema: SchemaRecord): SchemaRecord => {
   return { ...rest, enum: (rest['enum'] as unknown[] | undefined) ?? [value] };
 };
 
+const NULL_MEMBER_V30: SchemaRecord = {
+  type: 'object',
+  nullable: true,
+  enum: [null],
+};
+
+/**
+ * 3.0 allows one string `type`, so a list such as `['string', 'number']`
+ * becomes an `anyOf` of single-type members, with a null member when the list
+ * had `'null'`. Keywords beside the list stay on the outer schema. One type
+ * plus `'null'` becomes `{ type, nullable: true }`.
+ */
+const typeListAsAnyOf = (schema: SchemaRecord): SchemaRecord => {
+  const { type, ...rest } = schema;
+  if (!Array.isArray(type)) return schema;
+  const types = type.filter((member): member is string => member !== 'null');
+  const nullable = types.length < type.length || rest['nullable'] === true;
+  const { nullable: _nullable, ...others } = rest;
+  if (types.length === 1) {
+    return { ...others, type: types[0], ...(nullable && { nullable: true }) };
+  }
+  if (types.length === 0)
+    return nullable ? { ...others, ...NULL_MEMBER_V30 } : others;
+  return {
+    ...others,
+    anyOf: [
+      ...types.map((member) => ({ type: member })),
+      ...(nullable ? [NULL_MEMBER_V30] : []),
+    ],
+  };
+};
+
 const adaptSchemaForV30 = (
   value: unknown,
   components: Readonly<Record<string, unknown>>,
@@ -411,7 +443,7 @@ const adaptSchemaForV30 = (
   );
   if (!isRecord(mapped)) return mapped;
   return typeNullable(
-    exclusiveBoundsFor(constAsEnum(mapped), 'v30'),
+    exclusiveBoundsFor(typeListAsAnyOf(constAsEnum(mapped)), 'v30'),
     components,
   );
 };

@@ -1063,4 +1063,67 @@ describe('schema-version-transformer', () => {
       expect(widget).toEqual({ const: 'card', type: 'string' });
     });
   });
+  describe('primitive unions', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+
+    it('writes a type list as anyOf for 3.0', () => {
+      expect(
+        widgetOf(adaptSpecForV30(specWith({ type: ['string', 'number'] }))),
+      ).toEqual({ anyOf: [{ type: 'string' }, { type: 'number' }] });
+    });
+
+    it('adds the 3.0 null member when the list has null', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(specWith({ type: ['string', 'number', 'null'] })),
+        ),
+      ).toEqual({
+        anyOf: [
+          { type: 'string' },
+          { type: 'number' },
+          { type: 'object', nullable: true, enum: [null] },
+        ],
+      });
+    });
+
+    it('keeps other keywords beside anyOf', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: ['string', 'number'], description: 'd' }),
+          ),
+        ),
+      ).toEqual({
+        description: 'd',
+        anyOf: [{ type: 'string' }, { type: 'number' }],
+      });
+    });
+
+    it('turns a type list with one type and null into nullable', () => {
+      expect(
+        widgetOf(adaptSpecForV30(specWith({ type: ['string', 'null'] }))),
+      ).toEqual({ type: 'string', nullable: true });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'leaves a type list alone for %s',
+      (version) => {
+        expect(
+          widgetOf(
+            transformSpecForVersion(
+              specWith({ type: ['string', 'number'] }),
+              version,
+            ),
+          ),
+        ).toEqual({ type: ['string', 'number'] });
+      },
+    );
+  });
 });
