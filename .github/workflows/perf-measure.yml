@@ -7,6 +7,7 @@ on:
 jobs:
   pipeline:
     name: Pipeline (macOS)
+    if: contains(github.event.head_commit.message, 'pipeline')
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
@@ -113,7 +114,8 @@ jobs:
       - name: CPU profile
         run: |
           mkdir -p perf-out/prof
-          NODE_OPTIONS="--cpu-prof --cpu-prof-dir=$PWD/perf-out/prof" node_modules/.bin/vitest run test/contract > perf-out/vitest-prof.log 2>&1 || echo "profile run failed"
+          NODE_OPTIONS="--cpu-prof --cpu-prof-dir=$PWD/perf-out/prof" node_modules/.bin/vitest run test/contract --pool=threads > perf-out/vitest-prof.log 2>&1 || echo "profile run failed"
+          ls perf-out/prof | wc -l
           node .github/perf/profile-summary.mjs perf-out/prof | tee perf-out/profile.md
 
       - name: Summary
