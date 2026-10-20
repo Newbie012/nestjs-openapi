@@ -142,8 +142,10 @@ export const typeSchema = (
   return name !== undefined ? PRIMITIVE_TYPE_NAMES[name] : undefined;
 };
 
-// Marks an enum named on purpose (`enumName`): the 'nest' enum style keeps
-// it while inlining enums inferred from TypeScript types
+/**
+ * Marks a ref to an enum named on purpose (`enumName`): the 'nest' enum style
+ * keeps it while inlining refs to enums inferred from TypeScript types
+ */
 export const NAMED_ENUM_REF: unique symbol = Symbol('namedEnumRef');
 
 const enumValueType = (values: readonly EnumValue[]) =>

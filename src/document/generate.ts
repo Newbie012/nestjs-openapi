@@ -697,8 +697,13 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
   },
 );
 
-// As @nestjs/swagger does, an enum inferred from a TypeScript type is
-// written in place; one named with `enumName` carries NAMED_ENUM_REF and stays
+/**
+ * 'nest' enum style, refs inside definitions: as @nestjs/swagger does, a ref
+ * to an enum inferred from a TypeScript type is written in place, while a ref
+ * that carries NAMED_ENUM_REF (an `enumName`) stays. Decided per ref, so the
+ * same component can be inlined at one property and kept at another. Refs in
+ * paths are left to `inlineUnnamedEnums`.
+ */
 const inlineInferredEnumRefs = (
   schemas: GeneratedSchemas,
 ): GeneratedSchemas => {
@@ -734,6 +739,29 @@ const inlineInferredEnumRefs = (
       ]),
     ),
   };
+};
+
+/**
+ * 'nest' enum style, paths and merged components: every enum-only component
+ * that no `enumName` names is written in place and removed. Decided per
+ * component name, after the merge, where the NAMED_ENUM_REF marker read by
+ * `inlineInferredEnumRefs` is gone.
+ */
+const inlineUnnamedEnums = (
+  paths: OpenApiPaths,
+  schemas: Record<string, OpenApiSchema>,
+  enumNameUses: readonly EnumNameUse[],
+) => {
+  const named = new Set(enumNameUses.map((use) => use.name));
+  return inlineSchemas(
+    paths,
+    schemas,
+    new Set(
+      Object.entries(schemas).flatMap(([name, schema]) =>
+        isEnumOnlySchema(schema) && !named.has(name) ? [name] : [],
+      ),
+    ),
+  );
 };
 
 type EnumNameUse = {
@@ -1543,15 +1571,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       }
     }
 
-    // 'nest' enums: values are written in place unless `enumName` names them
     if (enumStyle === 'nest') {
-      const namedEnums = new Set(enumNameUses.map((use) => use.name));
-      const enumComponents = new Set(
-        Object.entries(schemas).flatMap(([name, schema]) =>
-          isEnumOnlySchema(schema) && !namedEnums.has(name) ? [name] : [],
-        ),
-      );
-      const inlined = inlineSchemas(paths, schemas, enumComponents);
+      const inlined = inlineUnnamedEnums(paths, schemas, enumNameUses);
       paths = inlined.paths;
       schemas = inlined.schemas;
     }

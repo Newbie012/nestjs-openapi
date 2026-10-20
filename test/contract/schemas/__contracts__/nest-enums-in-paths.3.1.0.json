@@ -1,0 +1,189 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "nest-enums-in-paths",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "ItemsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      },
+      "post": {
+        "operationId": "ItemsController_post",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "enum": [
+                  "on",
+                  "off"
+                ],
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "enum": [
+                      "on",
+                      "off"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/level": {
+      "get": {
+        "operationId": "ItemsController_level",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "l",
+            "required": true,
+            "schema": {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "enum": [
+                      "a",
+                      "b"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/status": {
+      "get": {
+        "operationId": "ItemsController_status",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "s",
+            "required": true,
+            "schema": {
+              "enum": [
+                "on",
+                "off"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "enum": [
+                    "on",
+                    "off"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ItemDto": {
+        "properties": {
+          "level": {
+            "enum": [
+              "a",
+              "b"
+            ],
+            "type": "string"
+          },
+          "list": {
+            "items": {
+              "enum": [
+                "on",
+                "off"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "on",
+              "off"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "level",
+          "list"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
