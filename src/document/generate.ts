@@ -1,8 +1,7 @@
 /**
- * Promise-based entry point for generating OpenAPI specifications.
- *
- * This module provides a clean, Promise-based API that hides the internal
- * Effect-TS implementation from consumers.
+ * The generation pipeline: collects operations and schemas from the source,
+ * normalizes and merges them into one document, adapts it to the requested
+ * OpenAPI version and writes it, with a Promise wrapper around the Effect.
  */
 
 import { Effect } from 'effect';
@@ -160,7 +159,7 @@ const mergeSecurityWithGlobal = (
   globalSecurity: readonly SecurityRequirement[] | undefined,
 ): OpenApiPaths => {
   if (!globalSecurity || globalSecurity.length === 0) {
-    return paths; // No global security to merge
+    return paths;
   }
 
   const mergedPaths: MutablePaths = {};
@@ -170,25 +169,16 @@ const mergeSecurityWithGlobal = (
 
     for (const [method, operation] of Object.entries(methods)) {
       if (operation.security && operation.security.length > 0) {
-        // Preserve OR alternatives by building a cross product:
-        // (global A OR global B) AND (operation C OR operation D)
-        // -> (A+C) OR (A+D) OR (B+C) OR (B+D)
-        const mergedSecurity: SecurityRequirement[] = [];
-
-        for (const globalReq of globalSecurity) {
-          for (const operationReq of operation.security) {
-            mergedSecurity.push(
-              mergeSingleSecurityRequirement(globalReq, operationReq),
-            );
-          }
-        }
-
+        const operationSecurity = operation.security;
         mergedMethods[method] = {
           ...operation,
-          security: mergedSecurity,
+          security: globalSecurity.flatMap((globalReq) =>
+            operationSecurity.map((operationReq) =>
+              mergeSingleSecurityRequirement(globalReq, operationReq),
+            ),
+          ),
         };
       } else {
-        // No decorator security - operation inherits global (no change)
         mergedMethods[method] = operation;
       }
     }
@@ -230,7 +220,6 @@ const sortObjectKeysDeep = <T>(obj: T, isTopLevel = false): T => {
   const objRecord = obj as Record<string, unknown>;
   const keys = Object.keys(objRecord);
 
-  // Sort keys: use OpenAPI order for top-level, alphabetical otherwise
   const sortedKeys = isTopLevel
     ? keys.sort((a, b) => {
         const aIndex = OPENAPI_FIELD_ORDER.indexOf(a);
@@ -334,9 +323,6 @@ const NON_IMPORTABLE_TYPE_NAMES = new Set([
   'extends',
 ]);
 
-// The names a type text refers to, read with the TypeScript parser so that
-// property names in `{ sent: boolean }`, index signature keys and mapped type
-// parameters are not taken for types to import
 const extractTypeIdentifiers = (typeRef: string): Set<string> => {
   const source = ts.createSourceFile(
     'type-ref.ts',
@@ -352,7 +338,6 @@ const extractTypeIdentifiers = (typeRef: string): Set<string> => {
       let name: ts.Node = ts.isTypeReferenceNode(node)
         ? node.typeName
         : node.expression;
-      // `Dtos.UserDto` is imported as `Dtos`
       while (ts.isQualifiedName(name)) name = name.left;
       while (ts.isPropertyAccessExpression(name)) name = name.expression;
       if (ts.isIdentifier(name)) names.add(name.text);
@@ -444,8 +429,6 @@ const generatedTargetName = (schema: unknown): string | undefined => {
     : undefined;
 };
 
-// `ApiResponse<{ sent: boolean }>`: an argument with no name of its own, so
-// the instantiation is written where it is used, as inline types are
 const isAnonymousInstantiation = (name: string): boolean => {
   if (!isGenericSchemaRef(name)) return false;
   const source = ts.createSourceFile(
@@ -512,14 +495,13 @@ const generateMissingGenericSchemasEffect = Effect.fn(
     return { definitions: {} };
   }
 
-  // An in-memory module next to the tsconfig, so relative imports resolve
-  const virtualDir = dirname(tsconfig);
-  const virtualFilePath = join(virtualDir, '.openapi.missing-generic.ts');
+  const tsconfigDir = dirname(tsconfig);
+  const virtualFilePath = join(tsconfigDir, '.openapi.missing-generic.ts');
 
   const importLines = [...importGroups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([filePath, symbols]) => {
-      const importPath = toModuleImportPath(virtualDir, filePath);
+      const importPath = toModuleImportPath(tsconfigDir, filePath);
       const names = [...symbols].sort().join(', ');
       return `import type { ${names} } from '${importPath}';`;
     });
@@ -536,8 +518,6 @@ const generateMissingGenericSchemasEffect = Effect.fn(
       generated.definitions[schemaName] ??
       generated.definitions[aliasName] ??
       undefined;
-    // The generator names `ApiResponse<{ sent: boolean }>` after positions
-    // in the virtual file; the schema keeps the name the source wrote
     const target = generatedTargetName(resolvedSchema);
     if (target !== undefined && target !== schemaName) {
       const body = generated.definitions[target];
@@ -565,7 +545,6 @@ const resolveDtoFilesEffect = Effect.fn('Generate.resolveDtoFiles')(function* (
   dtoGlobPatterns: readonly string[],
   basePath: string,
 ) {
-  // Find all DTO files in parallel
   const absolutePatterns = dtoGlobPatterns.map((pattern) =>
     pattern.startsWith('/') ? pattern : join(basePath, pattern),
   );
@@ -583,9 +562,6 @@ const resolveDtoFilesEffect = Effect.fn('Generate.resolveDtoFiles')(function* (
   return [...new Set(fileArrays.flat())];
 });
 
-// Classes are also looked up in everything the schema files import, so
-// decorator metadata does not depend on dtoGlob; a class in a schema file
-// wins over one only reached through imports
 const indexSchemaClasses = (
   project: Project,
   sourceFiles: ReadonlySet<string>,
@@ -593,7 +569,8 @@ const indexSchemaClasses = (
   plannedSources: ReadonlyMap<string, DeclarationRef>,
 ) => {
   const index = new Map<string, ClassDeclaration>();
-  const rank = (filePath: string) => (sourceFiles.has(filePath) ? 0 : 1);
+  const schemaFileFirst = (filePath: string) =>
+    sourceFiles.has(filePath) ? 0 : 1;
 
   for (const [name, ref] of plannedSources) {
     if (ref.kind !== 'class' || !schemaNames.has(name)) continue;
@@ -616,7 +593,8 @@ const indexSchemaClasses = (
       const current = index.get(name);
       if (
         !current ||
-        rank(filePath) < rank(current.getSourceFile().getFilePath())
+        schemaFileFirst(filePath) <
+          schemaFileFirst(current.getSourceFile().getFilePath())
       ) {
         index.set(name, classDecl);
       }
@@ -643,8 +621,6 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
     const project = getRunProject(tsconfig);
 
     project.addSourceFilesAtPaths([...sourceFilePaths]);
-    // Follow imports: schemas for nested types come from imported files, and
-    // enums referenced by decorators need their declarations.
     project.resolveSourceFileDependencies();
 
     let schemas = inputSchemas;
@@ -655,8 +631,6 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
       plannedSources,
     );
 
-    // Base classes of mapped types are needed even when nothing else
-    // references them
     const missingBases = new Map<string, ClassDeclaration>();
     for (const classDecl of classes.values()) {
       const base = getMappedTypeBase(classDecl);
@@ -803,8 +777,6 @@ const inlineRef = (value: unknown, ref: string, schema: unknown): unknown => {
   );
 };
 
-// An `enumName` given to different values by the documented schemas: each
-// use is written in place, and the clash reported
 const separateEnumNameClashes = (
   paths: OpenApiPaths,
   schemas: Record<string, OpenApiSchema>,
@@ -1009,12 +981,10 @@ const extractMethodInfosFromEntry = Effect.fn(
   entry: string,
   extractOptions: ExtractParametersOptions = {},
   scope: ModuleScope = {},
-  // The entry as written in the config, when operations record their source
-  sourceEntry?: string,
+  entryAsConfigured?: string,
 ) {
   const project = getRunProject(tsconfig);
 
-  // Add only the entry file - ts-morph will resolve imports on-demand
   project.addSourceFilesAtPaths(entry);
 
   const entrySourceFile = project.getSourceFile(entry);
@@ -1022,10 +992,8 @@ const extractMethodInfosFromEntry = Effect.fn(
     return yield* EntryNotFoundError.fileNotFound(entry);
   }
 
-  // Find the module class - try AppModule first, then any class with @Module decorator
   let entryClass = entrySourceFile.getClass('AppModule');
   if (!entryClass) {
-    // Try to find any class with @Module decorator
     for (const cls of entrySourceFile.getClasses()) {
       const hasModuleDecorator = cls
         .getDecorators()
@@ -1045,9 +1013,9 @@ const extractMethodInfosFromEntry = Effect.fn(
 
   const methodInfos = controllers.map(({ controller, module }) => {
     const infos = getControllerMethodInfos(controller, extractOptions);
-    return sourceEntry === undefined
+    return entryAsConfigured === undefined
       ? infos
-      : withSource(infos, controller, module, sourceEntry);
+      : withSource(infos, controller, module, entryAsConfigured);
   });
 
   return {
@@ -1080,21 +1048,19 @@ const extractMethodInfosEffect = Effect.fn('Generate.extractMethodInfos')(
       { concurrency: 'unbounded' },
     );
 
-    // A module found in any entry is found
-    const missing = (scope.include ?? []).filter((name) =>
+    const missingInEveryEntry = (scope.include ?? []).filter((name) =>
       fromEntries.every(({ missingIncludes }) =>
         missingIncludes.includes(name),
       ),
     );
-    if (missing.length > 0) {
+    if (missingInEveryEntry.length > 0) {
       yield* Effect.logWarning(
         'Modules listed in options.include were not found in the module graph',
-      ).pipe(Effect.annotateLogs({ modules: missing.join(', ') }));
+      ).pipe(Effect.annotateLogs({ modules: missingInEveryEntry.join(', ') }));
     }
 
     const allMethodInfos = fromEntries.map(({ methodInfos }) => methodInfos);
 
-    // Flatten and deduplicate by path + method combination
     const seen = new Set<string>();
     const deduped: (typeof allMethodInfos)[number] = [];
 
@@ -1154,6 +1120,11 @@ export interface GenerateResult {
   readonly validation: ValidationResult;
 }
 
+const resetRunCaches = (): void => {
+  clearSchemaProgramCache();
+  clearRunProjects();
+};
+
 /**
  * Canonical Effect-native generation pipeline.
  */
@@ -1162,9 +1133,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     const absoluteConfigPath = resolve(configPath);
     const configDir = dirname(absoluteConfigPath);
 
-    // Parsed library declarations are shared within a run, not across runs
-    clearSchemaProgramCache();
-    clearRunProjects();
+    resetRunCaches();
 
     yield* Effect.annotateCurrentSpan('configPath', absoluteConfigPath);
 
@@ -1251,14 +1220,11 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       { concurrency: 2 },
     );
 
-    // Process method infos into paths
     const filteredMethodInfos = filterMethods(extractedMethodInfos, {
       excludeDecorators: options.excludeDecorators,
       pathFilter: options.pathFilter,
     });
 
-    // One schema per declaration: plan names for the declarations the
-    // documented operations reach, and point the operations at them
     const dtoFiles = yield* resolveDtoFilesEffect(dtoGlobArray, configDir);
     const schemaNamePlan = initialSchemas
       ? planSchemaNames(filteredMethodInfos, dtoFiles, configDir)
@@ -1267,7 +1233,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       filteredMethodInfos,
       schemaNamePlan,
     );
-    // @ApiExtraModels adds schemas even when no operation references them
     const extraModelRoots = [
       ...new Set(
         documentedMethods.flatMap((method) => method.extraModels ?? []),
@@ -1311,12 +1276,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
     }
 
-    // Merge decorator security with global security
-    // Operations with decorator security get merged with global (AND logic)
-    // Operations without decorator security inherit global as-is
     paths = mergeSecurityWithGlobal(paths, security.global);
 
-    // Process schemas if generated
     let schemas: Record<string, OpenApiSchema> = {};
     let enumNameUses: readonly EnumNameUse[] = [];
 
@@ -1335,12 +1296,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         },
       };
 
-      // Files schemas were generated from; decorator metadata is read from
-      // the classes declared in them and in the files they import.
       const schemaSourceFiles = new Set<string>(dtoFiles);
 
-      // Declarations the operations reach that nothing generated yet, such as
-      // classes only named in @ApiProperty({ type: () => X })
       const reachedWithoutSchema = new Map<string, string>();
       for (const method of filteredMethodInfos) {
         for (const ref of method.referencedDeclarations ?? []) {
@@ -1366,10 +1323,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }
       }
 
-      // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
       generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
-      // Hybrid approach: Find and resolve any missing schemas automatically
       const missingRefs = findMissingSchemaRefs(
         paths,
         reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
@@ -1422,8 +1377,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             }
           }
 
-          // The declarations the operations reach, by symbol, win over a
-          // lookup by name, which finds any declaration with that name
           const reachedLocations = new Map<string, string>();
           for (const method of filteredMethodInfos) {
             for (const ref of method.referencedDeclarations ?? []) {
@@ -1465,8 +1418,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }
       }
 
-      // Overlay class metadata once every schema is known, so types resolved
-      // outside dtoGlob get theirs too
       const shouldExtractValidation = options.extractValidation !== false;
       if (Object.keys(generatedSchemas.definitions).length > 0) {
         const overlaid = yield* overlayClassMetadataEffect(
@@ -1496,8 +1447,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = inlined.schemas;
     }
 
-    // Same-name declarations with equal schemas share one component; the
-    // collision strategy decides about the others
     const enumNames = separateEnumNameClashes(paths, schemas, enumNameUses);
     const resolvedNames = yield* resolveSchemaNames(
       paths,
@@ -1509,8 +1458,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     paths = resolvedNames.paths;
     schemas = resolvedNames.schemas;
 
-    // 'inline' collision strategy: colliding schemas are written in place,
-    // and so are instantiations with an anonymous type argument
     const inlineNames = new Set([
       ...resolvedNames.inline,
       ...Object.keys(schemas).filter(isAnonymousInstantiation),
@@ -1532,12 +1479,9 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = collapsed.schemas;
     }
 
-    // Get OpenAPI version from config (default to 3.0.3)
     const openApiVersion = openapi.version ?? '3.0.3';
     yield* Effect.annotateCurrentSpan('openApiVersion', openApiVersion);
 
-    // Component names must match ^[a-zA-Z0-9._-]+$; generic instantiations
-    // such as `Page<User>` become `Page_User` unless raw names are asked for
     if ((options.schemas?.genericNames ?? 'sanitized') === 'sanitized') {
       const sanitized = sanitizeComponentNames(paths, schemas);
       paths = sanitized.paths;
@@ -1548,7 +1492,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = forbidAdditionalProperties(schemas);
     }
 
-    // `examples` in schemas: 3.0 has only `example`, 3.1 wants an array
     const adapted = adaptExamplesForVersion(paths, schemas, openApiVersion);
     paths = adapted.paths;
     schemas = adapted.schemas;
@@ -1569,7 +1512,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           }
         : undefined;
 
-    // Always include servers and tags (even if empty) to match NestJS Swagger output
     let spec: OpenApiSpec = {
       openapi: openApiVersion,
       info: {
@@ -1591,7 +1533,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }),
     };
 
-    // Transform spec for OpenAPI 3.1/3.2 if needed
     if (openApiVersion === '3.0.3') {
       const { spec: scoped, dropped } = emptyNonOAuthScopesForV30(
         adaptSpecForV30(spec),
@@ -1615,7 +1556,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
     }
 
-    // Sort keys to match NestJS Swagger output order
     const sortedSpec = sortObjectKeysDeep(spec, true);
 
     yield* OutputService.ensureOutputDirectory(output);
@@ -1628,7 +1568,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     );
     yield* OutputService.writeOutput(output, serializedSpec, format);
 
-    // An overlay may remove `paths`, which OpenAPI 3.1 allows
     const finalPaths = (sortedSpec.paths ?? {}) as Record<
       string,
       Record<string, unknown>
@@ -1648,7 +1587,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     yield* Effect.annotateCurrentSpan('finalOperationCount', operationCount);
     yield* Effect.annotateCurrentSpan('finalSchemaCount', schemaCount);
 
-    // Broken refs, and breaks of the OpenAPI specification
     const refValidation = validateSpec(sortedSpec);
     const structuralErrors = yield* Effect.promise(() =>
       validateStructure(sortedSpec),
@@ -1696,12 +1634,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       validation,
     };
   },
-  Effect.ensuring(
-    Effect.sync(() => {
-      clearSchemaProgramCache();
-      clearRunProjects();
-    }),
-  ),
+  Effect.ensuring(Effect.sync(resetRunCaches)),
 );
 
 /**

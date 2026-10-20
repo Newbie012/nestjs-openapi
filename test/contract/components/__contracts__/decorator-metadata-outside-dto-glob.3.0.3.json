@@ -1,0 +1,60 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Outside dtoGlob API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/users": {
+      "get": {
+        "operationId": "UsersController_find",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddressDto": {
+        "properties": {
+          "street": {
+            "description": "Street and number",
+            "example": "1 Main St",
+            "type": "string"
+          }
+        },
+        "required": [
+          "street"
+        ],
+        "type": "object"
+      },
+      "UserDto": {
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/AddressDto"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
