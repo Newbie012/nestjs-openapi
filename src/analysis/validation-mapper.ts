@@ -43,34 +43,26 @@ import {
 import { getLiteralValues, resolveDeclarations } from './ast.js';
 import { isNullable } from '../schema/nullable.js';
 
-// Validation constraint types
-
 export interface ValidationConstraints {
-  // String constraints
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: string;
   readonly format?: string;
 
-  // Number constraints
   readonly minimum?: number;
   readonly maximum?: number;
   readonly exclusiveMinimum?: number | boolean;
   readonly exclusiveMaximum?: number | boolean;
   readonly multipleOf?: number;
 
-  // Array constraints
   readonly minItems?: number;
   readonly maxItems?: number;
   readonly uniqueItems?: boolean;
 
-  // Enum constraint
   readonly enum?: readonly unknown[];
 
-  // Type override
   readonly type?: string;
 
-  // Schema metadata (from @ApiProperty)
   readonly description?: string;
   readonly title?: string;
   readonly example?: unknown;
@@ -81,7 +73,6 @@ export interface ValidationConstraints {
   readonly nullable?: boolean;
   readonly isArray?: boolean;
 
-  // Visibility (from @ApiHideProperty)
   readonly hidden?: boolean;
 
   readonly items?: ValidationConstraints;
@@ -147,7 +138,6 @@ const parseNumber = (value: string | undefined): number | undefined => {
  * Mapping from class-validator decorators to OpenAPI constraints
  */
 const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
-  // Type validators
   IsString: () => ({ type: 'string' }),
   IsNumber: () => ({ type: 'number' }),
   IsInt: () => ({ type: 'integer' }),
@@ -156,7 +146,6 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
   IsObject: () => ({ type: 'object' }),
   IsDate: () => ({ type: 'string', format: 'date-time' }),
 
-  // String format validators
   IsEmail: () => ({ format: 'email' }),
   IsUrl: () => ({ format: 'uri' }),
   IsUUID: () => ({ format: 'uuid' }),
@@ -167,7 +156,6 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
   IsIP: () => ({ format: 'ipv4' }),
   IsJSON: () => ({ format: 'json' }),
 
-  // String length validators
   MinLength: (args) => ({ minLength: parseNumber(args[0]) }),
   MaxLength: (args) => ({ maxLength: parseNumber(args[0]) }),
   Length: (args) => ({
@@ -175,7 +163,6 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
     maxLength: parseNumber(args[1]) ?? parseNumber(args[0]),
   }),
 
-  // String pattern validators
   Matches: (args) => ({
     pattern:
       args[0] === undefined
@@ -183,26 +170,21 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
         : args[0].replace(/^\/(.*)\/[gimsuvy]*$/, '$1'),
   }),
 
-  // Number validators
   Min: (args) => ({ minimum: parseNumber(args[0]) }),
   Max: (args) => ({ maximum: parseNumber(args[0]) }),
   IsPositive: () => ({ exclusiveMinimum: 0 }),
   IsNegative: () => ({ exclusiveMaximum: 0 }),
 
-  // Array validators
   ArrayMinSize: (args) => ({ minItems: parseNumber(args[0]) }),
   ArrayMaxSize: (args) => ({ maxItems: parseNumber(args[0]) }),
 
-  // Enum validator - static analysis can't easily extract enum values
   IsEnum: () => ({}),
 
-  // Other validators (these don't map directly to OpenAPI but inform the schema)
-  IsOptional: () => ({}), // Handled separately via required array
+  IsOptional: () => ({}),
   IsNotEmpty: () => ({ minLength: 1 }),
   IsDefined: () => ({}),
   IsEmpty: () => ({}),
 
-  // Nested/type validators
   ValidateNested: () => ({}),
   Type: () => ({}),
 };
@@ -472,7 +454,6 @@ const describeArgument = (value: StaticValue | undefined) => {
 const TYPE_FALLBACK =
   '; the TypeScript type is used instead. Describe it with a literal, an enum, or a static expression';
 
-// Recorded so an argument is never silently dropped
 const withUnreadable = (
   state: PropertyValidationInfo,
   message: string,
@@ -700,9 +681,6 @@ const cleanPropertyConstraints = (
   return cleanConstraints;
 };
 
-// The declared type replaces the inferred one, as in @nestjs/swagger: a
-// `string[]` declared `type: String` is a string (`isArray` or `[String]`
-// declares an array), and `T | null` stays nullable
 const applySchemaOverride = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints,
@@ -919,8 +897,6 @@ const buildUpdatedRequired = (
     return undefined;
   }
 
-  // Decorators can make a property optional even when the TypeScript
-  // declaration has no `?`
   const excluded = new Set([...hiddenProperties, ...optionalProperties]);
   return [
     ...new Set([...(schema.required ?? []), ...(requiredProperties ?? [])]),

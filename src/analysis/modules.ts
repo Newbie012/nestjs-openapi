@@ -103,8 +103,10 @@ const includedModules = (
     : [];
 };
 
-// Names in `include` that no module reachable from `root` has. With several
-// entries, a name is missing only when every entry misses it
+/**
+ * Names in `include` that no module reachable from `root` has. With several
+ * entries, a name is missing only when every entry misses it
+ */
 export const findMissingIncludes = (
   root: ClassDeclaration,
   include: readonly string[],
@@ -127,9 +129,11 @@ const declaredIn = (mod: ClassDeclaration) =>
     module: mod,
   }));
 
-// SwaggerModule.createDocument()'s rules: with `include`, only controllers
-// declared in the included modules, plus, with `deepScanRoutes`, those of
-// their direct, non-global imports
+/**
+ * SwaggerModule.createDocument()'s rules: with `include`, only controllers
+ * declared in the included modules, plus, with `deepScanRoutes`, those of
+ * their direct, non-global imports
+ */
 export const getDocumentedControllerModules = Effect.fn(
   'Modules.getDocumentedControllerModules',
 )(function* (root: ClassDeclaration, scope: ModuleScope = {}) {

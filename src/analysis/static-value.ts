@@ -13,8 +13,10 @@ export type StaticValue =
   | {
       readonly kind: 'object';
       readonly properties: Readonly<Record<string, StaticValue>>;
-      // Computed keys that cannot be read statically, so their entries are
-      // missing from `properties`
+      /**
+       * Computed keys that cannot be read statically, so their entries are
+       * missing from `properties`
+       */
       readonly unresolvedKeys?: readonly Node[];
     }
   | { readonly kind: 'reference'; readonly name: string; readonly node?: Node }
@@ -52,7 +54,6 @@ const propertyNameText = (name: Node) => {
   return undefined;
 };
 
-// `[Status.Active]: ...` or `[KEY]: ...`, keyed by the value like the runtime
 const computedKey = (
   expression: Node,
   environment: StaticEnvironment,
@@ -176,7 +177,6 @@ const evaluatePropertyAccess = (
     return target.properties[access.getName()] ?? UNDEFINED;
   }
 
-  // `Dtos.UserDto` keeps the member name, which is the schema name
   return { kind: 'reference', name: access.getName(), node };
 };
 
@@ -218,8 +218,6 @@ const enumRuntimeObject = (node: Node | undefined) => {
     const value = member.getValue();
     if (value === undefined) return undefined;
     runtime[member.getName()] = value;
-    // TypeScript emits a reverse mapping for numeric members, and
-    // Object.values() returns those names too
     if (typeof value === 'number') runtime[value] = member.getName();
   }
   return runtime;

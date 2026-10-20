@@ -65,7 +65,6 @@ export const getControllerTags = (
 
   if (apiTagsCalls.length === 0) {
     const name = getControllerName(controller);
-    // Keep PascalCase, just remove 'Controller' suffix (matches NestJS Swagger behavior)
     return [name.replace(/Controller$/i, '')];
   }
 
@@ -73,10 +72,7 @@ export const getControllerTags = (
 
   return tags.length > 0
     ? tags
-    : [
-        // Keep PascalCase, just remove 'Controller' suffix
-        getControllerName(controller).replace(/Controller$/i, ''),
-      ];
+    : [getControllerName(controller).replace(/Controller$/i, '')];
 };
 
 export const getHttpDecorator = (

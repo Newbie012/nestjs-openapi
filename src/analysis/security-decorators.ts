@@ -48,23 +48,20 @@ const parseSecurityDecorator = (
     case 'ApiBearerAuth':
     case 'ApiBasicAuth':
     case 'ApiCookieAuth': {
-      // @ApiBearerAuth() or @ApiBearerAuth('jwt')
       const schemeName =
         asString(call.args[0]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
       return { schemeName, scopes: [] };
     }
 
     case 'ApiOAuth2': {
-      // @ApiOAuth2(['scope1', 'scope2']) or @ApiOAuth2(['scope1'], 'oauth2-custom')
       const schemeName =
         asString(call.args[1]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
       return { schemeName, scopes: readStringArray(call.args[0]) };
     }
 
     case 'ApiSecurity': {
-      // @ApiSecurity('api-key') or @ApiSecurity('api-key', ['scope'])
       const schemeName = asString(call.args[0]);
-      if (!schemeName) return undefined; // ApiSecurity requires a scheme name
+      if (!schemeName) return undefined;
       return { schemeName, scopes: readStringArray(call.args[1]) };
     }
 
@@ -125,11 +122,9 @@ export const combineSecurityRequirements = (
   methodSecurity: readonly MethodSecurityRequirement[],
   hasMethodDecorators: boolean,
 ): readonly MethodSecurityRequirement[] => {
-  // Method-level security overrides controller-level
   if (hasMethodDecorators) {
     return methodSecurity;
   }
 
-  // No method decorators - use controller security
   return controllerSecurity;
 };

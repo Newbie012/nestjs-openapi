@@ -1,9 +1,11 @@
-// Shared by every step of a run, so library and framework declarations are
-// parsed and bound once instead of once per step
 import { Project } from 'ts-morph';
 
 const projects = new Map<string, Project>();
 
+/**
+ * The project of a run, shared by every step so library and framework
+ * declarations are parsed and bound once instead of once per step
+ */
 export const getRunProject = (tsconfig: string) => {
   const existing = projects.get(tsconfig);
   if (existing) return existing;
@@ -12,7 +14,6 @@ export const getRunProject = (tsconfig: string) => {
     tsConfigFilePath: tsconfig,
     skipAddingFilesFromTsConfig: true,
     compilerOptions: {
-      // Skip type checking for performance - we only need AST structure
       skipLibCheck: true,
       skipDefaultLibCheck: true,
       allowJs: false,

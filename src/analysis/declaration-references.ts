@@ -96,6 +96,21 @@ const recordDeclaration = (node: Node, state: WalkState, topLevel: boolean) => {
   walkDeclarationMembers(declaration.node, state);
 };
 
+const recordMappedTypeBases = (node: Node, state: WalkState) => {
+  const heritage = Node.isClassDeclaration(node)
+    ? node.getExtends()?.getExpression()
+    : undefined;
+  if (!heritage || !Node.isCallExpression(heritage)) return;
+  heritage.forEachDescendant((descendant) => {
+    if (!Node.isIdentifier(descendant)) return;
+    for (const declaration of resolveDeclarations(descendant)) {
+      if (Node.isClassDeclaration(declaration)) {
+        recordDeclaration(declaration, state, false);
+      }
+    }
+  });
+};
+
 const PROPERTY_DECORATORS = new Set(['ApiProperty', 'ApiPropertyOptional']);
 
 const walkDeclarationMembers = (node: Node, state: WalkState) => {
@@ -107,21 +122,7 @@ const walkDeclarationMembers = (node: Node, state: WalkState) => {
     return;
   }
 
-  // Mapped-type bases, `extends PartialType(OmitType(UserDto, ['id']))`,
-  // are not in the class type's properties
-  const heritage = Node.isClassDeclaration(node)
-    ? node.getExtends()?.getExpression()
-    : undefined;
-  if (heritage && Node.isCallExpression(heritage)) {
-    heritage.forEachDescendant((descendant) => {
-      if (!Node.isIdentifier(descendant)) return;
-      for (const declaration of resolveDeclarations(descendant)) {
-        if (Node.isClassDeclaration(declaration)) {
-          recordDeclaration(declaration, state, false);
-        }
-      }
-    });
-  }
+  recordMappedTypeBases(node, state);
 
   for (const property of node.getType().getProperties()) {
     const declaration =
@@ -152,14 +153,11 @@ const walkType = (type: Type, state: WalkState, topLevel: boolean) => {
   if (state.visitedTypes.has(type) && !topLevel) return;
   state.visitedTypes.add(type);
 
-  // `type ItemList = ItemDto[]` is a component too, generated from its
-  // alias; record it before walking the array, union or intersection
   const aliasSymbol = type.getAliasSymbol();
   const arrayElement = type.getArrayElementType();
-  if (
-    aliasSymbol &&
-    (arrayElement || type.isUnion() || type.isIntersection())
-  ) {
+  const isAliasedComposite =
+    arrayElement !== undefined || type.isUnion() || type.isIntersection();
+  if (aliasSymbol && isAliasedComposite) {
     recordSymbol(aliasSymbol, state, topLevel);
   }
 

@@ -64,7 +64,6 @@ const SCHEMA_KEYS = [
   'anyOf',
 ] as const;
 
-// @nestjs/swagger applies these to array items rather than the array
 const ITEM_MODIFIER_KEYS = new Set(['format', 'maximum', 'minimum', 'pattern']);
 
 type DeclaredParameter = {
@@ -74,7 +73,6 @@ type DeclaredParameter = {
   readonly description: string | undefined;
   readonly schema: OpenApiSchema | undefined;
   readonly extra: Readonly<Record<string, unknown>>;
-  // `@ApiQuery({ type: Dto })` without a name stands for Dto's properties
   readonly expandType: StaticValue | undefined;
 };
 
@@ -114,8 +112,6 @@ const declaredBaseSchema = (
   ) as OpenApiSchema | undefined;
 };
 
-// As @nestjs/swagger's SwaggerTypesMapper: an explicit `schema` is used as
-// is; otherwise the type or enum with the schema keywords
 const buildParameterSchema = (
   options: Readonly<Record<string, StaticValue>>,
   naming: SchemaNaming,
@@ -208,7 +204,6 @@ export const readDeclaredParameters = (
       return declared ? [declared] : [];
     });
 
-  // The method's own declarations win over the controller's
   const seen = new Set<string>();
   return [...read(methodCalls), ...read(controllerCalls)].filter((declared) => {
     const key = `${declared.location}:${declared.name}`;
@@ -245,8 +240,10 @@ const fromDeclaration = (declared: DeclaredParameter): ResolvedParameter => ({
   extra: declared.extra,
 });
 
-// As in @nestjs/swagger, a declared parameter overrides the fields of the
-// inferred one with its name (lodash `assign`), and the others are added
+/**
+ * As in @nestjs/swagger, a declared parameter overrides the fields of the
+ * inferred one with its name (lodash `assign`), and the others are added
+ */
 export const mergeDeclaredParameters = (
   inferred: readonly ResolvedParameter[],
   declared: readonly DeclaredParameter[],

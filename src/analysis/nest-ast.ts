@@ -14,11 +14,12 @@ import {
 
 const moduleDecoratorCache = new WeakMap<ClassDeclaration, Decorator | null>();
 const moduleMetadataCache = new WeakMap<ClassDeclaration, ModuleMetadata>();
-const classFromExpressionCache = new WeakMap<Expression, ClassDeclaration | null>();
+const classFromExpressionCache = new WeakMap<
+  Expression,
+  ClassDeclaration | null
+>();
 
-const getModuleDecorator = (
-  cls: ClassDeclaration,
-): Decorator | undefined => {
+const getModuleDecorator = (cls: ClassDeclaration): Decorator | undefined => {
   if (moduleDecoratorCache.has(cls)) {
     const cached = moduleDecoratorCache.get(cls);
     return cached === null ? undefined : cached;
@@ -55,7 +56,6 @@ export const resolveClassFromExpression = (
     return Option.fromNullable(cached);
   }
 
-  // Try direct identifier
   const symbol = Option.getOrUndefined(getSymbolFromIdentifier(expr));
   if (symbol) {
     const resolved = resolveClassFromSymbol(symbol);
@@ -66,7 +66,6 @@ export const resolveClassFromExpression = (
     return resolved;
   }
 
-  // Try forwardRef(() => SomeClass)
   const call = expr.asKind?.(ts.SyntaxKind.CallExpression);
   if (call && call.getExpression().getText().endsWith('forwardRef')) {
     const args = call.getArguments();
@@ -100,7 +99,6 @@ export const resolveClassFromExpression = (
     return resolved;
   }
 
-  // Try property access expression
   const pae = expr.asKind?.(ts.SyntaxKind.PropertyAccessExpression);
   if (pae) {
     const resolved = resolveClassFromExpression(pae.getNameNode());
@@ -163,8 +161,6 @@ export const getModuleMetadata = (mod: ClassDeclaration): ModuleMetadata => {
     (cls) => cls.getName() !== undefined,
   );
 
-  // Do not eagerly check @Module here; callers can handle non-module classes.
-  // This avoids duplicate decorator scans during traversal.
   const imports = resolveArrayOfClasses(importsInit);
 
   const metadata = { controllers, imports };
