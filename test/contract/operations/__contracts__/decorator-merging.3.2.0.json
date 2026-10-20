@@ -1,0 +1,360 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Decorator Merging API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/things/any": {
+      "delete": {
+        "operationId": "ThingsController_any_delete",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      },
+      "get": {
+        "operationId": "ThingsController_any_get",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      },
+      "head": {
+        "operationId": "ThingsController_any_head",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      },
+      "options": {
+        "operationId": "ThingsController_any_options",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      },
+      "patch": {
+        "operationId": "ThingsController_any_patch",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      },
+      "post": {
+        "operationId": "ThingsController_any_post",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      },
+      "put": {
+        "operationId": "ThingsController_any_put",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      }
+    },
+    "/things/one": {
+      "get": {
+        "operationId": "ThingsController_one",
+        "parameters": [
+          {
+            "description": "From the method",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things",
+          "One"
+        ],
+        "x-only-controller": true,
+        "x-order": "top",
+        "x-scope": "method"
+      }
+    },
+    "/things/two": {
+      "post": {
+        "operationId": "ThingsController_two",
+        "parameters": [
+          {
+            "description": "From the controller",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThingDto"
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "$ref": "#/components/schemas/ThingDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": "From the controller"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "tags": [
+          "Things"
+        ],
+        "x-only-controller": true,
+        "x-scope": "controller"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ThingDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
