@@ -63,10 +63,10 @@ describe('schema-alias-collapser', () => {
 
   it('should collapse alias chains and remove alias schemas', () => {
     const schemas: Record<string, OpenApiSchema> = {
-      'AliasA': {
+      AliasA: {
         $ref: '#/components/schemas/AliasB',
       },
-      'AliasB': {
+      AliasB: {
         $ref: '#/components/schemas/User',
         description: 'Wrapper alias',
       },
@@ -122,7 +122,10 @@ describe('schema-alias-collapser', () => {
       User: { type: 'object' },
     };
 
-    const result = collapseAliasRefs(createPaths('#/components/schemas/A'), schemas);
+    const result = collapseAliasRefs(
+      createPaths('#/components/schemas/A'),
+      schemas,
+    );
 
     expect(
       result.paths['/items'].get.responses['200'].content?.['application/json']
@@ -159,8 +162,38 @@ describe('schema-alias-collapser', () => {
         .schema,
     ).toEqual({ $ref: '#/components/schemas/User' });
     expect(
-      (result.schemas['Container'].properties?.payload?.default as { $ref: string })
-        .$ref,
+      (
+        result.schemas['Container'].properties?.payload?.default as {
+          $ref: string;
+        }
+      ).$ref,
     ).toBe('#/components/schemas/Alias');
+  });
+
+  it('rewrites refs under not, patternProperties and discriminator mapping', () => {
+    const alias = '#/components/schemas/Alias';
+    const schemas = {
+      Alias: { $ref: '#/components/schemas/User' },
+      User: { type: 'object', properties: { id: { type: 'string' } } },
+      Holder: {
+        not: { $ref: alias },
+        patternProperties: { '^x-': { $ref: alias } },
+        oneOf: [{ $ref: '#/components/schemas/User' }],
+        discriminator: { propertyName: 'kind', mapping: { user: alias } },
+      },
+    } as Record<string, OpenApiSchema>;
+
+    const result = collapseAliasRefs(createPaths(alias), schemas);
+
+    expect(result.schemas['Holder']).toEqual({
+      not: { $ref: '#/components/schemas/User' },
+      patternProperties: { '^x-': { $ref: '#/components/schemas/User' } },
+      oneOf: [{ $ref: '#/components/schemas/User' }],
+      discriminator: {
+        propertyName: 'kind',
+        mapping: { user: '#/components/schemas/User' },
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain(alias);
   });
 });

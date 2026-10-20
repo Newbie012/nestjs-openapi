@@ -8,7 +8,11 @@
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
 import { Effect } from 'effect';
-import { mapSubschemas } from './schema-walk.js';
+import {
+  mapOperationSchemas,
+  mapSchemaRefs,
+  mapSubschemas,
+} from './schema-walk.js';
 
 /**
  * Result of schema merging
@@ -20,68 +24,25 @@ export interface MergedResult {
   readonly schemas: Record<string, OpenApiSchema>;
 }
 
+const refCollector = (
+  pattern: RegExp,
+  skip: (name: string) => boolean = () => false,
+) => {
+  const refs = new Set<string>();
+  const collect = (ref: string): string => {
+    const name = ref.match(pattern)?.[1];
+    if (name !== undefined && !skip(name)) refs.add(name);
+    return ref;
+  };
+  return { refs, collect };
+};
+
 /**
  * Extract all schema names referenced in paths
  */
 const extractReferencedSchemas = (paths: OpenApiPaths): Set<string> => {
-  const refs = new Set<string>();
-
-  const extractFromSchema = (schema: OpenApiSchema | undefined): void => {
-    if (!schema) return;
-
-    if (schema.$ref) {
-      const match = schema.$ref.match(/^#\/components\/schemas\/(.+)$/);
-      if (match) {
-        refs.add(match[1]);
-      }
-    }
-
-    if (schema.items) {
-      extractFromSchema(schema.items);
-    }
-
-    if (schema.oneOf) {
-      schema.oneOf.forEach(extractFromSchema);
-    }
-
-    if (schema.allOf) {
-      schema.allOf.forEach(extractFromSchema);
-    }
-
-    if (schema.anyOf) {
-      schema.anyOf.forEach(extractFromSchema);
-    }
-
-    if (schema.properties) {
-      Object.values(schema.properties).forEach(extractFromSchema);
-    }
-  };
-
-  for (const pathMethods of Object.values(paths)) {
-    for (const operation of Object.values(pathMethods)) {
-      // Extract from parameters
-      operation.parameters?.forEach((param) => {
-        extractFromSchema(param.schema);
-      });
-
-      // Extract from request body
-      if (operation.requestBody?.content) {
-        Object.values(operation.requestBody.content).forEach((content) => {
-          extractFromSchema(content.schema);
-        });
-      }
-
-      // Extract from responses
-      Object.values(operation.responses).forEach((response) => {
-        if (response.content) {
-          Object.values(response.content).forEach((content) => {
-            extractFromSchema(content.schema);
-          });
-        }
-      });
-    }
-  }
-
+  const { refs, collect } = refCollector(/^#\/components\/schemas\/(.+)$/);
+  mapOperationSchemas(paths, (schema) => mapSchemaRefs(schema, collect));
   return refs;
 };
 
@@ -92,52 +53,11 @@ const extractNestedReferences = (
   schemas: Record<string, JsonSchema>,
   knownSchemas: Set<string>,
 ): Set<string> => {
-  const refs = new Set<string>();
-
-  const extractFromSchema = (schema: JsonSchema | undefined): void => {
-    if (!schema) return;
-
-    if (schema.$ref) {
-      const match = schema.$ref.match(
-        /^#\/(?:components\/schemas|definitions)\/(.+)$/,
-      );
-      if (match && !knownSchemas.has(match[1])) {
-        refs.add(match[1]);
-      }
-    }
-
-    if (schema.items) {
-      extractFromSchema(schema.items);
-    }
-
-    if (schema.oneOf) {
-      schema.oneOf.forEach(extractFromSchema);
-    }
-
-    if (schema.anyOf) {
-      schema.anyOf.forEach(extractFromSchema);
-    }
-
-    if (schema.allOf) {
-      schema.allOf.forEach(extractFromSchema);
-    }
-
-    if (schema.properties) {
-      Object.values(schema.properties).forEach(extractFromSchema);
-    }
-
-    if (
-      schema.additionalProperties &&
-      typeof schema.additionalProperties === 'object'
-    ) {
-      extractFromSchema(schema.additionalProperties);
-    }
-  };
-
-  for (const schema of Object.values(schemas)) {
-    extractFromSchema(schema);
-  }
-
+  const { refs, collect } = refCollector(
+    /^#\/(?:components\/schemas|definitions)\/(.+)$/,
+    (name) => knownSchemas.has(name),
+  );
+  for (const schema of Object.values(schemas)) mapSchemaRefs(schema, collect);
   return refs;
 };
 
