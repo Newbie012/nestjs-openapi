@@ -558,7 +558,17 @@ An `additionalProperties` declared in `@ApiProperty`, or an index signature such
 
 ## `extends`
 
-The type definition includes an `extends` field for future shared configs, but it is **not implemented** in the current Promise-based generator. Keep configs standalone for now.
+`extends` takes the path of a base config, relative to the config that declares it. Values in the child override the base (objects merge, arrays are replaced), and a base can extend another base.
+
+Each path in a config is relative to the file that declares it, the way tsconfig `extends` works. This covers `output`, `files.entry`, `files.tsconfig`, `files.dtoGlob` (negated and brace patterns too) and `options.overlay` given as a path. A base config in another folder keeps pointing at its own files, and a child that sets one of these fields resolves it against its own folder.
+
+```ts
+export default defineConfig({
+  extends: '../shared/base.config.ts',
+  output: 'openapi.json',
+  openapi: { info: { title: 'My API', version: '2.0.0' } },
+});
+```
 
 ## Complete Example
 

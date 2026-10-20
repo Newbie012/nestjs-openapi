@@ -4,7 +4,7 @@ seoTitle: 'Share config across files'
 description: 'Compose nestjs-openapi config files from a shared base object while keeping defineConfig type safety.'
 ---
 
-The `extends` field is present in the type definitions but is **not executed** by the current Promise-based generator. Until inheritance is implemented, compose configs manually.
+The `extends` field loads a base config and merges it under the child. Each path in a base config (`output`, `files.entry`, `files.tsconfig`, `files.dtoGlob`, `options.overlay` as a path) is relative to the file that declares it, so a base in another folder keeps pointing at its own files. See [`extends`](/docs/guides/configuration#extends). Composing a shared object by hand, as below, also works.
 
 ## Recommended pattern: manual composition
 
@@ -71,14 +71,3 @@ export default defineConfig({
   },
 });
 ```
-
-## Why not use `extends` today?
-
-- The Promise-based generator (`generate`) does not load or merge parent configs.
-- The Effect-based pipeline validates against the schema but also does not perform inheritance.
-- Relying on `extends` would silently ignore your base config at runtime.
-
-## Future work
-
-- Add explicit inheritance support with deterministic merge rules (objects deep-merge, arrays replace).
-- Validate and document path resolution rules when inheritance is enabled.

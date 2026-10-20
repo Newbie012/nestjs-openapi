@@ -1,6 +1,13 @@
 import { Effect, Schema } from 'effect';
 import { existsSync, statSync } from 'node:fs';
-import { resolve, dirname, extname } from 'node:path';
+import {
+  resolve,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+} from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import {
@@ -248,6 +255,64 @@ const loadRawConfigFromFile = Effect.fn('Config.loadRawConfigFromFile')(
   },
 );
 
+const rebasePath = (value: unknown, fromDir: string, toDir: string) => {
+  if (typeof value !== 'string' || value === '') {
+    return value;
+  }
+  const negated = value.startsWith('!');
+  const pattern = negated ? value.slice(1) : value;
+  if (isAbsolute(pattern)) {
+    return value;
+  }
+  const rebased = relative(toDir, join(fromDir, pattern)) || '.';
+  return negated ? `!${rebased}` : rebased;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Rewrite the path-valued fields of a config (`output`, `files.entry`,
+ * `files.tsconfig`, `files.dtoGlob`, and `options.overlay` given as a path)
+ * from relative to `fromDir` into relative to `toDir`.
+ */
+const rebaseConfigPaths = (
+  config: Record<string, unknown>,
+  fromDir: string,
+  toDir: string,
+): Record<string, unknown> => {
+  if (fromDir === toDir) {
+    return config;
+  }
+  const rebase = (value: unknown) => rebasePath(value, fromDir, toDir);
+  const rebaseMany = (value: unknown) =>
+    Array.isArray(value) ? value.map(rebase) : rebase(value);
+
+  const result = { ...config };
+  if ('output' in result) {
+    result.output = rebase(result.output);
+  }
+  if (isRecord(result.files)) {
+    const files = { ...result.files };
+    for (const key of ['entry', 'dtoGlob'] as const) {
+      if (key in files) {
+        files[key] = rebaseMany(files[key]);
+      }
+    }
+    if ('tsconfig' in files) {
+      files.tsconfig = rebase(files.tsconfig);
+    }
+    result.files = files;
+  }
+  if (isRecord(result.options) && typeof result.options.overlay === 'string') {
+    result.options = {
+      ...result.options,
+      overlay: rebase(result.options.overlay),
+    };
+  }
+  return result;
+};
+
 /**
  * Recursively resolve config extends chain and merge configs
  */
@@ -292,7 +357,11 @@ const resolveConfigExtends: (
   const { extends: _, ...childWithoutExtends } = rawConfig;
 
   return deepMerge(
-    resolvedParent as Record<string, unknown>,
+    rebaseConfigPaths(
+      resolvedParent,
+      dirname(parentConfigPath),
+      dirname(absolutePath),
+    ),
     childWithoutExtends,
   );
 });

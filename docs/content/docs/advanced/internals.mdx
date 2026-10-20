@@ -40,7 +40,7 @@ assert(config.openapi?.info?.title && config.openapi.info.version);
 - Loads the config file via dynamic import (supports `default` or `config` exports).
 - Validates only the required fields; other validation happens later in Effect-based paths.
 - Resolves paths relative to the config file location (output, entry, tsconfig, dtoGlob). Supports JSON or YAML output.
-- `extends` is not executed in the current generator.
+- `extends` merges the base config first; the base's relative paths are rebased onto the child's folder.
 
 ### 2. TypeScript Project Initialization
 

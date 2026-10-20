@@ -52,4 +52,38 @@ describe('Config extends smoke', () => {
       expect(spec.paths).toHaveProperty('/api/v1/app/health');
     });
   });
+  describe('Paths declared by a parent config in another folder', () => {
+    const fixture = resolve(
+      process.cwd(),
+      'e2e-applications/config-extends-paths',
+    );
+    const read = (file: string) => JSON.parse(readFileSync(file, 'utf-8'));
+
+    it('should resolve entry, tsconfig, dtoGlob, output and overlay against the parent, through two levels', async () => {
+      const outputPath = resolve(fixture, 'app/out/base.generated.json');
+      generatedFiles.push(outputPath);
+
+      const result = await generate(resolve(fixture, 'child/openapi.config.ts'));
+
+      expect(result.outputPath).toBe(outputPath);
+      const spec = read(outputPath);
+      expect(spec.info.title).toBe('Leaf API');
+      expect(spec.info['x-from-overlay']).toBe(true);
+      expect(spec.paths).toHaveProperty('/hello');
+      expect(spec.components.schemas).toHaveProperty('HelloDto');
+    });
+
+    it('should let a child override a path and resolve it against its own folder', async () => {
+      const outputPath = resolve(fixture, 'app/out/override.generated.json');
+      generatedFiles.push(outputPath);
+
+      const result = await generate(resolve(fixture, 'child/override.config.ts'));
+
+      expect(result.outputPath).toBe(outputPath);
+      const spec = read(outputPath);
+      expect(spec.info.title).toBe('Override API');
+      expect(spec.info['x-from-overlay']).toBe(true);
+      expect(spec.paths).toHaveProperty('/hello');
+    });
+  });
 });

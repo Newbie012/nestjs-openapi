@@ -145,9 +145,9 @@ export default defineConfig({
 });
 ```
 
-<Callout type="warn">
-  The `extends` field is not executed by the current generator. Import and
-  spread your base config instead of relying on inheritance.
+<Callout type="info">
+  A base config can also be loaded with `extends`. Its relative paths stay
+  relative to the base file.
 </Callout>
 
 ```typescript

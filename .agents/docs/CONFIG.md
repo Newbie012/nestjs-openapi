@@ -213,7 +213,7 @@ export default defineConfig({
 });
 ```
 
-Extends chain is resolved recursively. Circular references are detected and rejected.
+Paths (`output`, `files.entry`, `files.tsconfig`, `files.dtoGlob`, `options.overlay` as a path) are relative to the config file that declares them; a parent's relative paths are rebased onto the child's folder when merging (`rebaseConfigPaths` in `src/config/config.ts`). Extends chain is resolved recursively. Circular references are detected and rejected.
 
 ## Multiple Entry Modules
 
