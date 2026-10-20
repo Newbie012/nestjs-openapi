@@ -185,12 +185,31 @@ type UnionType = {
   readonly hasNull: boolean;
 };
 
+const splitTopLevelUnion = (tsType: string): string[] => {
+  const members: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < tsType.length; index++) {
+    const char = tsType[index];
+    if ('<({['.includes(char)) depth++;
+    if ('>)}]'.includes(char) && tsType[index - 1] !== '=') depth--;
+    if (depth === 0 && tsType.startsWith(' | ', index)) {
+      members.push(tsType.slice(start, index).trim());
+      start = index + 3;
+    }
+  }
+  return [...members, tsType.slice(start).trim()];
+};
+
 const parseUnionType = (tsType: string): UnionType | undefined => {
   if (!tsType.includes(' | ')) {
     return undefined;
   }
 
-  const members = tsType.split(' | ').map((member) => member.trim());
+  const members = splitTopLevelUnion(tsType);
+  if (members.length < 2) {
+    return undefined;
+  }
   return {
     hasNull: members.includes('null'),
     types: members.filter(
@@ -199,9 +218,50 @@ const parseUnionType = (tsType: string): UnionType | undefined => {
   };
 };
 
+const STRING_LITERAL_PATTERN = /^"(?:[^"\\]|\\.)*"$/;
+const NUMBER_LITERAL_PATTERN = /^-?\d+(?:\.\d+)?$/;
+
+const parseLiteral = (tsType: string): string | number | undefined => {
+  if (STRING_LITERAL_PATTERN.test(tsType)) {
+    return JSON.parse(tsType) as string;
+  }
+  return NUMBER_LITERAL_PATTERN.test(tsType) ? Number(tsType) : undefined;
+};
+
+const literalSchemaType = (value: string | number): 'string' | 'number' =>
+  typeof value === 'string' ? 'string' : 'number';
+
+const resolveLiteralSchema: TypeSchemaResolver = (tsType) => {
+  const value = parseLiteral(tsType);
+  return value === undefined
+    ? undefined
+    : { type: literalSchemaType(value), const: value };
+};
+
+const buildLiteralUnionSchema = (
+  types: readonly string[],
+): OpenApiSchema | undefined => {
+  const values = types.map(parseLiteral);
+  const literals = values.filter(
+    (value): value is string | number => value !== undefined,
+  );
+  if (literals.length !== values.length || literals.length < 2) {
+    return undefined;
+  }
+  const kinds = new Set(literals.map(literalSchemaType));
+  return kinds.size === 1
+    ? { type: literalSchemaType(literals[0]), enum: literals }
+    : undefined;
+};
+
 const buildUnionSchema = (types: readonly string[]): OpenApiSchema => {
   if (types.length === 0) {
     return { type: 'object' };
+  }
+
+  const literalUnion = buildLiteralUnionSchema(types);
+  if (literalUnion !== undefined) {
+    return literalUnion;
   }
 
   if (types.length === 1) {
@@ -256,6 +316,36 @@ const splitTypeArguments = (text: string): string[] => {
   return [...parts, current.trim()].filter((part) => part !== '');
 };
 
+const literalKeys = (keyText: string): readonly string[] | undefined => {
+  const keys = keyText.split(' | ').map((key) => parseLiteral(key.trim()));
+  return keys.length > 0 && keys.every((key) => key !== undefined)
+    ? keys.map(String)
+    : undefined;
+};
+
+const buildKeyedRecordSchema = (
+  keys: readonly string[],
+  value: string,
+): OpenApiSchema => ({
+  type: 'object',
+  properties: Object.fromEntries(
+    keys.map((key) => [key, tsTypeToOpenApiSchema(value)]),
+  ),
+  required: keys,
+  additionalProperties: false,
+});
+
+const PARTIAL_TYPE_PATTERN = /^Partial<(.+)>$/;
+
+const resolvePartialSchema: TypeSchemaResolver = (tsType) => {
+  const match = PARTIAL_TYPE_PATTERN.exec(tsType);
+  if (!match) return undefined;
+  const inner = resolveCollectionSchema(match[1].trim());
+  if (inner?.properties === undefined) return undefined;
+  const { required: _required, additionalProperties: _closed, ...rest } = inner;
+  return rest;
+};
+
 const COLLECTION_TYPE_PATTERN =
   /^(Record|Map|ReadonlyMap|Set|ReadonlySet)<(.+)>$/;
 
@@ -275,6 +365,9 @@ const resolveCollectionSchema: TypeSchemaResolver = (tsType) => {
   }
   if (typeArguments.length !== 2) return undefined;
   const value = typeArguments[1];
+  const keys =
+    collection === 'Record' ? literalKeys(typeArguments[0]) : undefined;
+  if (keys !== undefined) return buildKeyedRecordSchema(keys, value);
   return {
     type: 'object',
     ...(UNTYPED_VALUE_TYPES.has(value)
@@ -290,10 +383,12 @@ const resolveReferenceSchema: TypeSchemaResolver = (tsType) =>
 
 const TYPE_SCHEMA_RESOLVERS: readonly TypeSchemaResolver[] = [
   resolveInlineObjectSchema,
+  resolveLiteralSchema,
   resolveUnionSchema,
   resolvePrimitiveSchema,
   resolveBinarySchema,
   resolveArraySchema,
+  resolvePartialSchema,
   resolveCollectionSchema,
   resolveReferenceSchema,
 ];

@@ -1,0 +1,94 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "enum-shapes-string",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "get": {
+        "operationId": "ShapeController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShapeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShapeDto": {
+        "properties": {
+          "byColor": {
+            "additionalProperties": false,
+            "properties": {
+              "red": {
+                "type": "number"
+              },
+              "green": {
+                "type": "number"
+              },
+              "blue": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "red",
+              "green",
+              "blue"
+            ],
+            "type": "object"
+          },
+          "maybeByColor": {
+            "properties": {
+              "red": {
+                "type": "number"
+              },
+              "green": {
+                "type": "number"
+              },
+              "blue": {
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "colors": {
+            "enum": [
+              "red",
+              "green"
+            ],
+            "type": "string"
+          },
+          "single": {
+            "enum": [
+              "blue"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "byColor",
+          "maybeByColor",
+          "colors",
+          "single"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

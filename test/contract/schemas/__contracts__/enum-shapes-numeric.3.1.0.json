@@ -1,0 +1,92 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "enum-shapes-numeric",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "get": {
+        "operationId": "ShapeController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShapeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShapeDto": {
+        "properties": {
+          "byLevel": {
+            "additionalProperties": false,
+            "properties": {
+              "1": {
+                "type": "string"
+              },
+              "2": {
+                "type": "string"
+              },
+              "3": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "1",
+              "2",
+              "3"
+            ],
+            "type": "object"
+          },
+          "maybeByLevel": {
+            "properties": {
+              "1": {
+                "type": "string"
+              },
+              "2": {
+                "type": "string"
+              },
+              "3": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "levels": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "number"
+          },
+          "single": {
+            "const": 3,
+            "type": "number"
+          }
+        },
+        "required": [
+          "byLevel",
+          "maybeByLevel",
+          "levels",
+          "single"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

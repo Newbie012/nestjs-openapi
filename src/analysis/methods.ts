@@ -15,6 +15,7 @@ import type {
   ParameterLocation,
   OperationMetadata,
 } from '../model/domain.js';
+import { describeSchemaType } from './enum-types.js';
 import {
   getControllerName,
   getControllerTags,
@@ -202,7 +203,7 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   if (cached !== undefined) return cached;
 
   const awaited = getAwaitedReturnType(method);
-  const rawTypeText = awaited.getText(method);
+  const rawTypeText = describeSchemaType(awaited, method);
 
   const symbol = awaited.getSymbol?.();
 
@@ -593,11 +594,12 @@ const extractParameters = (
       if (decoratorName === 'Headers' && !hasExplicitName) return params;
       const paramType = param.getType();
 
-      const rawTsType = paramType.getText(param);
+      const rawTsType = describeSchemaType(paramType, param);
+      const rewritesEnumMembers = rawTsType !== paramType.getText(param);
       const declaredTsType = param.getTypeNode()?.getText() ?? rawTsType;
       let tsType = rawTsType;
       const symbol = paramType.getSymbol?.();
-      if (symbol) {
+      if (symbol && !rewritesEnumMembers) {
         const symbolName = getDeclaringEnumName(symbol) ?? symbol.getName();
         if (
           symbolName &&
