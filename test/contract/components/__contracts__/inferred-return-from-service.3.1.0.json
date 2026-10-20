@@ -1,0 +1,171 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Inferred return API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/sso": {
+      "get": {
+        "operationId": "SsoController_isConfigured",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SsoConfigDto"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sso"
+        ]
+      }
+    },
+    "/sso/saml": {
+      "post": {
+        "operationId": "SsoController_saveSaml",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SamlPostDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sso"
+        ]
+      }
+    },
+    "/sso/oidc": {
+      "post": {
+        "operationId": "SsoController_saveOidc",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcPostDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sso"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SsoConfigDto": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SamlConfigDto"
+          },
+          {
+            "$ref": "#/components/schemas/OidcConfigDto"
+          }
+        ]
+      },
+      "SamlConfigDto": {
+        "properties": {
+          "type": {
+            "const": "saml",
+            "type": "string"
+          },
+          "entryPoint": {
+            "type": "string"
+          },
+          "certificate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "certificate",
+          "entryPoint",
+          "type"
+        ],
+        "type": "object"
+      },
+      "OidcConfigDto": {
+        "properties": {
+          "type": {
+            "const": "oidc",
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientId",
+          "issuer",
+          "type"
+        ],
+        "type": "object"
+      },
+      "SamlPostDto": {
+        "properties": {
+          "entryPoint": {
+            "type": "string"
+          },
+          "certificate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entryPoint",
+          "certificate"
+        ],
+        "type": "object"
+      },
+      "OidcPostDto": {
+        "properties": {
+          "issuer": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer",
+          "clientId"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
