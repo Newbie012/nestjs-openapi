@@ -1,7 +1,7 @@
 import { defineConfig } from '../../src/index.js';
 
 export default defineConfig({
-  output: 'static-output.json',
+  output: 'output.static.json',
   files: {
     entry: 'src/app.module.ts',
     tsconfig: 'tsconfig.json',

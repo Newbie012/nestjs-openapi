@@ -1,7 +1,11 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 /**
- * Comparison Benchmark E2E Test
- *
- * This test compares the output of @nestjs/swagger CLI plugin with nestjs-openapi
+ * Compares the committed output of the @nestjs/swagger CLI plugin with the
+ * committed 3.0.3 contract of nestjs-openapi for the same benchmark app,
  * to verify the claims made in the comparison documentation.
  *
  * The benchmark app at e2e-applications/comparison-benchmark contains test cases for:
@@ -14,39 +18,19 @@
  * - Parameter decorators (@Query, @Param, @Body)
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
-import { generate } from '../src/index.js';
+const here = dirname(fileURLToPath(import.meta.url));
+
+const readJson = (path: string): any =>
+  JSON.parse(readFileSync(path, 'utf-8'));
+
+const swaggerOutput = readJson(
+  join(here, '../../../e2e-applications/comparison-benchmark/swagger-output.json'),
+);
+const staticOutput = readJson(
+  join(here, '__contracts__/comparison-benchmark.3.0.3.json'),
+);
 
 describe('Comparison Benchmark: @nestjs/swagger vs nestjs-openapi', () => {
-  let swaggerOutput: any;
-  let staticOutput: any;
-  let generateResult: Awaited<ReturnType<typeof generate>>;
-
-  beforeAll(async () => {
-    const benchmarkDir = path.join(
-      __dirname,
-      '../e2e-applications/comparison-benchmark',
-    );
-
-    // Read the pre-generated swagger output (generated via `nest build && node dist/main.js`)
-    const swaggerPath = path.join(benchmarkDir, 'swagger-output.json');
-    if (fs.existsSync(swaggerPath)) {
-      swaggerOutput = JSON.parse(fs.readFileSync(swaggerPath, 'utf-8'));
-    }
-
-    // Generate with our library
-    generateResult = await generate(path.join(benchmarkDir, 'openapi.config.ts'));
-    const staticPath = path.join(benchmarkDir, 'static-output.json');
-    staticOutput = JSON.parse(fs.readFileSync(staticPath, 'utf-8'));
-  }, 30_000);
-
-  it('generates a validation-clean OpenAPI spec (no broken refs)', () => {
-    expect(generateResult.validation.valid).toBe(true);
-    expect(generateResult.validation.brokenRefCount).toBe(0);
-  });
-
   describe('Schema Generation', () => {
     it('@nestjs/swagger CLI plugin produces EMPTY schemas for DTOs', () => {
       // This proves that the CLI plugin doesn't populate DTO properties

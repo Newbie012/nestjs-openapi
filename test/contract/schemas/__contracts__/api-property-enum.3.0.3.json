@@ -1,0 +1,396 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "description": "Tests @ApiProperty({ enum: ... }) extraction",
+    "title": "ApiProperty Enum Test",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "ItemController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of items"
+          }
+        },
+        "summary": "Get all items",
+        "tags": [
+          "Items"
+        ]
+      },
+      "post": {
+        "operationId": "ItemController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDto"
+                }
+              }
+            },
+            "description": "Item created"
+          }
+        },
+        "summary": "Create an item",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/tasks": {
+      "get": {
+        "operationId": "TaskController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of tasks"
+          }
+        },
+        "summary": "Get all tasks",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/tasks/filter": {
+      "get": {
+        "operationId": "TaskController_filter",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Channel"
+            }
+          },
+          {
+            "in": "query",
+            "name": "color",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Color"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Filtered tasks"
+          }
+        },
+        "summary": "Filter tasks by enum-typed query params",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/tasks/search": {
+      "post": {
+        "operationId": "TaskController_search",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Search results"
+          }
+        },
+        "summary": "Search tasks",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Channel": {
+        "description": "Single-member enum: TypeScript collapses its declared type to the member literal, so schema naming must walk back up to the enum declaration.",
+        "enum": [
+          "email"
+        ],
+        "type": "string"
+      },
+      "Color": {
+        "description": "Enums defined in a separate file (simulates enums from external packages)",
+        "enum": [
+          "red",
+          "green",
+          "blue",
+          "yellow"
+        ],
+        "type": "string"
+      },
+      "ItemDto": {
+        "description": "DTO covering all extractable",
+        "properties": {
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "color": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Color"
+              }
+            ],
+            "description": "Item color"
+          },
+          "currency": {
+            "default": "USD",
+            "example": "USD",
+            "type": "string"
+          },
+          "email": {
+            "description": "Contact email",
+            "format": "email",
+            "type": "string"
+          },
+          "id": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "legacyCode": {
+            "deprecated": true,
+            "description": "Use slug instead",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name of the item",
+            "type": "string"
+          },
+          "notes": {
+            "nullable": true,
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "price": {
+            "description": "Item price",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "number"
+          },
+          "ratio": {
+            "exclusiveMaximum": true,
+            "exclusiveMinimum": true,
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "sku": {
+            "pattern": "^[A-Z]{2}-\\d+$",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 50,
+            "minLength": 3,
+            "type": "string"
+          },
+          "status": {
+            "description": "Item status",
+            "enum": [
+              "active",
+              "deprecated",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "tags": {
+            "description": "Searchable tags",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tag List",
+            "type": "array"
+          },
+          "variants": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "type": "array"
+          },
+          "weight": {
+            "multipleOf": 0.01,
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "color",
+          "status",
+          "email",
+          "price",
+          "slug",
+          "currency",
+          "legacyCode",
+          "id",
+          "password",
+          "notes",
+          "tags",
+          "codes",
+          "weight",
+          "ratio",
+          "sku",
+          "variants"
+        ],
+        "type": "object"
+      },
+      "Priority": {
+        "enum": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "type": "number"
+      },
+      "SearchDto": {
+        "properties": {
+          "channel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Channel"
+              }
+            ],
+            "description": "Delivery channel"
+          },
+          "fallbackChannel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "sizes": {
+            "description": "Filter by sizes",
+            "items": {
+              "$ref": "#/components/schemas/Size"
+            },
+            "type": "array"
+          },
+          "sortOrder": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "sortOrder",
+          "sizes",
+          "channel",
+          "fallbackChannel"
+        ],
+        "type": "object"
+      },
+      "Size": {
+        "enum": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "type": "string"
+      },
+      "TaskDto": {
+        "properties": {
+          "estimate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Size"
+              }
+            ],
+            "description": "T-shirt size estimate"
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              }
+            ],
+            "description": "Task priority"
+          },
+          "title": {
+            "description": "Task title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "priority"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

@@ -1,0 +1,342 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "description": "API demonstrating discriminated union type patterns",
+    "title": "Discriminated Unions API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/unions/code-sources": {
+      "get": {
+        "operationId": "UnionsController_getCodeSources",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CodeExecutionSourceDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get code execution sources",
+        "tags": [
+          "unions"
+        ]
+      }
+    },
+    "/unions/notification": {
+      "post": {
+        "operationId": "UnionsController_sendNotification",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "sent": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "sent"
+                      ],
+                      "type": "object"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "timestamp"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Send a notification",
+        "tags": [
+          "unions"
+        ]
+      }
+    },
+    "/unions/payment": {
+      "post": {
+        "operationId": "UnionsController_processPayment",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentMethodDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "type": "object"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "timestamp"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Process a payment",
+        "tags": [
+          "unions"
+        ]
+      }
+    },
+    "/unions/payment-methods": {
+      "get": {
+        "operationId": "UnionsController_getPaymentMethods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethodDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get available payment methods",
+        "tags": [
+          "unions"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CodeExecutionSourceDto": {
+        "anyOf": [
+          {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "ApplicationCode",
+                  "StandardLibrary"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "OpenSource",
+                "type": "string"
+              },
+              "libraryName": {
+                "type": "string"
+              },
+              "libraryVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "libraryName",
+              "libraryVersion"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "NotificationDto": {
+        "anyOf": [
+          {
+            "properties": {
+              "body": {
+                "type": "string"
+              },
+              "channel": {
+                "const": "email",
+                "type": "string"
+              },
+              "recipient": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "recipient",
+              "subject",
+              "body"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "channel": {
+                "const": "sms",
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "phoneNumber": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "phoneNumber",
+              "message"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "channel": {
+                "const": "push",
+                "type": "string"
+              },
+              "deviceToken": {
+                "type": "string"
+              },
+              "payload": {
+                "type": "object"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "deviceToken",
+              "title",
+              "payload"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PaymentMethodDto": {
+        "anyOf": [
+          {
+            "properties": {
+              "cardNumber": {
+                "type": "string"
+              },
+              "expiryDate": {
+                "type": "string"
+              },
+              "type": {
+                "const": "credit_card",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "cardNumber",
+              "expiryDate"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "type": {
+                "const": "paypal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "email"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "accountNumber": {
+                "type": "string"
+              },
+              "routingNumber": {
+                "type": "string"
+              },
+              "type": {
+                "const": "bank_transfer",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "accountNumber",
+              "routingNumber"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "Discriminated Union DTOs for testing const value preservation"
+      }
+    }
+  },
+  "tags": []
+}

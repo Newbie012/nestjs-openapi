@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.1.0",
   "info": {
     "description": "API for testing nestjs-openapi output",
     "title": "Comparison Benchmark API",
@@ -372,9 +372,7 @@
                 "$ref": "#/components/schemas/UserDto"
               },
               "status": {
-                "enum": [
-                  "success"
-                ],
+                "const": "success",
                 "type": "string"
               }
             },
@@ -393,9 +391,7 @@
                 "type": "string"
               },
               "status": {
-                "enum": [
-                  "error"
-                ],
+                "const": "error",
                 "type": "string"
               }
             },
@@ -464,8 +460,10 @@
         "properties": {
           "bio": {
             "description": "User bio",
-            "nullable": true,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
             "description": "User email",
@@ -481,11 +479,7 @@
             "type": "string"
           },
           "role": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Role"
-              }
-            ],
+            "$ref": "#/components/schemas/Role",
             "description": "User role"
           }
         },
@@ -515,8 +509,10 @@
       "IUserProfile": {
         "properties": {
           "avatarUrl": {
-            "nullable": true,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "displayName": {
             "type": "string"
@@ -603,12 +599,16 @@
       "UpdateUserDto": {
         "properties": {
           "age": {
-            "nullable": true,
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "bio": {
-            "nullable": true,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "name": {
             "type": "string"
