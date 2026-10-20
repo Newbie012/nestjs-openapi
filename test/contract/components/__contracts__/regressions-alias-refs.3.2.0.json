@@ -1,0 +1,490 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Regressions API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/auth/me": {
+      "get": {
+        "operationId": "AppController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/filters": {
+      "get": {
+        "operationId": "AppController_filters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchFiltersDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/filters/active": {
+      "get": {
+        "operationId": "AppController_activeFilters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveFiltersDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/notes": {
+      "put": {
+        "operationId": "AppController_patchNote",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchNoteDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatchNoteDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/notifications/settings": {
+      "get": {
+        "operationId": "AppController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationSettingsDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/owners": {
+      "get": {
+        "operationId": "AppController_owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Owner"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/pets": {
+      "get": {
+        "operationId": "AppController_pet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/settings/theme": {
+      "put": {
+        "operationId": "AppController_updateTheme",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateThemeDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateThemeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActiveFiltersDto": {
+        "properties": {
+          "priorityLevels": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption_PriorityLevelDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "priorityLevels"
+        ],
+        "type": "object"
+      },
+      "ChannelUnavailableReason": {
+        "enum": [
+          "not_configured",
+          "no_permission"
+        ],
+        "type": "string"
+      },
+      "DateRangeOptions": {
+        "properties": {
+          "days": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "type": "object"
+      },
+      "FilterOption_DateRangeOptions": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/DateRangeOptions"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object"
+      },
+      "FilterOption_PriorityLevelDto": {
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "option": {
+            "$ref": "#/components/schemas/PriorityLevelDto"
+          }
+        },
+        "required": [
+          "option",
+          "count"
+        ],
+        "type": "object"
+      },
+      "NotificationChannel": {
+        "enum": [
+          "email",
+          "sms",
+          "push"
+        ],
+        "type": "string"
+      },
+      "NotificationSettingsDto": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/NotificationChannel"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationChannel"
+            },
+            "type": "array"
+          },
+          "label": {
+            "enum": [
+              "email",
+              "sms",
+              "push"
+            ],
+            "type": "string"
+          },
+          "unavailableReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChannelUnavailableReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "channel",
+          "channels",
+          "label"
+        ],
+        "type": "object"
+      },
+      "Owner": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "pet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Relation_Pet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Relation_Profile"
+          }
+        },
+        "required": [
+          "id",
+          "pet",
+          "profile"
+        ],
+        "type": "object"
+      },
+      "PatchNoteDto": {
+        "properties": {
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "reason": {
+            "maxLength": 250,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "Pet": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Relation_Owner"
+          }
+        },
+        "required": [
+          "id",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "PriorityLevelDto": {
+        "properties": {
+          "level": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "type": "object"
+      },
+      "Profile": {
+        "properties": {
+          "bio": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Relation_Owner"
+          }
+        },
+        "required": [
+          "bio",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "Relation_Owner": {
+        "$ref": "#/components/schemas/Owner",
+        "description": "Wrapper type for relation type definitions in entities."
+      },
+      "Relation_Pet": {
+        "$ref": "#/components/schemas/Pet",
+        "description": "Wrapper type for relation type definitions in entities."
+      },
+      "Relation_Profile": {
+        "$ref": "#/components/schemas/Profile",
+        "description": "Wrapper type for relation type definitions in entities."
+      },
+      "SearchFiltersDto": {
+        "properties": {
+          "dateRange": {
+            "$ref": "#/components/schemas/FilterOption_DateRangeOptions"
+          }
+        },
+        "required": [
+          "dateRange"
+        ],
+        "type": "object"
+      },
+      "ThemeMode": {
+        "enum": [
+          "light",
+          "dark",
+          "system"
+        ],
+        "type": "string"
+      },
+      "UpdateThemeDto": {
+        "properties": {
+          "themeMode": {
+            "$ref": "#/components/schemas/ThemeMode"
+          }
+        },
+        "required": [
+          "themeMode"
+        ],
+        "type": "object"
+      },
+      "UserProfile": {
+        "properties": {
+          "address": {
+            "additionalProperties": {},
+            "properties": {
+              "country": {
+                "type": "string"
+              },
+              "formatted": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "email_verified": {
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sub": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "groups",
+          "sub"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

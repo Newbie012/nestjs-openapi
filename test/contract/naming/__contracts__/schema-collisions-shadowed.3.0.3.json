@@ -1,0 +1,96 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Schema Collisions API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/orders": {
+      "get": {
+        "operationId": "AppController_orders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddressDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductDto"
+          }
+        },
+        "required": [
+          "id",
+          "product"
+        ],
+        "type": "object"
+      },
+      "ContactDto": {
+        "properties": {
+          "contactName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactName"
+        ],
+        "type": "object"
+      },
+      "OrderSummaryDto": {
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/AddressDto"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/ContactDto"
+          }
+        },
+        "required": [
+          "address",
+          "contact"
+        ],
+        "type": "object"
+      },
+      "ProductDto": {
+        "properties": {
+          "barcode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sku",
+          "barcode"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

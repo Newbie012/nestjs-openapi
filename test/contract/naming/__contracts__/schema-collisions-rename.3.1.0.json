@@ -1,0 +1,355 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Schema Collisions API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/orders": {
+      "get": {
+        "operationId": "AppController_orders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/a": {
+      "get": {
+        "operationId": "AppController_pluginA",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APluginState_PluginStateDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/b": {
+      "get": {
+        "operationId": "AppController_pluginB",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BPluginState_PluginStateDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/page": {
+      "get": {
+        "operationId": "AppController_pluginPage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageDto_APluginState_PluginStateDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "AppController_products",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Product_ProductDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/products/raw": {
+      "get": {
+        "operationId": "AppController_rawProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Product_ProductDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/shipments": {
+      "get": {
+        "operationId": "AppController_shipments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/shipments/patch": {
+      "get": {
+        "operationId": "AppController_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressPatchDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "APluginState_PluginStateDto": {
+        "properties": {
+          "loaded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "loaded"
+        ],
+        "type": "object"
+      },
+      "AddressPatchDto": {
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "BPluginState_PluginStateDto": {
+        "properties": {
+          "executed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "executed"
+        ],
+        "type": "object"
+      },
+      "GetOrderSummary_AddressDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "product": {
+            "$ref": "#/components/schemas/GetOrderSummary_ProductDto"
+          }
+        },
+        "required": [
+          "id",
+          "product"
+        ],
+        "type": "object"
+      },
+      "GetOrderSummary_ContactDto": {
+        "properties": {
+          "contactName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactName"
+        ],
+        "type": "object"
+      },
+      "GetOrderSummary_ProductDto": {
+        "properties": {
+          "barcode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sku",
+          "barcode"
+        ],
+        "type": "object"
+      },
+      "OrderSummaryDto": {
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/GetOrderSummary_AddressDto"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/GetOrderSummary_ContactDto"
+          }
+        },
+        "required": [
+          "address",
+          "contact"
+        ],
+        "type": "object"
+      },
+      "PageDto_APluginState_PluginStateDto": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/APluginState_PluginStateDto"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "Product_ProductDto": {
+        "properties": {
+          "variants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "vendor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variants",
+          "vendor"
+        ],
+        "type": "object"
+      },
+      "ShipmentDto": {
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/Shipping_AddressDto"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Shipping_ContactDto"
+          }
+        },
+        "required": [
+          "address",
+          "contact"
+        ],
+        "type": "object"
+      },
+      "Shipping_AddressDto": {
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "Shipping_ContactDto": {
+        "properties": {
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

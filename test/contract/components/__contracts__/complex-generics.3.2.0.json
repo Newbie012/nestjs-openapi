@@ -1,0 +1,1323 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "description": "API demonstrating complex generic type patterns",
+    "title": "Complex Generics API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/articles": {
+      "get": {
+        "operationId": "ArticleController_findAll",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ArticleEntity"
+                }
+              }
+            },
+            "description": "Paginated list of articles"
+          }
+        },
+        "summary": "Get paginated articles",
+        "tags": [
+          "Articles"
+        ]
+      },
+      "post": {
+        "operationId": "ArticleController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArticleDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ArticleEntity"
+                }
+              }
+            },
+            "description": "Article created"
+          }
+        },
+        "summary": "Create a new article",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/articles/{id}": {
+      "delete": {
+        "operationId": "ArticleController_remove",
+        "parameters": [
+          {
+            "description": "Article ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Article deleted"
+          },
+          "404": {
+            "description": "Article not found"
+          }
+        },
+        "summary": "Delete an article",
+        "tags": [
+          "Articles"
+        ]
+      },
+      "get": {
+        "operationId": "ArticleController_findOne",
+        "parameters": [
+          {
+            "description": "Article ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ArticleEntity"
+                }
+              }
+            },
+            "description": "Article found"
+          },
+          "404": {
+            "description": "Article not found"
+          }
+        },
+        "summary": "Get article by ID",
+        "tags": [
+          "Articles"
+        ]
+      },
+      "put": {
+        "operationId": "ArticleController_update",
+        "parameters": [
+          {
+            "description": "Article ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateArticleDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_ArticleEntity"
+                }
+              }
+            },
+            "description": "Article updated"
+          }
+        },
+        "summary": "Update an article",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/articles/{id}/with-author": {
+      "get": {
+        "operationId": "ArticleController_findWithAuthor",
+        "parameters": [
+          {
+            "description": "Article ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleWithAuthor"
+                }
+              }
+            },
+            "description": "Article with author details"
+          }
+        },
+        "summary": "Get article with embedded author",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/articles/{id}/with-comments": {
+      "get": {
+        "operationId": "ArticleController_findWithComments",
+        "parameters": [
+          {
+            "description": "Article ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleWithComments"
+                }
+              }
+            },
+            "description": "Article with comments"
+          }
+        },
+        "summary": "Get article with all comments",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/batch/articles": {
+      "delete": {
+        "operationId": "BatchController_batchDeleteArticles",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult_string"
+                }
+              }
+            },
+            "description": "Batch deletion result"
+          }
+        },
+        "summary": "Batch delete articles",
+        "tags": [
+          "Batch"
+        ]
+      },
+      "post": {
+        "operationId": "BatchController_batchCreateArticles",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/CreateArticleDto"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult_ArticleEntity"
+                }
+              }
+            },
+            "description": "Batch operation result"
+          }
+        },
+        "summary": "Batch create articles",
+        "tags": [
+          "Batch"
+        ]
+      }
+    },
+    "/comments": {
+      "get": {
+        "operationId": "CommentController_findAll",
+        "parameters": [
+          {
+            "description": "Filter by article",
+            "in": "query",
+            "name": "articleId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_CommentEntity"
+                }
+              }
+            },
+            "description": "Paginated list of comments"
+          }
+        },
+        "summary": "Get paginated comments",
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/comments/{id}": {
+      "get": {
+        "operationId": "CommentController_findOne",
+        "parameters": [
+          {
+            "description": "Comment ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_CommentEntity"
+                }
+              }
+            },
+            "description": "Comment found"
+          }
+        },
+        "summary": "Get comment by ID",
+        "tags": [
+          "Comments"
+        ]
+      }
+    },
+    "/filters": {
+      "get": {
+        "operationId": "FilterController_getFilters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterRules"
+                }
+              }
+            },
+            "description": "Current filter configuration"
+          }
+        },
+        "summary": "Get current filter rules",
+        "tags": [
+          "Filters"
+        ]
+      },
+      "post": {
+        "operationId": "FilterController_updateFilters",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilterRules"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterRules"
+                }
+              }
+            },
+            "description": "Updated filter configuration"
+          }
+        },
+        "summary": "Update filter rules",
+        "tags": [
+          "Filters"
+        ]
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "SearchController_search",
+        "parameters": [
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by entity type",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Search results"
+          }
+        },
+        "summary": "Global search across all entities",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "UserController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_UserEntity"
+                }
+              }
+            },
+            "description": "Paginated list of users"
+          }
+        },
+        "summary": "Get paginated users",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UserController_findOne",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UserEntity"
+                }
+              }
+            },
+            "description": "User found"
+          }
+        },
+        "summary": "Get user by ID",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/articles": {
+      "get": {
+        "operationId": "UserController_getUserArticles",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedArticlesWithAuthors"
+                }
+              }
+            },
+            "description": "Paginated articles by this user"
+          }
+        },
+        "summary": "Get user articles with author info",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/settings": {
+      "get": {
+        "operationId": "UserController_getSettings",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettings"
+                }
+              }
+            },
+            "description": "User settings"
+          }
+        },
+        "summary": "Get user settings",
+        "tags": [
+          "Users"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_updateSettings",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UserSettings"
+                }
+              }
+            },
+            "description": "Settings updated"
+          }
+        },
+        "summary": "Update user settings",
+        "tags": [
+          "Users"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiResponse_ArticleEntity": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArticleEntity"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "ApiResponse_CommentEntity": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CommentEntity"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "ApiResponse_UserEntity": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UserEntity"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "ApiResponse_UserSettings": {
+        "description": "Generic API response wrapper",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UserSettings"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "ArticleEntity": {
+        "description": "Article entity extending base",
+        "properties": {
+          "authorId": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorId",
+          "content",
+          "createdAt",
+          "id",
+          "published",
+          "tags",
+          "title",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ArticleWithAuthor": {
+        "description": "Nested generic - article with embedded author",
+        "properties": {
+          "article": {
+            "$ref": "#/components/schemas/ArticleEntity"
+          },
+          "author": {
+            "$ref": "#/components/schemas/UserEntity"
+          }
+        },
+        "required": [
+          "article",
+          "author"
+        ],
+        "type": "object"
+      },
+      "ArticleWithComments": {
+        "description": "Nested generic - article with comments",
+        "properties": {
+          "article": {
+            "$ref": "#/components/schemas/ArticleEntity"
+          },
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/CommentEntity"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "article",
+          "comments"
+        ],
+        "type": "object"
+      },
+      "BatchResult_ArticleEntity": {
+        "description": "Batch operation result",
+        "properties": {
+          "failed": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "item": {
+                  "$ref": "#/components/schemas/ArticleEntity"
+                }
+              },
+              "required": [
+                "item",
+                "error"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "succeeded": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleEntity"
+            },
+            "type": "array"
+          },
+          "totalProcessed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "succeeded",
+          "failed",
+          "totalProcessed"
+        ],
+        "type": "object"
+      },
+      "BatchResult_string": {
+        "description": "Batch operation result",
+        "properties": {
+          "failed": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "item": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item",
+                "error"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "succeeded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "totalProcessed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "succeeded",
+          "failed",
+          "totalProcessed"
+        ],
+        "type": "object"
+      },
+      "CommentEntity": {
+        "description": "Comment entity extending base",
+        "properties": {
+          "articleId": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "articleId",
+          "authorId",
+          "createdAt",
+          "id",
+          "text",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CreateArticleDto": {
+        "description": "Create DTO for articles",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ],
+        "type": "object"
+      },
+      "FilterRules": {
+        "description": "Filter rules with inline object types - tests structure ref normalization These inline types should be normalized to readable names based on property keys",
+        "properties": {
+          "k8sLabels": {
+            "$ref": "#/components/schemas/SelectRule_K8sLabels",
+            "description": "Should normalize to \"K8sLabels\""
+          },
+          "metadata": {
+            "description": "Direct inline object (not wrapped in SelectRule) - should normalize to \"Metadata\"",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "timestamp"
+            ],
+            "type": "object"
+          },
+          "namespaceLabels": {
+            "$ref": "#/components/schemas/SelectRule_NamespaceLabels",
+            "description": "Should normalize to \"NamespaceLabels\""
+          },
+          "severity": {
+            "$ref": "#/components/schemas/SelectRule_low_Or_medium_Or_high_Or_critical",
+            "description": "Another clean generic"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/SelectRule_string",
+            "description": "Clean generic - should remain as-is"
+          }
+        },
+        "type": "object"
+      },
+      "PaginatedArticlesWithAuthors": {
+        "description": "Complex nested response - paginated articles with authors",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleWithAuthor"
+            },
+            "type": "array"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "PaginatedResponse_ArticleEntity": {
+        "description": "Generic paginated response",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleEntity"
+            },
+            "type": "array"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "PaginatedResponse_CommentEntity": {
+        "description": "Generic paginated response",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CommentEntity"
+            },
+            "type": "array"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "PaginatedResponse_UserEntity": {
+        "description": "Generic paginated response",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserEntity"
+            },
+            "type": "array"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "SearchResult": {
+        "description": "Union type response",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "type": {
+            "enum": [
+              "user",
+              "article",
+              "comment"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "score"
+        ],
+        "type": "object"
+      },
+      "SelectRule_K8sLabels": {
+        "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
+        "properties": {
+          "exclude": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SelectRule_NamespaceLabels": {
+        "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
+        "properties": {
+          "exclude": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SelectRule_low_Or_medium_Or_high_Or_critical": {
+        "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
+        "properties": {
+          "exclude": {
+            "items": {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SelectRule_string": {
+        "description": "Generic select rule for filtering (similar to real-world SelectRule pattern)",
+        "properties": {
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateArticleDto": {
+        "description": "Update DTO for articles (partial)",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UserEntity": {
+        "description": "User entity extending base",
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "user",
+              "guest"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "email",
+          "id",
+          "name",
+          "role",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "UserSettings": {
+        "description": "Settings with typed keys",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "notifications": {
+            "type": "boolean"
+          },
+          "theme": {
+            "enum": [
+              "light",
+              "dark",
+              "system"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "theme",
+          "notifications",
+          "language"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

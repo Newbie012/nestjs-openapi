@@ -1,0 +1,135 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fallback naming",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/external": {
+      "get": {
+        "operationId": "AppController_external",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "external": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "external"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/review": {
+      "get": {
+        "operationId": "AppController_review",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductReviewDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ProductReviewDto": {
+        "properties": {
+          "reviewers": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/VariantInProductReviewDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "variants",
+          "reviewers"
+        ],
+        "type": "object"
+      },
+      "RatingInProductReviewDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reviewers": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "reviewers"
+        ],
+        "type": "object"
+      },
+      "VariantInProductReviewDto": {
+        "properties": {
+          "rating": {
+            "$ref": "#/components/schemas/RatingInProductReviewDto"
+          },
+          "weighted": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "rating",
+          "weighted"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

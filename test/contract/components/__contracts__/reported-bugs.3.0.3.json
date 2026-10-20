@@ -1,0 +1,222 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Reported Bugs API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/article": {
+      "get": {
+        "operationId": "AppController_getArticle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/base-cursor": {
+      "get": {
+        "operationId": "AppController_getBaseCursor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseCursorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/extended-cursor": {
+      "get": {
+        "operationId": "AppController_getExtendedCursor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedCursorDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/foo": {
+      "get": {
+        "operationId": "AppController_getFoo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FooDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/list": {
+      "post": {
+        "operationId": "AppController_list",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ArticleDto": {
+        "properties": {
+          "details": {
+            "description": "y",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "summary": {
+            "description": "x",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "BaseCursorResponse": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cursor"
+        ],
+        "type": "object"
+      },
+      "ExtendedCursorDto": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "extra": {
+            "type": "string"
+          },
+          "sortBy": {
+            "$ref": "#/components/schemas/SortByType"
+          }
+        },
+        "required": [
+          "cursor",
+          "extra",
+          "sortBy"
+        ],
+        "type": "object"
+      },
+      "FooDto": {
+        "properties": {
+          "a": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "a"
+        ],
+        "type": "object"
+      },
+      "ListRequestDto": {
+        "properties": {
+          "sortBy": {
+            "$ref": "#/components/schemas/SortByType"
+          }
+        },
+        "required": [
+          "sortBy"
+        ],
+        "type": "object"
+      },
+      "SortByType": {
+        "properties": {
+          "direction": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "direction"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
