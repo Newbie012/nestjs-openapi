@@ -620,11 +620,9 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
     expansion: DecoratorExpansionOptions,
     withValidation: boolean,
     naming: SchemaNaming,
-    namedEnums: Set<string>,
-    enumNameUses: EnumNameUse[],
   ) {
     if (sourceFilePaths.length === 0) {
-      return inputSchemas;
+      return { schemas: inputSchemas, enumNameUses: [] };
     }
 
     const project = getRunProject(tsconfig);
@@ -677,19 +675,25 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
       for (const [name, decl] of missingBases) classes.set(name, decl);
     }
 
-    if (withValidation) {
-      schemas = yield* overlayValidationConstraintsEffect(
-        classes,
-        schemas,
-        expansion,
-        naming,
-        namedEnums,
-        enumNameUses,
-      );
-    }
+    const validated = withValidation
+      ? yield* overlayValidationConstraintsEffect(
+          classes,
+          schemas,
+          expansion,
+          naming,
+        )
+      : { schemas, enumNameUses: [] };
 
-    const composed = applyMappedTypes(schemas, classes, naming.componentName);
-    return naming.enums === 'ref' ? composed : inlineInferredEnumRefs(composed);
+    const composed = applyMappedTypes(
+      validated.schemas,
+      classes,
+      naming.componentName,
+    );
+    return {
+      schemas:
+        naming.enums === 'ref' ? composed : inlineInferredEnumRefs(composed),
+      enumNameUses: validated.enumNameUses,
+    };
   },
 );
 
@@ -811,8 +815,6 @@ const overlayValidationConstraintsEffect = Effect.fn(
   schemas: GeneratedSchemas,
   expansion: DecoratorExpansionOptions,
   naming: SchemaNaming,
-  namedEnums: Set<string>,
-  enumNameUses: EnumNameUse[],
 ) {
   const classConstraints = new Map<
     string,
@@ -842,26 +844,21 @@ const overlayValidationConstraintsEffect = Effect.fn(
     }
   }
 
-  // Where each `enumName` is used, to find names given to different values
-  for (const [className, properties] of classConstraints) {
-    for (const [property, constraints] of Object.entries(properties)) {
-      const component = constraints.enumComponent;
-      if (component) {
-        enumNameUses.push({
-          name: component.name,
-          className,
-          property,
-          schema: component.schema,
-        });
-      }
-    }
-  }
-  for (const properties of classConstraints.values()) {
-    for (const constraints of Object.values(properties)) {
-      if (constraints.enumComponent)
-        namedEnums.add(constraints.enumComponent.name);
-    }
-  }
+  const enumNameUses: readonly EnumNameUse[] = [...classConstraints].flatMap(
+    ([className, properties]) =>
+      Object.entries(properties).flatMap(([property, { enumComponent }]) =>
+        enumComponent
+          ? [
+              {
+                name: enumComponent.name,
+                className,
+                property,
+                schema: enumComponent.schema,
+              },
+            ]
+          : [],
+      ),
+  );
 
   yield* Effect.logDebug('Validation extraction complete').pipe(
     Effect.annotateLogs({
@@ -871,13 +868,15 @@ const overlayValidationConstraintsEffect = Effect.fn(
     }),
   );
 
-  // Merge constraints into schemas
-  return mergeValidationConstraints(
-    schemas,
-    classConstraints,
-    classRequired,
-    classOptional,
-  );
+  return {
+    schemas: mergeValidationConstraints(
+      schemas,
+      classConstraints,
+      classRequired,
+      classOptional,
+    ),
+    enumNameUses,
+  };
 });
 
 const finalizePath = (
@@ -1241,9 +1240,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     ];
     const enumStyle = options.enums ?? DEFAULT_ENUM_STYLE;
     const schemaNaming = namingForPlan(schemaNamePlan, enumStyle);
-    // Enums named with `enumName` stay components in 'nest' style
-    const namedEnums = new Set<string>();
-    const enumNameUses: EnumNameUse[] = [];
 
     const routedMethods: MethodInfo[] = [];
     for (const method of documentedMethods) {
@@ -1300,6 +1296,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
     // Process schemas if generated
     let schemas: Record<string, OpenApiSchema> = {};
+    let enumNameUses: readonly EnumNameUse[] = [];
 
     if (initialSchemas) {
       const regenerated = yield* regenerateDeclarations(
@@ -1527,7 +1524,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         shouldExtractValidation ? 'true' : 'false',
       );
       if (Object.keys(generatedSchemas.definitions).length > 0) {
-        generatedSchemas = yield* overlayClassMetadataEffect(
+        const overlaid = yield* overlayClassMetadataEffect(
           [...schemaSourceFiles],
           tsconfig,
           generatedSchemas,
@@ -1538,9 +1535,9 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           expansion,
           shouldExtractValidation,
           schemaNaming,
-          namedEnums,
-          enumNameUses,
         );
+        generatedSchemas = overlaid.schemas;
+        enumNameUses = overlaid.enumNameUses;
         mergeResult = mergeSchemas(paths, generatedSchemas, extraModelRoots);
         schemas = mergeResult.schemas;
       }
@@ -1548,6 +1545,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
     // 'nest' enums: values are written in place unless `enumName` names them
     if (enumStyle === 'nest') {
+      const namedEnums = new Set(enumNameUses.map((use) => use.name));
       const enumComponents = new Set(
         Object.entries(schemas).flatMap(([name, schema]) =>
           isEnumOnlySchema(schema) && !namedEnums.has(name) ? [name] : [],
