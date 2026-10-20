@@ -1,0 +1,101 @@
+name: Perf symbol refs
+
+on:
+  push:
+    branches: ['perf/symbol-refs']
+
+jobs:
+  interleaved:
+    name: ${{ matrix.project }} (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [large, real-app]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install -g --allow-scripts=pnpm "$(node -p "require('./package.json').packageManager")"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create worktrees
+        run: |
+          while IFS='=' read -r label sha; do
+            git worktree add --detach "$RUNNER_TEMP/noa-$label" "$sha"
+            (cd "$RUNNER_TEMP/noa-$label" && pnpm install --frozen-lockfile)
+          done < .github/perf/trees.txt
+
+      - name: Generate benchmark project
+        if: matrix.project == 'large'
+        run: |
+          node scripts/benchmark/large-project.mjs
+          echo "PROJECT=$PWD/.bench-large" >> "$GITHUB_ENV"
+
+      - name: Clone real app
+        if: matrix.project == 'real-app'
+        run: |
+          app="$RUNNER_TEMP/real-app"
+          git init -q "$app"
+          git -C "$app" remote add origin https://github.com/immich-app/immich.git
+          git -C "$app" fetch -q --depth 1 origin cd47ee30676e8575a5048d12cde2ee86fc02b965
+          git -C "$app" checkout -q FETCH_HEAD
+          (cd "$app" && npx -y "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")" install --filter 'immich...' --frozen-lockfile --ignore-scripts)
+          node .github/perf/real-app-entry.mjs "$app/server"
+          echo "PROJECT=$app/server" >> "$GITHUB_ENV"
+
+      - name: Interleaved runs
+        run: |
+          mkdir -p perf-out
+          labels=()
+          while IFS='=' read -r label sha; do labels+=("$label"); done < .github/perf/trees.txt
+          : > perf-out/rows.md
+          for round in $(seq 1 10); do
+            echo "round $round"
+            order=("${labels[@]}")
+            if (( round % 2 == 0 )); then order=("${labels[1]}" "${labels[0]}"); fi
+            for label in "${order[@]}"; do
+              .github/perf/time-run.sh "$label" "$RUNNER_TEMP/noa-$label" "$PROJECT" | tee -a perf-out/rows.md
+            done
+          done
+          node .github/perf/interleave-stats.mjs perf-out/rows.md | tee perf-out/table.md
+
+      - name: Diff outputs
+        run: |
+          cd "$PROJECT"
+          if cmp -s out-base.json out-proto.json; then
+            echo "out-base.json and out-proto.json: identical"
+          else
+            echo "out-base.json and out-proto.json: DIFFER"
+            diff out-base.json out-proto.json | head -60
+          fi | tee "$GITHUB_WORKSPACE/perf-out/diff.txt"
+          cp out-*.json "$GITHUB_WORKSPACE/perf-out/"
+
+      - name: Summary
+        run: |
+          {
+            echo "## ${{ matrix.project }} (macos-latest, 10 interleaved rounds)"
+            cat perf-out/table.md
+            echo
+            echo '### Rows'
+            cat perf-out/rows.md
+            echo
+            echo '### Output comparison'
+            echo '```'
+            cat perf-out/diff.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.project }}
+          path: perf-out
