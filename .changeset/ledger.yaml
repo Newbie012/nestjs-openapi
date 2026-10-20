@@ -10,6 +10,10 @@ nestjs-openapi@0.10.0:
     - plain-owls-simplify
     - quiet-codes-resolve
     - silly-mice-mix
+nestjs-openapi@0.10.1:
+  dir: ""
+  intents:
+    - wicked-teeth-roll
 nestjs-openapi@0.7.0:
   dir: ""
   intents:
