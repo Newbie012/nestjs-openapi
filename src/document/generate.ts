@@ -195,7 +195,7 @@ const mergeSecurityWithGlobal = (
     mergedPaths[path] = mergedMethods;
   }
 
-  return mergedPaths as OpenApiPaths;
+  return mergedPaths;
 };
 
 /**
@@ -657,8 +657,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
         ),
         tsconfig,
       );
-      const normalizedBases =
-        normalizeStructureRefs(generatedBases);
+      const normalizedBases = normalizeStructureRefs(generatedBases);
       schemas = {
         definitions: {
           ...normalizedBases.definitions,
@@ -814,11 +813,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
 
   for (const [className, classDecl] of classes) {
     const { constraints, required, optional, unreadable } =
-      yield* extractClassValidationInfoEffect(
-        classDecl,
-        expansion,
-        naming,
-      );
+      yield* extractClassValidationInfoEffect(classDecl, expansion, naming);
 
     for (const note of unreadable ?? []) {
       yield* Effect.logWarning(note);
@@ -1287,10 +1282,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     // Merge decorator security with global security
     // Operations with decorator security get merged with global (AND logic)
     // Operations without decorator security inherit global as-is
-    paths = mergeSecurityWithGlobal(
-      paths as OpenApiPaths,
-      security.global,
-    ) as typeof paths;
+    paths = mergeSecurityWithGlobal(paths, security.global);
     yield* Effect.annotateCurrentSpan(
       'globalSecurityRequirementCount',
       security.global?.length ?? 0,
@@ -1349,11 +1341,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
       // First merge to get initial schemas
-      let mergeResult = mergeSchemas(
-        paths as unknown as OpenApiSpec['paths'],
-        generatedSchemas,
-        extraModelRoots,
-      );
+      let mergeResult = mergeSchemas(paths, generatedSchemas, extraModelRoots);
       schemas = mergeResult.schemas;
       yield* Effect.annotateCurrentSpan(
         'initialMergedSchemaCount',
@@ -1361,10 +1349,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
 
       // Hybrid approach: Find and resolve any missing schemas automatically
-      const missingRefs = findMissingSchemaRefs(
-        paths as unknown as OpenApiSpec['paths'],
-        schemas,
-      );
+      const missingRefs = findMissingSchemaRefs(paths, schemas);
       const missingGenericRefsBeforeResolution = [...missingRefs].filter(
         isGenericSchemaRef,
       );
@@ -1483,11 +1468,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             };
             generatedSchemas = combinedSchemas;
 
-            mergeResult = mergeSchemas(
-              paths as unknown as OpenApiSpec['paths'],
-              combinedSchemas,
-              extraModelRoots,
-            );
+            mergeResult = mergeSchemas(paths, combinedSchemas, extraModelRoots);
             schemas = mergeResult.schemas;
             yield* Effect.annotateCurrentSpan(
               'schemaCountAfterAdditionalResolution',
@@ -1497,7 +1478,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }
 
         const unresolvedAfterFileResolution = findMissingSchemaRefs(
-          paths as unknown as OpenApiSpec['paths'],
+          paths,
           schemas,
         );
         yield* Effect.annotateCurrentSpan(
@@ -1558,8 +1539,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           );
 
           if (Object.keys(genericSchemas.definitions).length > 0) {
-            const normalizedGeneric =
-              normalizeStructureRefs(genericSchemas);
+            const normalizedGeneric = normalizeStructureRefs(genericSchemas);
             const combinedSchemas: GeneratedSchemas = {
               definitions: {
                 ...generatedSchemas.definitions,
@@ -1568,11 +1548,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             };
             generatedSchemas = combinedSchemas;
 
-            mergeResult = mergeSchemas(
-              paths as unknown as OpenApiSpec['paths'],
-              combinedSchemas,
-              extraModelRoots,
-            );
+            mergeResult = mergeSchemas(paths, combinedSchemas, extraModelRoots);
             schemas = mergeResult.schemas;
             yield* Effect.annotateCurrentSpan(
               'schemaCountAfterGenericResolution',
@@ -1604,11 +1580,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           namedEnums,
           enumNameUses,
         );
-        mergeResult = mergeSchemas(
-          paths as unknown as OpenApiSpec['paths'],
-          generatedSchemas,
-          extraModelRoots,
-        );
+        mergeResult = mergeSchemas(paths, generatedSchemas, extraModelRoots);
         schemas = mergeResult.schemas;
       }
     }
@@ -1620,30 +1592,22 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           isEnumOnlySchema(schema) && !namedEnums.has(name) ? [name] : [],
         ),
       );
-      const inlined = inlineSchemas(
-        paths as OpenApiPaths,
-        schemas,
-        enumComponents,
-      );
-      paths = inlined.paths as typeof paths;
+      const inlined = inlineSchemas(paths, schemas, enumComponents);
+      paths = inlined.paths;
       schemas = inlined.schemas;
     }
 
     // Same-name declarations with equal schemas share one component; the
     // collision strategy decides about the others
-    const enumNames = separateEnumNameClashes(
-      paths as OpenApiPaths,
-      schemas,
-      enumNameUses,
-    );
+    const enumNames = separateEnumNameClashes(paths, schemas, enumNameUses);
     const resolvedNames = yield* resolveSchemaNames(
-      paths as OpenApiPaths,
+      paths,
       enumNames.schemas,
       schemaNamePlan,
       options.schemaNameCollision ?? 'inline',
       enumNames.clashes,
     );
-    paths = resolvedNames.paths as typeof paths;
+    paths = resolvedNames.paths;
     schemas = resolvedNames.schemas;
 
     // 'inline' collision strategy: colliding schemas are written in place,
@@ -1653,12 +1617,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       ...Object.keys(schemas).filter(isAnonymousInstantiation),
     ]);
     if (inlineNames.size > 0) {
-      const inlined = inlineSchemas(
-        paths as OpenApiPaths,
-        schemas,
-        inlineNames,
-      );
-      paths = inlined.paths as typeof paths;
+      const inlined = inlineSchemas(paths, schemas, inlineNames);
+      paths = inlined.paths;
       schemas = inlined.schemas;
       for (const name of inlined.kept) {
         yield* Effect.logWarning(
@@ -1668,8 +1628,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     }
 
     if (aliasRefsMode === 'collapse' && Object.keys(schemas).length > 0) {
-      const collapsed = collapseAliasRefs(paths as OpenApiPaths, schemas);
-      paths = collapsed.paths as typeof paths;
+      const collapsed = collapseAliasRefs(paths, schemas);
+      paths = collapsed.paths;
       schemas = collapsed.schemas;
     }
     yield* Effect.annotateCurrentSpan('aliasRefMode', aliasRefsMode);
@@ -1681,8 +1641,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     // Component names must match ^[a-zA-Z0-9._-]+$; generic instantiations
     // such as `Page<User>` become `Page_User` unless raw names are asked for
     if ((options.schemas?.genericNames ?? 'sanitized') === 'sanitized') {
-      const sanitized = sanitizeComponentNames(paths as OpenApiPaths, schemas);
-      paths = sanitized.paths as typeof paths;
+      const sanitized = sanitizeComponentNames(paths, schemas);
+      paths = sanitized.paths;
       schemas = sanitized.schemas;
     }
 
@@ -1691,12 +1651,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     }
 
     // `examples` in schemas: 3.0 has only `example`, 3.1 wants an array
-    const adapted = adaptExamplesForVersion(
-      paths as OpenApiPaths,
-      schemas,
-      openApiVersion,
-    );
-    paths = adapted.paths as typeof paths;
+    const adapted = adaptExamplesForVersion(paths, schemas, openApiVersion);
+    paths = adapted.paths;
     schemas = adapted.schemas;
 
     const securitySchemes =
@@ -1728,7 +1684,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         ...(openapi.info.license && { license: openapi.info.license }),
       },
       servers: openapi.servers ?? [],
-      paths: paths as unknown as OpenApiSpec['paths'],
+      paths: paths,
       ...(components && { components }),
       tags: openapi.tags ?? [],
       ...(security.global &&

@@ -5,7 +5,7 @@
  */
 
 import { Effect } from 'effect';
-import type { OpenApiPaths } from './model/domain.js';
+import type { OpenApiPaths } from './config/types.js';
 import { getControllerMethodInfos } from './analysis/methods.js';
 import { getModules } from './analysis/modules.js';
 import { makeProjectContext } from './analysis/project.js';

@@ -2,16 +2,18 @@ import { Option } from 'effect';
 import type {
   MethodInfo,
   MethodSecurityRequirement,
-  OpenApiOperation,
-  OpenApiParameter,
-  OpenApiPaths,
-  OpenApiSchema,
   ParameterConstraints,
   RequestBodyMetadata,
   ResolvedParameter,
   ResponseMetadata,
 } from '../model/domain.js';
-import type { SecurityRequirement } from '../config/types.js';
+import type {
+  OpenApiOperation,
+  OpenApiParameter,
+  OpenApiPaths,
+  OpenApiSchema,
+  SecurityRequirement,
+} from '../config/types.js';
 import {
   applyPropertyConstraints,
   type ValidationConstraints,

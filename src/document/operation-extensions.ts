@@ -1,10 +1,11 @@
 import { Effect } from 'effect';
 import { OperationExtensionsError } from '../config/errors.js';
 import type {
+  OpenApiPaths,
   OperationContext,
   OperationExtensionsHook,
 } from '../config/types.js';
-import type { MethodInfo, OpenApiPaths } from '../model/domain.js';
+import type { MethodInfo } from '../model/domain.js';
 
 const openApiPath = (path: string) => path.replace(/:([^/]+)/g, '{$1}') || '/';
 

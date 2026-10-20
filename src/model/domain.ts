@@ -205,99 +205,6 @@ export const MethodInfo = Schema.Struct({
 });
 export type MethodInfo = typeof MethodInfo.Type;
 
-// OpenAPI Types
-
-// Recursive schema for OpenAPI schema objects
-export const OpenApiSchemaObject: Schema.Schema<OpenApiSchema> = Schema.suspend(
-  () =>
-    Schema.Struct({
-      type: Schema.optional(Schema.String),
-      format: Schema.optional(Schema.String),
-      $ref: Schema.optional(Schema.String),
-      oneOf: Schema.optional(Schema.Array(OpenApiSchemaObject)),
-      items: Schema.optional(OpenApiSchemaObject),
-      properties: Schema.optional(
-        Schema.Record({ key: Schema.String, value: OpenApiSchemaObject }),
-      ),
-      required: Schema.optional(Schema.Array(Schema.String)),
-    }),
-);
-
-export interface OpenApiSchema {
-  readonly type?: string;
-  readonly format?: string;
-  readonly $ref?: string;
-  readonly oneOf?: readonly OpenApiSchema[];
-  readonly allOf?: readonly OpenApiSchema[];
-  readonly items?: OpenApiSchema;
-  readonly properties?: Record<string, OpenApiSchema>;
-  readonly required?: readonly string[];
-  /** OpenAPI 3.0 nullable flag */
-  readonly nullable?: boolean;
-}
-
-export const OpenApiParameter = Schema.Struct({
-  name: Schema.String,
-  in: Schema.Literal('path', 'query', 'header', 'cookie'),
-  description: Schema.optional(Schema.String),
-  required: Schema.Boolean,
-  schema: OpenApiSchemaObject,
-});
-export type OpenApiParameter = typeof OpenApiParameter.Type;
-
-export const OpenApiRequestBody = Schema.Struct({
-  description: Schema.optional(Schema.String),
-  required: Schema.optional(Schema.Boolean),
-  content: Schema.Record({
-    key: Schema.String,
-    value: Schema.Struct({
-      schema: Schema.Unknown,
-    }),
-  }),
-});
-export type OpenApiRequestBody = typeof OpenApiRequestBody.Type;
-
-export const OpenApiResponse = Schema.Struct({
-  description: Schema.String,
-  content: Schema.optional(
-    Schema.Record({
-      key: Schema.String,
-      value: Schema.Struct({
-        schema: Schema.Unknown,
-      }),
-    }),
-  ),
-});
-export type OpenApiResponse = typeof OpenApiResponse.Type;
-
-export const OpenApiOperation = Schema.Struct({
-  operationId: Schema.String,
-  summary: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
-  deprecated: Schema.optional(Schema.Boolean),
-  parameters: Schema.optional(Schema.Array(OpenApiParameter)),
-  requestBody: Schema.optional(OpenApiRequestBody),
-  responses: Schema.Record({
-    key: Schema.String,
-    value: OpenApiResponse,
-  }),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Per-operation security requirements */
-  security: Schema.optional(
-    Schema.Array(
-      Schema.Record({ key: Schema.String, value: Schema.Array(Schema.String) }),
-    ),
-  ),
-});
-export type OpenApiOperation = typeof OpenApiOperation.Type;
-
-/** Maps path -> method -> operation */
-export interface OpenApiPaths {
-  readonly [path: string]: {
-    readonly [method: string]: OpenApiOperation;
-  };
-}
-
 // Config Types
 
 export const OpenApiContactConfig = Schema.Struct({
@@ -405,7 +312,6 @@ export const SecurityRequirement = Schema.Record({
   key: Schema.String,
   value: Schema.Array(Schema.String),
 });
-export type SecurityRequirement = typeof SecurityRequirement.Type;
 
 export const OutputFormat = Schema.Literal('json', 'yaml');
 export type OutputFormat = typeof OutputFormat.Type;
