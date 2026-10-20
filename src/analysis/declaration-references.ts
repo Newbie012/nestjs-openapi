@@ -70,7 +70,8 @@ const collectImportAliases = (sourceFile: SourceFile) => {
 
 const recordDeclaration = (node: Node, state: WalkState, topLevel: boolean) => {
   const declaration = toSchemaDeclaration(node);
-  if (!declaration || !isUserCode(declaration.node)) return;
+  if (!declaration) return;
+  if (!isUserCode(declaration.node) && declaration.kind !== 'enum') return;
 
   const name = declaration.node.getName();
   if (!name) return;
