@@ -6,6 +6,7 @@ import type { Config as TsJsonSchemaConfig } from 'ts-json-schema-generator';
 import type * as TypeScript from 'typescript';
 import { SchemaGenerationError } from '../config/errors.js';
 import { MAPPED_TYPE_HELPERS } from '../analysis/mapped-types.js';
+import { spikeCount } from './spike-counts.js';
 
 const require = createRequire(import.meta.url);
 const tsj =
@@ -391,6 +392,7 @@ const createSchemaProgram = (options: SchemaProgramOptions) =>
   Effect.flatMap(loadCompilerOptions(options.tsconfig), (compilerOptions) =>
     Effect.try({
       try: () =>
+        spikeCount('createProgram:schema') ??
         ts.createProgram({
           rootNames: options.rootFiles.map((file) => resolve(file)),
           options: compilerOptions,

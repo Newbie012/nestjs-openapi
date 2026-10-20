@@ -7,6 +7,7 @@
 
 import { Project } from 'ts-morph';
 import { getTopLevelTypeNames } from '../analysis/ast.js';
+import { spikeCount } from './spike-counts.js';
 
 /**
  * Resolves missing type names to their source file paths using ts-morph.
@@ -106,6 +107,7 @@ export function resolveLocalTypeLocations(
  * Uses minimal compiler options for performance.
  */
 export function createTypeResolverProject(tsconfig: string): Project {
+  spikeCount('project:type-resolver');
   return new Project({
     tsConfigFilePath: tsconfig,
     skipAddingFilesFromTsConfig: false,
@@ -124,6 +126,7 @@ import { execSync } from 'child_process';
  * Check if ripgrep (rg) is available
  */
 function hasRipgrep(): boolean {
+  spikeCount('subprocess:rg-version');
   try {
     execSync('rg --version', { encoding: 'utf-8', stdio: 'pipe' });
     return true;
@@ -167,6 +170,7 @@ export function resolveTypeLocationsFast(
 
   try {
     let result: string;
+    spikeCount('subprocess:search');
 
     if (hasRipgrep()) {
       const excludeArgs = excludeDirs.map((d) => `-g '!${d}/'`).join(' ');

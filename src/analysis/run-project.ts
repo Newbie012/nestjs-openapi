@@ -1,4 +1,5 @@
 import { Project } from 'ts-morph';
+import { spikeCount } from '../schema/spike-counts.js';
 
 const projects = new Map<string, Project>();
 
@@ -10,6 +11,7 @@ export const getRunProject = (tsconfig: string) => {
   const existing = projects.get(tsconfig);
   if (existing) return existing;
 
+  spikeCount('project:run');
   const project = new Project({
     tsConfigFilePath: tsconfig,
     skipAddingFilesFromTsConfig: true,

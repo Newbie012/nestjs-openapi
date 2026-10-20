@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 import { Project, ClassDeclaration, SourceFile } from 'ts-morph';
+import { spikeCount } from '../schema/spike-counts.js';
 import {
   ProjectInitError,
   EntryNotFoundError,
@@ -21,6 +22,7 @@ const initProject = Effect.fn('Project.initProject')(function* (
 ) {
   return yield* Effect.try({
     try: () =>
+      spikeCount('project:init') ??
       new Project({
         tsConfigFilePath: options.tsconfig,
         skipAddingFilesFromTsConfig: true,
