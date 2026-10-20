@@ -1,10 +1,12 @@
 import type {
   OpenApiPaths,
+  SecurityRequirement,
   OpenApiSchema,
   OpenApiSpec,
   OpenApiVersion,
 } from '../config/types.js';
 import {
+  OPERATION_KEYS,
   SCHEMA_REF_PREFIX,
   mapOperationSchemas,
   mapSubschemas,
@@ -529,5 +531,72 @@ export const adaptSpecForV30 = (spec: OpenApiSpec): OpenApiSpec => {
         ),
       },
     }),
+  };
+};
+
+/** A security scope the 3.0 step removed from a requirement */
+export interface DroppedScopes {
+  readonly scheme: string;
+  readonly scopes: readonly string[];
+}
+
+const SCOPED_SCHEME_TYPES: ReadonlySet<string> = new Set([
+  'oauth2',
+  'openIdConnect',
+]);
+
+/**
+ * OpenAPI 3.0 allows scopes in a security requirement only for `oauth2` and
+ * `openIdConnect` schemes; for any other scheme the list MUST be empty (3.1
+ * allows role names). Empties the scopes of every requirement, global and
+ * per operation, that names a declared scheme of another type, and reports
+ * what it removed. A requirement for an undeclared scheme is left as it is.
+ */
+export const emptyNonOAuthScopesForV30 = (
+  spec: OpenApiSpec,
+): { readonly spec: OpenApiSpec; readonly dropped: readonly DroppedScopes[] } => {
+  const schemes = spec.components?.securitySchemes ?? {};
+  const dropped: DroppedScopes[] = [];
+
+  const fix = (
+    requirements: readonly SecurityRequirement[] | undefined,
+  ): readonly SecurityRequirement[] | undefined =>
+    requirements?.map((requirement) =>
+      Object.fromEntries(
+        Object.entries(requirement).map(([scheme, scopes]) => {
+          const type = schemes[scheme]?.type;
+          if (
+            type === undefined ||
+            SCOPED_SCHEME_TYPES.has(type) ||
+            scopes.length === 0
+          )
+            return [scheme, scopes];
+          dropped.push({ scheme, scopes });
+          return [scheme, []];
+        }),
+      ),
+    );
+
+  const security = fix(spec.security);
+  const paths = Object.fromEntries(
+    Object.entries(spec.paths).map(([path, pathItem]) => [
+      path,
+      Object.fromEntries(
+        Object.entries(pathItem).map(([key, operation]) => {
+          const operationSecurity = OPERATION_KEYS.has(key)
+            ? fix(operation.security)
+            : undefined;
+          return [
+            key,
+            operationSecurity ? { ...operation, security: operationSecurity } : operation,
+          ];
+        }),
+      ),
+    ]),
+  ) as OpenApiPaths;
+
+  return {
+    spec: { ...spec, paths, ...(security && { security }) },
+    dropped,
   };
 };

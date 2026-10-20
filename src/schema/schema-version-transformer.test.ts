@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   adaptSpecForV30,
+  emptyNonOAuthScopesForV30,
   transformSchemasForVersion,
   transformSpecForVersion,
 } from './schema-version-transformer.js';
@@ -1278,5 +1279,77 @@ describe('schema-version-transformer', () => {
         });
       },
     );
+  });
+
+  describe('emptyNonOAuthScopesForV30', () => {
+    const specWith = (
+      overrides: Partial<OpenApiSpec> & { operationSecurity?: unknown },
+    ): OpenApiSpec => {
+      const { operationSecurity, ...rest } = overrides;
+      return {
+        openapi: '3.0.3',
+        info: { title: 'Pets', version: '1.0.0' },
+        paths: {
+          '/pets': {
+            get: {
+              operationId: 'getPets',
+              responses: { '200': { description: 'ok' } },
+              ...(operationSecurity !== undefined && {
+                security: operationSecurity,
+              }),
+            },
+          },
+        } as OpenApiSpec['paths'],
+        components: {
+          securitySchemes: {
+            'api-key': { type: 'apiKey', in: 'header', name: 'X-Key' },
+            oauth2: { type: 'oauth2', flows: {} },
+            oidc: { type: 'openIdConnect', openIdConnectUrl: 'https://x' },
+          },
+        },
+        ...rest,
+      };
+    };
+
+    it('empties the scopes of a non-OAuth scheme and reports them', () => {
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ operationSecurity: [{ 'api-key': ['read'] }] }),
+      );
+
+      expect(result.spec.paths['/pets'].get.security).toEqual([
+        { 'api-key': [] },
+      ]);
+      expect(result.dropped).toEqual([{ scheme: 'api-key', scopes: ['read'] }]);
+    });
+
+    it('keeps the scopes of OAuth2 and OpenID Connect schemes', () => {
+      const security = [{ oauth2: ['read'], oidc: ['openid'] }];
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ operationSecurity: security }),
+      );
+
+      expect(result.spec.paths['/pets'].get.security).toEqual(security);
+      expect(result.dropped).toEqual([]);
+    });
+
+    it('handles global security', () => {
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ security: [{ 'api-key': ['read', 'write'] }] }),
+      );
+
+      expect(result.spec.security).toEqual([{ 'api-key': [] }]);
+      expect(result.dropped).toEqual([
+        { scheme: 'api-key', scopes: ['read', 'write'] },
+      ]);
+    });
+
+    it('leaves a scheme that is not declared as it is', () => {
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ security: [{ unknown: ['read'] }] }),
+      );
+
+      expect(result.spec.security).toEqual([{ unknown: ['read'] }]);
+      expect(result.dropped).toEqual([]);
+    });
   });
 });

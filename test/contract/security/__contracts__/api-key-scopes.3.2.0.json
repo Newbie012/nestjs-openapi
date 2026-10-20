@@ -1,0 +1,51 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Scopes API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/reports": {
+      "get": {
+        "operationId": "ReportsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": [
+              "read"
+            ]
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "api-key": {
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "tags": []
+}

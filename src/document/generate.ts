@@ -51,6 +51,7 @@ import { filterMethods } from '../analysis/filter.js';
 import {
   transformSpecForVersion,
   adaptSpecForV30,
+  emptyNonOAuthScopesForV30,
 } from '../schema/schema-version-transformer.js';
 import { ConfigService } from '../config/config.js';
 import {
@@ -1755,10 +1756,19 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     };
 
     // Transform spec for OpenAPI 3.1/3.2 if needed
-    spec =
-      openApiVersion === '3.0.3'
-        ? adaptSpecForV30(spec)
-        : transformSpecForVersion(spec, openApiVersion);
+    if (openApiVersion === '3.0.3') {
+      const { spec: scoped, dropped } = emptyNonOAuthScopesForV30(
+        adaptSpecForV30(spec),
+      );
+      spec = scoped;
+      for (const { scheme, scopes } of dropped) {
+        yield* Effect.logWarning(
+          `Dropped scopes [${scopes.join(', ')}] from security scheme '${scheme}': OpenAPI 3.0 allows scopes only on OAuth2 and OpenID Connect schemes. Use openapi.version 3.1.0 or later to keep them.`,
+        );
+      }
+    } else {
+      spec = transformSpecForVersion(spec, openApiVersion);
+    }
 
     if (options.overlay) {
       spec = yield* applyOverlay(
