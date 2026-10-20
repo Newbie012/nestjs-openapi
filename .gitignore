@@ -5,3 +5,4 @@ coverage
 *.generated.json
 .bench-baseline
 .bench-*
+.contract-tmp
