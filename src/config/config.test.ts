@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Effect } from 'effect';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   defineConfig,
@@ -264,6 +264,47 @@ describe('Config', () => {
       expect(resolved.format).toBe('yaml');
       expect(resolved.servers).toHaveLength(1);
     });
+  });
+
+  describe('loadConfigFromFile of each config format', () => {
+    const testDir = join(process.cwd(), '.test-formats-dir');
+
+    beforeEach(() => {
+      mkdirSync(testDir, { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(testDir, { recursive: true, force: true });
+    });
+
+    const configSource = (extension: string, title: string) => {
+      const config = `{
+        output: 'spec.json',
+        files: { tsconfig: 'tsconfig.json' },
+        openapi: { info: { title: '${title}', version: '1.0.0' } },
+      }`;
+      return extension === '.cjs'
+        ? `module.exports = { default: ${config} };`
+        : `export default ${config};`;
+    };
+
+    it.each(['.ts', '.js', '.mjs', '.cjs'])(
+      'loads a %s config, and loads it again after the file changed',
+      async (extension) => {
+        const configPath = join(testDir, `reload${extension}`);
+        writeFileSync(configPath, configSource(extension, 'One'));
+
+        const first = await Effect.runPromise(loadConfigFromFile(configPath));
+        expect(first.openapi.info.title).toBe('One');
+
+        writeFileSync(configPath, configSource(extension, 'Two'));
+        const later = new Date(Date.now() + 10_000);
+        utimesSync(configPath, later, later);
+
+        const second = await Effect.runPromise(loadConfigFromFile(configPath));
+        expect(second.openapi.info.title).toBe('Two');
+      },
+    );
   });
 
   describe('loadConfigFromFile with extends', () => {
@@ -564,7 +605,9 @@ describe('Config', () => {
       const configPath = join(testDir, 'invalid-apikey.config.ts');
       writeFileSync(configPath, config);
 
-      const result = await Effect.runPromiseExit(loadConfigFromFile(configPath));
+      const result = await Effect.runPromiseExit(
+        loadConfigFromFile(configPath),
+      );
 
       expect(result._tag).toBe('Failure');
     });
@@ -590,7 +633,9 @@ describe('Config', () => {
       const configPath = join(testDir, 'invalid-http.config.ts');
       writeFileSync(configPath, config);
 
-      const result = await Effect.runPromiseExit(loadConfigFromFile(configPath));
+      const result = await Effect.runPromiseExit(
+        loadConfigFromFile(configPath),
+      );
 
       expect(result._tag).toBe('Failure');
     });
