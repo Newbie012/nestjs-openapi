@@ -290,6 +290,13 @@ interface OptionsConfig {
   readonly pathFilter?: RegExp | ((path: string) => boolean);
 
   /**
+   * Order of paths, operations, schema properties and component schemas:
+   * declaration order, or sorted A to Z.
+   * @default 'source'
+   */
+  readonly order?: 'source' | 'alphabetical';
+
+  /**
    * Query parameter handling options.
    */
   readonly query?: QueryOptions;

@@ -46,6 +46,7 @@ export default defineConfig({
     deepScanRoutes: false,
     schemaNameCollision: 'inline', // 'rename' | 'error' | (collision) => name
     enums: 'ref', // or 'nest' (inline, like @nestjs/swagger)
+    order: 'source', // or 'alphabetical'
     versioning: { type: 'uri', defaultVersion: '1' }, // as in app.enableVersioning()
     transformPath: (path, { controller, method, httpMethod }) => path,
     operationExtensions: ({ decorators }) => ({ 'x-internal': false }),
@@ -111,6 +112,7 @@ When `files.tsconfig` is omitted, the Promise API (`generate()`) searches upward
 | `operationExtensions` | `(context) => Record<\`x-${string}\`, unknown> \| undefined` | — | `x-` extensions per operation, from its path, ids, module, entry and decorators; `@ApiExtension` wins |
 | `overlay` | `string \| OverlayDocument` | — | OpenAPI Overlay 1.0 applied after generation; a path is relative to the config file |
 | `overlayUnmatchedTarget` | `'error' \| 'warn'` | `'error'` | What to do when an overlay action's target matches nothing |
+| `order` | `'source' \| 'alphabetical'` | `'source'` | Declaration order for paths, operations, properties and component schemas, or sorted A to Z |
 | `query.style` | `"inline" \| "ref"` | `"inline"` | How to represent query DTOs |
 | `schemas.aliasRefs` | `"collapse" \| "preserve"` | `"collapse"` | Collapse pass-through `$ref` aliases |
 | `schemas.genericNames` | `"sanitized" \| "raw"` | `"sanitized"` | `Page<User>` → `Page_User`, or keep the TypeScript name |

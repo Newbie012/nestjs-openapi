@@ -209,6 +209,7 @@ defineConfig({
     extractValidation: true, // default
     excludeDecorators: ['ApiExcludeEndpoint'],
     pathFilter: /regex/ /* or function */,
+    order: 'source', // default; 'alphabetical' sorts A to Z
     schemas: {
       aliasRefs: 'collapse', // default
       additionalProperties: 'omit', // default; 'forbid' writes `false`

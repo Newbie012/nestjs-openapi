@@ -502,6 +502,23 @@ options: {
 
 Schema generation and normalization options.
 
+#### `order`
+
+Order of paths, operations, schema properties and component schemas (default: `"source"`).
+
+| Value            | Output                                                                                                                                                                                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"source"`       | Declaration order, as @nestjs/swagger writes it. Paths follow the controllers as they are reached from the entry module, operations and methods follow the class, properties follow the class, and component schemas follow the order they are first reached (schemas nothing reaches come last, A to Z) |
+| `"alphabetical"` | Paths, operations, properties and component schemas sorted A to Z                                                                                                                                                                                                                                        |
+
+Other object keys, such as the keys inside an operation, stay in one fixed order either way.
+
+```typescript
+options: {
+  order: 'alphabetical', // the order before 'source' became the default
+}
+```
+
 #### `schemas.aliasRefs`
 
 Controls how pass-through alias schemas are emitted (default: `"collapse"`).
