@@ -763,7 +763,10 @@ export interface OpenApiSchema {
   readonly oneOf?: readonly OpenApiSchema[];
   readonly anyOf?: readonly OpenApiSchema[];
   readonly allOf?: readonly OpenApiSchema[];
-  readonly items?: OpenApiSchema;
+  /** `false` closes a tuple after its `prefixItems` */
+  readonly items?: OpenApiSchema | false;
+  /** One schema per position of a tuple (3.1+; 3.0 output folds them into `items`) */
+  readonly prefixItems?: readonly OpenApiSchema[];
   readonly properties?: Record<string, OpenApiSchema>;
   readonly required?: readonly string[];
   readonly enum?: readonly unknown[];

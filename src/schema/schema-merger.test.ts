@@ -393,6 +393,86 @@ describe('schema-merger', () => {
       expect(items.items).toEqual({ type: 'number', nullable: true });
     });
 
+    describe('tuples', () => {
+      const convert = (property: Record<string, unknown>) => {
+        const paths: OpenApiPaths = {
+          '/lists': {
+            get: {
+              operationId: 'getLists',
+              responses: {
+                '200': {
+                  description: 'Success',
+                  content: {
+                    'application/json': {
+                      schema: { $ref: '#/components/schemas/Lists' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+        const schemas = {
+          definitions: {
+            Lists: { type: 'object', properties: { value: property } },
+            User: { type: 'object' },
+          },
+        } as unknown as GeneratedSchemas;
+        return mergeSchemas(paths, schemas).schemas['Lists'].properties?.[
+          'value'
+        ];
+      };
+
+      it('writes a tuple as prefixItems with no further items', () => {
+        expect(
+          convert({
+            type: 'array',
+            items: [{ type: 'string' }, { type: 'number' }],
+            minItems: 2,
+            maxItems: 2,
+          }),
+        ).toEqual({
+          type: 'array',
+          prefixItems: [{ type: 'string' }, { type: 'number' }],
+          items: false,
+          minItems: 2,
+          maxItems: 2,
+        });
+      });
+
+      it('writes a rest element as items', () => {
+        expect(
+          convert({
+            type: 'array',
+            items: [{ type: 'string' }],
+            additionalItems: { type: 'number' },
+            minItems: 1,
+          }),
+        ).toEqual({
+          type: 'array',
+          prefixItems: [{ type: 'string' }],
+          items: { type: 'number' },
+          minItems: 1,
+        });
+      });
+
+      it('converts a referenced member', () => {
+        expect(
+          convert({
+            type: 'array',
+            items: [{ $ref: '#/definitions/User' }, { type: 'number' }],
+            minItems: 2,
+            maxItems: 2,
+          }),
+        ).toMatchObject({
+          prefixItems: [
+            { $ref: '#/components/schemas/User' },
+            { type: 'number' },
+          ],
+        });
+      });
+    });
+
     it('should leave non-null types unchanged', () => {
       const paths: OpenApiPaths = {
         '/users': {

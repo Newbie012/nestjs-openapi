@@ -155,8 +155,14 @@ contract('tuple', {
   spec: SCHEMA_OBJECT_30,
   config: { files: FILES },
   source: appWith(`
+export class UserDto {
+  name: string;
+}
+
 export class ShapeDto {
   pair: [string, number];
+  rest: [string, ...number[]];
+  pairOfDto: [UserDto, number];
 }
 `),
 });

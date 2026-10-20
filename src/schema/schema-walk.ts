@@ -19,16 +19,28 @@ export const OPERATION_KEYS: ReadonlySet<string> = new Set([
   'query',
 ]);
 
-const SUBSCHEMA_KEYS = ['items', 'not', 'additionalProperties'] as const;
-const SUBSCHEMA_LIST_KEYS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'] as const;
+const SUBSCHEMA_KEYS = [
+  'items',
+  'additionalItems',
+  'not',
+  'additionalProperties',
+] as const;
+const SUBSCHEMA_LIST_KEYS = [
+  'allOf',
+  'anyOf',
+  'oneOf',
+  'prefixItems',
+  'items',
+] as const;
 const SUBSCHEMA_MAP_KEYS = ['properties', 'patternProperties'] as const;
 
 /**
  * A copy of `schema` with `f` applied to each direct subschema: `items`,
- * `not`, object `additionalProperties`, every `allOf`/`anyOf`/`oneOf`/`prefixItems`
- * member, and every value of `properties`/`patternProperties`. Not recursive:
- * `f` recurses by calling `mapSubschemas` itself. Anything that is not a
- * plain object is returned unchanged.
+ * `additionalItems`, `not`, object `additionalProperties`, every
+ * `allOf`/`anyOf`/`oneOf`/`prefixItems` member, every member of a draft-07
+ * tuple's `items` list, and every value of `properties`/`patternProperties`.
+ * Not recursive: `f` recurses by calling `mapSubschemas` itself. Anything that
+ * is not a plain object is returned unchanged.
  */
 export const mapSubschemas = (
   schema: unknown,

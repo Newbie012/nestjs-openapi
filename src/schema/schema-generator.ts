@@ -38,7 +38,10 @@ export interface JsonSchema {
   readonly $ref?: string;
   readonly properties?: Record<string, JsonSchema>;
   readonly required?: readonly string[];
-  readonly items?: JsonSchema;
+  /** An array holds one schema for every element; a tuple lists one per position */
+  readonly items?: JsonSchema | readonly JsonSchema[];
+  /** The rest element of a tuple */
+  readonly additionalItems?: JsonSchema | boolean;
   readonly enum?: readonly unknown[];
   readonly oneOf?: readonly JsonSchema[];
   readonly anyOf?: readonly JsonSchema[];

@@ -116,7 +116,10 @@ describe('schema-version-transformer', () => {
       const result = transformSchemasForVersion(schemas, '3.1.0');
 
       expect(
-        (result.UserList.properties?.items as OpenApiSchema).items?.type,
+        (
+          (result.UserList.properties?.items as OpenApiSchema)
+            .items as OpenApiSchema
+        ).type,
       ).toEqual(['string', 'null']);
     });
 
@@ -1182,5 +1185,98 @@ describe('schema-version-transformer', () => {
         ),
       ).toEqual({ type: 'string', enum: ['a', 'b', null], nullable: true });
     });
+  });
+
+  describe('tuples', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+    const S = { type: 'string' };
+    const N = { type: 'number' };
+
+    it('writes the positions of a tuple as anyOf items for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({
+              type: 'array',
+              prefixItems: [S, N],
+              items: false,
+              minItems: 2,
+              maxItems: 2,
+            }),
+          ),
+        ),
+      ).toEqual({
+        type: 'array',
+        items: { anyOf: [S, N] },
+        minItems: 2,
+        maxItems: 2,
+      });
+    });
+
+    it('writes one distinct member as items for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: 'array', prefixItems: [S, S], items: false }),
+          ),
+        ),
+      ).toEqual({ type: 'array', items: S });
+    });
+
+    it('adds the rest element to the anyOf for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: 'array', prefixItems: [S], items: N }),
+          ),
+        ),
+      ).toEqual({ type: 'array', items: { anyOf: [S, N] } });
+    });
+
+    it('adapts the members of a tuple for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({
+              type: 'array',
+              prefixItems: [{ type: ['string', 'null'] }],
+              items: false,
+            }),
+          ),
+        ),
+      ).toEqual({
+        type: 'array',
+        items: { type: 'string', nullable: true },
+      });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'keeps the 2020-12 form and transforms its members for %s',
+      (version) => {
+        expect(
+          widgetOf(
+            transformSpecForVersion(
+              specWith({
+                type: 'array',
+                prefixItems: [{ type: 'string', nullable: true }, N],
+                items: false,
+              }),
+              version,
+            ),
+          ),
+        ).toEqual({
+          type: 'array',
+          prefixItems: [{ type: ['string', 'null'] }, N],
+          items: false,
+        });
+      },
+    );
   });
 });

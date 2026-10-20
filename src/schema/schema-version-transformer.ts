@@ -133,9 +133,9 @@ const exclusiveBoundsFor = <S extends Record<string, unknown>>(
  * as it is, so an `enum` that does not list `null` still rejects it. A
  * nullable schema's `enum` therefore lists `null` too.
  */
-const withNullInEnum = <S extends Record<string, unknown>>(schema: S): S => {
-  const values = schema['enum'];
-  if (schema['nullable'] !== true || !Array.isArray(values)) return schema;
+const withNullInEnum = <S extends object>(schema: S): S => {
+  const { enum: values, nullable } = schema as SchemaRecord;
+  if (nullable !== true || !Array.isArray(values)) return schema;
   return values.includes(null)
     ? schema
     : { ...schema, enum: [...values, null] };
@@ -447,6 +447,30 @@ const typeListAsAnyOf = (schema: SchemaRecord): SchemaRecord => {
   };
 };
 
+/**
+ * 3.0 has no `prefixItems`: `items` is one schema for every element. A tuple
+ * therefore loses which position holds which type; its positions become one
+ * `items` schema, an `anyOf` of the distinct position types (and of the rest
+ * element's type, when there is one). `minItems` and `maxItems` keep the
+ * length.
+ */
+const tupleAsItems = (schema: SchemaRecord): SchemaRecord => {
+  const { prefixItems, items, ...rest } = schema;
+  if (!Array.isArray(prefixItems)) return schema;
+  const members = [...prefixItems, ...(isRecord(items) ? [items] : [])];
+  const distinct = members.filter(
+    (member, index) =>
+      members.findIndex(
+        (other) => JSON.stringify(other) === JSON.stringify(member),
+      ) === index,
+  );
+  if (distinct.length === 0) return rest;
+  return {
+    ...rest,
+    items: distinct.length === 1 ? distinct[0] : { anyOf: distinct },
+  };
+};
+
 const adaptSchemaForV30 = (
   value: unknown,
   components: Readonly<Record<string, unknown>>,
@@ -457,7 +481,7 @@ const adaptSchemaForV30 = (
   if (!isRecord(mapped)) return mapped;
   return typeNullable(
     exclusiveBoundsFor(
-      typeListAsAnyOf(withNullInEnum(constAsEnum(mapped))),
+      typeListAsAnyOf(withNullInEnum(constAsEnum(tupleAsItems(mapped)))),
       'v30',
     ),
     components,

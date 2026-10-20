@@ -177,8 +177,14 @@ const traverseSchema = (
     );
   }
 
-  if (schema.items) {
-    updated.items = traverseSchema(schema.items, transform);
+  if (Array.isArray(schema.items)) {
+    updated.items = schema.items.map((s) => traverseSchema(s, transform));
+  } else if (schema.items) {
+    updated.items = traverseSchema(schema.items as JsonSchema, transform);
+  }
+
+  if (typeof schema.additionalItems === 'object') {
+    updated.additionalItems = traverseSchema(schema.additionalItems, transform);
   }
 
   if (schema.oneOf) {
@@ -435,8 +441,11 @@ const findStructureUsages = (
         }
 
         // Check array items.$ref
-        if (propSchema.items?.$ref) {
-          const refName = extractRefName(propSchema.items.$ref);
+        const items = Array.isArray(propSchema.items)
+          ? undefined
+          : (propSchema.items as JsonSchema | undefined);
+        if (items?.$ref) {
+          const refName = extractRefName(items.$ref);
           const structureRef = extractStructureRef(refName);
 
           if (structureRef) {

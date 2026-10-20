@@ -7,7 +7,7 @@ import {
   toPascalCase,
   normalizeStructureRefs,
 } from './schema-normalizer.js';
-import type { GeneratedSchemas } from './schema-generator.js';
+import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 
 describe('schema-normalizer', () => {
   describe('normalizeSchemaName', () => {
@@ -421,7 +421,10 @@ describe('schema-normalizer', () => {
 
       // Nested ref inside SelectRule should also be updated
       expect(
-        result.definitions['SelectRule<Tags>'].properties?.include.items?.$ref,
+        (
+          result.definitions['SelectRule<Tags>'].properties?.include
+            .items as JsonSchema
+        )?.$ref,
       ).toBe('#/components/schemas/Tags');
     });
 

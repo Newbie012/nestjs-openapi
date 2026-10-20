@@ -860,9 +860,13 @@ const withItemConstraints = (
   itemConstraints: ValidationConstraints,
 ): JsonSchema => {
   if (schema.type === 'array') {
+    if (Array.isArray(schema.items)) return schema;
     return {
       ...schema,
-      items: applyPropertyConstraints(schema.items ?? {}, itemConstraints),
+      items: applyPropertyConstraints(
+        (schema.items as JsonSchema | undefined) ?? {},
+        itemConstraints,
+      ),
     } as JsonSchema;
   }
   if (!schema.anyOf?.some((member) => member.type === 'array')) return schema;

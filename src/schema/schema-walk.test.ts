@@ -40,6 +40,23 @@ describe('mapSubschemas', () => {
     ]);
   });
 
+  it('visits the members of a draft-07 tuple and its rest element', () => {
+    const visits: unknown[] = [];
+
+    mapSubschemas(
+      {
+        items: [{ id: 'first' }, { id: 'second' }],
+        additionalItems: { id: 'rest' },
+      },
+      (sub) => {
+        visits.push(sub);
+        return sub;
+      },
+    );
+
+    expect(visits).toEqual([{ id: 'rest' }, { id: 'first' }, { id: 'second' }]);
+  });
+
   it('replaces each subschema with what f returns', () => {
     const result = mapSubschemas(
       { type: 'object', properties: { a: { type: 'string' } } },

@@ -33,14 +33,61 @@
       "ShapeDto": {
         "properties": {
           "pair": {
-            "items": {},
+            "items": false,
             "maxItems": 2,
             "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "pairOfDto": {
+            "items": false,
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "#/components/schemas/UserDto"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "rest": {
+            "items": {
+              "type": "number"
+            },
+            "minItems": 1,
+            "prefixItems": [
+              {
+                "type": "string"
+              }
+            ],
             "type": "array"
           }
         },
         "required": [
-          "pair"
+          "pair",
+          "rest",
+          "pairOfDto"
+        ],
+        "type": "object"
+      },
+      "UserDto": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
         ],
         "type": "object"
       }

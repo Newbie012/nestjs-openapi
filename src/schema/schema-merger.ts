@@ -179,8 +179,14 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   if (schema.nullable === true && !result['nullable'])
     result['nullable'] = true;
 
-  if (schema.items) {
-    result['items'] = convertToOpenApiSchema(schema.items);
+  if (Array.isArray(schema.items)) {
+    result['prefixItems'] = schema.items.map(convertToOpenApiSchema);
+    result['items'] =
+      typeof schema.additionalItems === 'object'
+        ? convertToOpenApiSchema(schema.additionalItems)
+        : false;
+  } else if (schema.items) {
+    result['items'] = convertToOpenApiSchema(schema.items as JsonSchema);
   }
 
   if (schema.oneOf) {
