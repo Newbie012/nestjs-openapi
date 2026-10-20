@@ -37,7 +37,8 @@
     "publint": "publint",
     "knip": "knip",
     "prepublishOnly": "npm run build && npm run publint",
-    "changelog": "node scripts/changelog.ts"
+    "changelog": "node scripts/changelog.ts",
+    "contract:diff": "node scripts/contract-diff.ts"
   },
   "keywords": [
     "nestjs",

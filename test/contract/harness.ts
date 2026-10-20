@@ -26,6 +26,9 @@ export const versionsCoverDomain: Exact<
   OpenApiVersion
 > = true;
 
+/** Set by the release diff: record each document, skip every other assertion */
+const RECORD_ONLY = process.env['CONTRACT_RECORD_ONLY'] === '1';
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const CONTRACT_TMP = join(REPO_ROOT, '.contract-tmp');
 const SHARED_TSCONFIG = join(REPO_ROOT, 'e2e-applications/tsconfig.json');
@@ -186,6 +189,7 @@ export const contract = (
           Effect.either(generateDocument(caseDir, config, captured)),
         );
 
+        if (RECORD_ONLY && isRejected(version, input.rejects)) return;
         if (isRejected(version, input.rejects)) {
           expect(Either.isLeft(outcome)).toBe(true);
           if (Either.isLeft(outcome)) {
@@ -196,6 +200,7 @@ export const contract = (
           return;
         }
 
+        if (RECORD_ONLY && Either.isLeft(outcome)) return;
         if (Either.isLeft(outcome)) throw outcome.left;
         const spec = captured.spec;
         if (!spec) throw new Error(`${name} @ ${version} captured no document`);
@@ -204,6 +209,8 @@ export const contract = (
         await expect(serialized + '\n').toMatchFileSnapshot(
           join(surfaceDir, '__contracts__', `${name}.${version}.json`),
         );
+
+        if (RECORD_ONLY) return;
 
         const result = await new Validator().validate(JSON.parse(serialized));
         const known = input.knownInvalid?.find((k) => k.version === version);
