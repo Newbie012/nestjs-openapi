@@ -62,12 +62,6 @@ import {
 } from './spec-validator.js';
 import { runGeneratorApiPromise } from '../public-api.js';
 import {
-  createTypeResolverProject,
-  resolveTypeLocations,
-  resolveLocalTypeLocations,
-  resolveTypeLocationsFast,
-} from '../schema/type-resolver.js';
-import {
   extractClassValidationInfoEffect,
   mergeValidationConstraints,
   type ValidationConstraints,
@@ -509,13 +503,6 @@ const toModuleImportPath = (fromDir: string, filePath: string): string => {
 };
 
 /**
- * Finds the file that declares each symbol by name: the controller files
- * first, as TypeScript resolves a local declaration before an import, then
- * a text search of the project, then a ts-morph project for the rest.
- */
-const spikeStages = new Map<string, string>();
-
-/**
  * Spike instrumentation: appends one JSON line per missing ref to the file
  * named by `NOA_SPIKE_LOG`.
  */
@@ -523,7 +510,6 @@ const spikeLogMissing = (
   tsconfig: string,
   missing: ReadonlySet<string>,
   finalMissing: ReadonlySet<string>,
-  locations: ReadonlyMap<string, string>,
   methods: readonly MethodInfo[],
   phase: string,
 ) => {
@@ -560,62 +546,14 @@ const spikeLogMissing = (
         generic: isGenericSchemaRef(name),
         stage: finalMissing.has(name)
           ? 'never'
-          : (spikeStages.get(name) ??
-            (isGenericSchemaRef(name) ? 'generic-round' : 'unknown')),
-        resolvedFile: locations.get(name),
+          : isGenericSchemaRef(name)
+            ? 'generic-round'
+            : 'unknown',
         declared,
         usedBy,
       })}\n`,
     );
   }
-};
-
-const resolveSymbolLocations = (
-  tsconfig: string,
-  controllerFiles: readonly string[],
-  symbolNames: ReadonlySet<string>,
-): Map<string, string> => {
-  if (symbolNames.size === 0) {
-    return new Map();
-  }
-
-  const resolved = resolveLocalTypeLocations(controllerFiles, symbolNames);
-  for (const name of resolved.keys()) spikeStages.set(name, 'local');
-  const unresolvedNames = () =>
-    new Set([...symbolNames].filter((name) => !resolved.has(name)));
-
-  for (const [name, filePath] of resolveTypeLocationsFast(
-    dirname(tsconfig),
-    unresolvedNames(),
-  )) {
-    resolved.set(name, filePath);
-    spikeStages.set(name, 'rg');
-  }
-
-  const unresolved = unresolvedNames();
-  if (unresolved.size > 0) {
-    const project = createTypeResolverProject(tsconfig);
-    for (const [name, filePath] of resolveTypeLocations(project, unresolved)) {
-      resolved.set(name, filePath);
-      spikeStages.set(name, 'ts-morph');
-    }
-  }
-  if (process.env.NOA_SPIKE_LOG) {
-    appendFileSync(
-      process.env.NOA_SPIKE_LOG,
-      `${JSON.stringify({
-        phase: 'lookup',
-        tsconfig,
-        names: [...symbolNames].map((name) => ({
-          name,
-          stage: spikeStages.get(name) ?? 'never',
-          filePath: resolved.get(name),
-        })),
-      })}\n`,
-    );
-  }
-
-  return resolved;
 };
 
 const missingGenericSchemasCache = new Map<string, GeneratedSchemas>();
@@ -1549,116 +1487,43 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
       generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
-      const spikeLastLocations = new Map<string, string>();
-      spikeStages.clear();
       const missingRefs = findMissingSchemaRefs(
         paths,
         reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
       );
-      const missingNonGenericRefsBeforeResolution = new Set(
-        [...missingRefs].filter((ref) => !isGenericSchemaRef(ref)),
-      );
+      const missingGenericRefs = [...missingRefs].filter(isGenericSchemaRef);
 
-      if (missingRefs.size > 0) {
-        const controllerFiles = [
-          ...new Set(
-            filteredMethodInfos.flatMap((method) =>
-              method.controllerFile ? [method.controllerFile] : [],
-            ),
+      if (missingGenericRefs.length > 0) {
+        const genericSymbols = new Set<string>();
+        for (const ref of missingGenericRefs) {
+          for (const symbol of extractTypeIdentifiers(ref)) {
+            genericSymbols.add(symbol);
+          }
+        }
+
+        const reachedLocations = new Map<string, string>();
+        for (const method of filteredMethodInfos) {
+          for (const ref of method.referencedDeclarations ?? []) {
+            if (
+              genericSymbols.has(ref.name) &&
+              !reachedLocations.has(ref.name)
+            ) {
+              reachedLocations.set(ref.name, ref.filePath);
+            }
+          }
+        }
+        for (const filePath of reachedLocations.values()) {
+          schemaSourceFiles.add(filePath);
+        }
+
+        generatedSchemas = withLaterSource(
+          generatedSchemas,
+          yield* generateMissingGenericSchemasEffect(
+            missingGenericRefs,
+            tsconfig,
+            reachedLocations,
           ),
-        ];
-        const resolvedNonGenericLocations = resolveSymbolLocations(
-          tsconfig,
-          controllerFiles,
-          missingNonGenericRefsBeforeResolution,
         );
-
-        for (const [name, filePath] of resolvedNonGenericLocations) {
-          spikeLastLocations.set(name, filePath);
-        }
-        if (resolvedNonGenericLocations.size > 0) {
-          const additionalFiles = [
-            ...new Set(resolvedNonGenericLocations.values()),
-          ];
-          for (const filePath of additionalFiles)
-            schemaSourceFiles.add(filePath);
-
-          generatedSchemas = withLaterSource(
-            generatedSchemas,
-            yield* generateNamedSchemas(resolvedNonGenericLocations, tsconfig),
-            plannedSources,
-          );
-        }
-
-        const unresolvedAfterFileResolution = findMissingSchemaRefs(
-          paths,
-          reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
-        );
-        const unresolvedGenericRefs = [...unresolvedAfterFileResolution].filter(
-          isGenericSchemaRef,
-        );
-
-        if (unresolvedGenericRefs.length > 0) {
-          const genericSymbols = new Set<string>();
-          for (const ref of unresolvedGenericRefs) {
-            for (const symbol of extractTypeIdentifiers(ref)) {
-              genericSymbols.add(symbol);
-            }
-          }
-
-          const reachedLocations = new Map<string, string>();
-          for (const method of filteredMethodInfos) {
-            for (const ref of method.referencedDeclarations ?? []) {
-              if (
-                genericSymbols.has(ref.name) &&
-                !reachedLocations.has(ref.name)
-              ) {
-                reachedLocations.set(ref.name, ref.filePath);
-              }
-            }
-          }
-          const spikeByName = new Set(
-            [...genericSymbols].filter((name) => !reachedLocations.has(name)),
-          );
-          if (process.env.NOA_SPIKE_LOG) {
-            appendFileSync(
-              process.env.NOA_SPIKE_LOG,
-              `${JSON.stringify({
-                phase: 'generic-symbols',
-                tsconfig,
-                fromDeclarations: [...reachedLocations.keys()],
-                byName: [...spikeByName],
-              })}\n`,
-            );
-          }
-          const resolvedGenericSymbols = new Map([
-            ...resolveSymbolLocations(
-              tsconfig,
-              controllerFiles,
-              new Set(
-                [...genericSymbols].filter(
-                  (name) => !reachedLocations.has(name),
-                ),
-              ),
-            ),
-            ...reachedLocations,
-          ]);
-          for (const [name, filePath] of resolvedNonGenericLocations) {
-            resolvedGenericSymbols.set(name, filePath);
-          }
-          for (const filePath of resolvedGenericSymbols.values()) {
-            schemaSourceFiles.add(filePath);
-          }
-
-          generatedSchemas = withLaterSource(
-            generatedSchemas,
-            yield* generateMissingGenericSchemasEffect(
-              unresolvedGenericRefs,
-              tsconfig,
-              resolvedGenericSymbols,
-            ),
-          );
-        }
       }
 
       spikeLogMissing(
@@ -1668,7 +1533,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           paths,
           reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
         ),
-        spikeLastLocations,
         filteredMethodInfos,
         'after-first-merge',
       );
