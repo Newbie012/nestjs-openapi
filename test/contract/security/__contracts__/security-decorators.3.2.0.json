@@ -1,0 +1,828 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "description": "API demonstrating all security decorator variants",
+    "title": "Security Decorators API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/admin/actions": {
+      "get": {
+        "operationId": "MultiSchemeController_listActions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminActionDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of admin actions"
+          }
+        },
+        "security": [
+          {
+            "admin-key": [],
+            "jwt": []
+          }
+        ],
+        "summary": "List admin actions (requires JWT AND admin key)",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "post": {
+        "operationId": "MultiSchemeController_performAction",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerformActionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminActionDto"
+                }
+              }
+            },
+            "description": "Action performed"
+          }
+        },
+        "security": [
+          {
+            "admin-key": [],
+            "jwt": []
+          }
+        ],
+        "summary": "Perform admin action",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/public-stats": {
+      "get": {
+        "operationId": "MultiSchemeController_publicStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "totalActions": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "totalActions"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Statistics"
+          }
+        },
+        "security": [
+          {
+            "stats-key": []
+          }
+        ],
+        "summary": "Get public stats (only requires stats key)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/articles": {
+      "get": {
+        "operationId": "MixedController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of articles"
+          }
+        },
+        "summary": "List published articles (public)",
+        "tags": [
+          "Articles"
+        ]
+      },
+      "post": {
+        "operationId": "MixedController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArticleDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleDto"
+                }
+              }
+            },
+            "description": "Article created"
+          }
+        },
+        "security": [
+          {
+            "basic": []
+          }
+        ],
+        "summary": "Create article (requires basic auth)",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/articles/{id}": {
+      "delete": {
+        "operationId": "MixedController_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Article deleted"
+          }
+        },
+        "security": [
+          {
+            "admin-key": []
+          }
+        ],
+        "summary": "Delete article (requires admin API key)",
+        "tags": [
+          "Articles"
+        ]
+      },
+      "get": {
+        "operationId": "MixedController_findOne",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleDto"
+                }
+              }
+            },
+            "description": "Article found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get article by ID (requires JWT)",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/articles/{id}/preview": {
+      "get": {
+        "operationId": "MixedController_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleDto"
+                }
+              }
+            },
+            "description": "Article preview"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Preview article (requires session cookie)",
+        "tags": [
+          "Articles"
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "OAuthController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of projects"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "read:projects"
+            ]
+          }
+        ],
+        "summary": "List all projects",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "post": {
+        "operationId": "OAuthController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            },
+            "description": "Project created"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "read:projects",
+              "write:projects"
+            ]
+          }
+        ],
+        "summary": "Create project (requires write scope)",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/projects/{id}": {
+      "delete": {
+        "operationId": "OAuthController_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "delete:projects"
+            ]
+          }
+        ],
+        "summary": "Delete project (requires delete scope)",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "get": {
+        "operationId": "OAuthController_findOne",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            },
+            "description": "Project found"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "read:projects"
+            ]
+          }
+        ],
+        "summary": "Get project by ID",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "put": {
+        "operationId": "OAuthController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDto"
+                }
+              }
+            },
+            "description": "Project updated"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "write:projects"
+            ]
+          }
+        ],
+        "summary": "Update project",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/public/health": {
+      "get": {
+        "operationId": "PublicController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Health check endpoint (no auth required)",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/public/version": {
+      "get": {
+        "operationId": "PublicController_version",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "version"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get API version",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "BearerController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of users"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all users",
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "operationId": "BearerController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "User created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create new user",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "BearerController_findOne",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "User found"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get user by ID",
+        "tags": [
+          "Users"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminActionDto": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "performedBy": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "performedBy",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "ArticleDto": {
+        "properties": {
+          "authorId": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "authorId"
+        ],
+        "type": "object"
+      },
+      "CreateArticleDto": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ],
+        "type": "object"
+      },
+      "CreateProjectDto": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "password"
+        ],
+        "type": "object"
+      },
+      "HealthDto": {
+        "description": "Response for health check",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "PerformActionDto": {
+        "properties": {
+          "action": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "ProjectDto": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "UserDto": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "admin-key": {
+        "description": "Admin API key",
+        "in": "header",
+        "name": "X-Admin-Key",
+        "type": "apiKey"
+      },
+      "basic": {
+        "description": "HTTP Basic authentication",
+        "scheme": "basic",
+        "type": "http"
+      },
+      "bearer": {
+        "bearerFormat": "JWT",
+        "description": "Default JWT Bearer token",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "cookie": {
+        "description": "Session cookie",
+        "in": "cookie",
+        "name": "session",
+        "type": "apiKey"
+      },
+      "jwt": {
+        "bearerFormat": "JWT",
+        "description": "JWT Bearer token authentication",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "oauth2": {
+        "description": "OAuth2 authentication",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://example.com/oauth/authorize",
+            "scopes": {
+              "delete:projects": "Delete projects",
+              "read:projects": "Read project data",
+              "write:projects": "Create and update projects"
+            },
+            "tokenUrl": "https://example.com/oauth/token"
+          }
+        },
+        "type": "oauth2"
+      },
+      "stats-key": {
+        "description": "Stats API key",
+        "in": "header",
+        "name": "X-Stats-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "tags": []
+}

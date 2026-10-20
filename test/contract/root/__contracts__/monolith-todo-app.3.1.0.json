@@ -1,0 +1,523 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "description": "Monolith todo app used for E2E coverage",
+    "title": "Monolith Todo API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/api/users": {
+      "get": {
+        "operationId": "UserController_findAll",
+        "parameters": [
+          {
+            "description": "Search users by name or email",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of users"
+          }
+        },
+        "summary": "Get all users",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "operationId": "UserController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          },
+          "description": "User data",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "The created user"
+          }
+        },
+        "summary": "Create a new user",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/{id}": {
+      "delete": {
+        "operationId": "UserController_remove",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteUserConflictDto"
+                }
+              }
+            },
+            "description": "User still has todos and cannot be deleted"
+          }
+        },
+        "summary": "Delete a user by ID",
+        "tags": [
+          "users"
+        ]
+      },
+      "get": {
+        "operationId": "UserController_findOne",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "The user"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Get a user by ID",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/todos": {
+      "get": {
+        "operationId": "TodoController_findAll",
+        "parameters": [
+          {
+            "description": "Filter todos by completion status",
+            "in": "query",
+            "name": "completed",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter todos by priority",
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TodoDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of todos"
+          }
+        },
+        "summary": "Get all todos",
+        "tags": [
+          "todos"
+        ]
+      },
+      "post": {
+        "operationId": "TodoController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTodoDto"
+              }
+            }
+          },
+          "description": "Todo data",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoDto"
+                }
+              }
+            },
+            "description": "The created todo"
+          }
+        },
+        "summary": "Create a new todo",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todos/{id}": {
+      "delete": {
+        "operationId": "TodoController_remove",
+        "parameters": [
+          {
+            "description": "Todo ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Todo deleted successfully"
+          },
+          "404": {
+            "description": "Todo not found"
+          }
+        },
+        "summary": "Delete a todo",
+        "tags": [
+          "todos"
+        ]
+      },
+      "get": {
+        "operationId": "TodoController_findOne",
+        "parameters": [
+          {
+            "description": "Todo ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoDto"
+                }
+              }
+            },
+            "description": "The todo"
+          },
+          "404": {
+            "description": "Todo not found"
+          }
+        },
+        "summary": "Get a todo by ID",
+        "tags": [
+          "todos"
+        ]
+      },
+      "put": {
+        "operationId": "TodoController_update",
+        "parameters": [
+          {
+            "description": "Todo ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTodoDto"
+              }
+            }
+          },
+          "description": "Updated todo data",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoDto"
+                }
+              }
+            },
+            "description": "The updated todo"
+          },
+          "404": {
+            "description": "Todo not found"
+          }
+        },
+        "summary": "Update a todo",
+        "tags": [
+          "todos"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateTodoDto": {
+        "properties": {
+          "description": {
+            "description": "Detailed description of the todo item",
+            "example": "Buy milk, eggs, and bread from the store",
+            "type": "string"
+          },
+          "priority": {
+            "default": "medium",
+            "description": "Priority level of the todo",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "The title of the todo item",
+            "example": "Buy groceries",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "priority"
+        ],
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "properties": {
+          "email": {
+            "description": "User email address",
+            "example": "user@example.com",
+            "type": "string"
+          },
+          "name": {
+            "description": "User display name",
+            "example": "John Doe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name"
+        ],
+        "type": "object"
+      },
+      "DeleteUserConflictDto": {
+        "properties": {
+          "code": {
+            "const": "USER_HAS_TODOS",
+            "description": "Machine-readable error kind",
+            "example": "USER_HAS_TODOS",
+            "type": "string"
+          },
+          "message": {
+            "description": "Human-readable explanation",
+            "example": "User with ID 1 still has todos and cannot be deleted",
+            "type": "string"
+          },
+          "statusCode": {
+            "description": "HTTP status code",
+            "example": 409,
+            "type": "number"
+          }
+        },
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "TodoDto": {
+        "properties": {
+          "completed": {
+            "description": "Whether the todo is completed",
+            "example": false,
+            "type": "boolean"
+          },
+          "createdAt": {
+            "description": "Creation timestamp",
+            "example": "2025-09-18T10:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "Detailed description of the todo item",
+            "example": "Buy milk, eggs, and bread from the store",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique identifier for the todo",
+            "example": "uuid-123",
+            "type": "string"
+          },
+          "priority": {
+            "description": "Priority level of the todo",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "example": "medium",
+            "type": "string"
+          },
+          "title": {
+            "description": "The title of the todo item",
+            "example": "Buy groceries",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update timestamp",
+            "example": "2025-09-18T10:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "completed",
+          "priority",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "UpdateTodoDto": {
+        "properties": {
+          "completed": {
+            "description": "Whether the todo is completed",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Detailed description of the todo item",
+            "type": "string"
+          },
+          "priority": {
+            "description": "Priority level of the todo",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "The title of the todo item",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UserDto": {
+        "properties": {
+          "createdAt": {
+            "description": "Account creation date",
+            "example": "2025-09-18T10:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "description": "User email address",
+            "example": "user@example.com",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique user identifier",
+            "example": "user-123",
+            "type": "string"
+          },
+          "name": {
+            "description": "User display name",
+            "example": "John Doe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "createdAt"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
