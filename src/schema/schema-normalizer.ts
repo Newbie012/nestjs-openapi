@@ -27,7 +27,6 @@ const CONTAINS_STRUCTURE_REF_PATTERN = /(?:structure|class)-\d+(-\d+)*/;
  * Check if a name contains ugly structure references that should be normalized
  */
 const containsUglyStructureRef = (name: string): boolean => {
-  // Check for structure-123... patterns (both encoded and non-encoded)
   const decoded = decodeURIComponent(name);
   return CONTAINS_STRUCTURE_REF_PATTERN.test(decoded);
 };
@@ -89,7 +88,6 @@ const traverseSchema = (
  * Example: `#/components/schemas/User` → `User`
  */
 const extractRefName = (ref: string): string => {
-  // Handle both #/definitions/Name and #/components/schemas/Name
   const match = ref.match(/^#\/(?:definitions|components\/schemas)\/(.+)$/);
   return match ? match[1] : ref;
 };
@@ -103,7 +101,6 @@ const extractRefName = (ref: string): string => {
  */
 export const toPascalCase = (str: string): string => {
   if (!str) return str;
-  // Capitalize first letter, keep rest as-is
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
@@ -131,12 +128,10 @@ interface StructureUsage {
  * - `User` → null
  */
 const extractStructureRef = (name: string): string | null => {
-  // Direct structure ref
   if (STRUCTURE_REF_PATTERN.test(name)) {
     return name;
   }
 
-  // Structure ref inside generic
   const match = CONTAINS_STRUCTURE_REF_PATTERN.exec(name);
   return match ? match[0] : null;
 };
@@ -171,16 +166,13 @@ const findStructureUsages = (
     usages.set(structureRef, existing);
   };
 
-  // Walk through all schemas and find structure refs in properties
   for (const [schemaName, schema] of Object.entries(schemas.definitions)) {
-    // Skip structure refs themselves
     if (STRUCTURE_REF_PATTERN.test(schemaName)) {
       continue;
     }
 
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties)) {
-        // Check direct $ref
         if (propSchema.$ref) {
           const refName = extractRefName(propSchema.$ref);
           const structureRef = extractStructureRef(refName);
@@ -202,7 +194,6 @@ const findStructureUsages = (
           }
         }
 
-        // Check array items.$ref
         const items = Array.isArray(propSchema.items)
           ? undefined
           : (propSchema.items as JsonSchema | undefined);
@@ -280,14 +271,11 @@ const findUniqueName = (
   parentName: string,
   usedNames: Set<string>,
 ): string => {
-  // Level 1: Just property name
   if (!usedNames.has(propertyName)) return propertyName;
 
-  // Level 2: Parent + Property
   const withParent = `${parentName}${propertyName}`;
   if (!usedNames.has(withParent)) return withParent;
 
-  // Level 3: Add numeric suffix
   let suffix = 1;
   while (usedNames.has(`${withParent}_${suffix}`)) {
     suffix++;
@@ -310,7 +298,6 @@ const findUniqueName = (
 export const normalizeStructureRefs = (
   schemas: GeneratedSchemas,
 ): GeneratedSchemas => {
-  // 1. Collect all existing schema names (reserved - can't use these)
   const reservedNames = new Set<string>();
   for (const name of Object.keys(schemas.definitions)) {
     if (!STRUCTURE_REF_PATTERN.test(name) && !containsUglyStructureRef(name)) {
@@ -318,10 +305,8 @@ export const normalizeStructureRefs = (
     }
   }
 
-  // 2. Find all structure refs and their usage context
   const structureUsages = findStructureUsages(schemas);
 
-  // 3. Build mapping from structure refs to new names
   const structureMapping = namesOfAliasedDeclarations(schemas);
   const usedNames = new Set(reservedNames);
 
@@ -331,19 +316,17 @@ export const normalizeStructureRefs = (
     const { parent, property } = usages[0];
     const propertyPascal = toPascalCase(property);
 
-    // Cascading naming strategy: property → parent+property → suffix
     const newName = findUniqueName(propertyPascal, parent, usedNames);
 
     structureMapping.set(structureRef, newName);
     usedNames.add(newName);
   }
 
-  // 4. Build new definitions with renamed schemas
   const normalizedDefinitions: Record<string, JsonSchema> = {};
 
   for (const [originalName, schema] of Object.entries(schemas.definitions)) {
     const newName = resolveNewSchemaName(originalName, structureMapping);
-    if (newName === null) continue; // Skip unused structure refs
+    if (newName === null) continue;
 
     const updatedSchema = updateRefsWithMapping(schema, structureMapping);
     normalizedDefinitions[newName] = updatedSchema;
@@ -357,12 +340,10 @@ const resolveNewSchemaName = (
   originalName: string,
   structureMapping: Map<string, string>,
 ): string | null => {
-  // Direct structure ref - must be in mapping or skip
   if (STRUCTURE_REF_PATTERN.test(originalName)) {
     return structureMapping.get(originalName) ?? null;
   }
 
-  // Generic containing structure ref - replace with mapped name
   if (containsUglyStructureRef(originalName)) {
     for (const [structureRef, mappedName] of structureMapping) {
       if (originalName.includes(structureRef)) {

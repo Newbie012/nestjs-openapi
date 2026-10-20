@@ -78,9 +78,6 @@ const BOOLEAN_FLAG_KEYS = new Set([
   'nullable',
 ]);
 
-// OpenAPI 3.0 ignores keywords beside `$ref`, so a reference with a
-// description, nullability... is wrapped as `{ allOf: [{ $ref }], ...}`, as
-// @nestjs/swagger emits it
 const convertRefSchema = (schema: JsonSchema, ref: string): OpenApiSchema => {
   const siblings = Object.fromEntries(
     REF_SIBLING_KEYS.flatMap((key) => {
@@ -99,8 +96,6 @@ const convertRefSchema = (schema: JsonSchema, ref: string): OpenApiSchema => {
 
 const isNullSchema = (schema: JsonSchema) => schema.type === 'null';
 
-// The generator emits `T | null` as `anyOf: [T, { type: 'null' }]`, and
-// OpenAPI 3.0 has no null type
 const collapseNullVariants = (schema: JsonSchema): JsonSchema | undefined => {
   const key = schema.anyOf ? 'anyOf' : schema.oneOf ? 'oneOf' : undefined;
   const variants = key ? schema[key] : undefined;
@@ -123,10 +118,8 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   const withoutNullVariants = collapseNullVariants(schema);
   if (withoutNullVariants) return convertToOpenApiSchema(withoutNullVariants);
 
-  // Build result object incrementally
   const result: Record<string, unknown> = {};
 
-  // Normalize 3.1 type arrays to 3.0 nullable (e.g., ["string", "null"] → { type: "string", nullable: true })
   if (Array.isArray(schema.type)) {
     const nonNull = schema.type.filter((t) => t !== 'null');
     const isNullable = nonNull.length < schema.type.length;
@@ -142,15 +135,12 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   }
   if (schema.description) result['description'] = schema.description;
   if (schema.enum) result['enum'] = schema.enum;
-  // Const value for discriminated unions
   if (schema.const !== undefined) result['const'] = schema.const;
 
-  // Validation constraints - string
   if (schema.minLength !== undefined) result['minLength'] = schema.minLength;
   if (schema.maxLength !== undefined) result['maxLength'] = schema.maxLength;
   if (schema.pattern !== undefined) result['pattern'] = schema.pattern;
 
-  // Validation constraints - number
   if (schema.minimum !== undefined) result['minimum'] = schema.minimum;
   if (schema.maximum !== undefined) result['maximum'] = schema.maximum;
   if (schema.exclusiveMinimum !== undefined)
@@ -159,22 +149,18 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
     result['exclusiveMaximum'] = schema.exclusiveMaximum;
   if (schema.multipleOf !== undefined) result['multipleOf'] = schema.multipleOf;
 
-  // Validation constraints - array
   if (schema.minItems !== undefined) result['minItems'] = schema.minItems;
   if (schema.maxItems !== undefined) result['maxItems'] = schema.maxItems;
   if (schema.uniqueItems !== undefined)
     result['uniqueItems'] = schema.uniqueItems;
 
-  // Default value
   if (schema.default !== undefined) result['default'] = schema.default;
 
-  // Schema metadata (from @ApiProperty)
   if (schema.title) result['title'] = schema.title;
   if (schema.example !== undefined) result['example'] = schema.example;
   if (schema.deprecated === true) result['deprecated'] = true;
   if (schema.readOnly === true) result['readOnly'] = true;
   if (schema.writeOnly === true) result['writeOnly'] = true;
-  // Explicit nullable from @ApiProperty (not from type-array normalization above)
   if (schema.nullable === true && !result['nullable'])
     result['nullable'] = true;
 
@@ -209,7 +195,6 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
     );
   }
 
-  // Handle explicit additionalProperties setting
   if (schema.additionalProperties !== undefined) {
     if (typeof schema.additionalProperties === 'boolean') {
       result['additionalProperties'] = schema.additionalProperties;
@@ -332,8 +317,10 @@ const forbidInSchema = (value: unknown): unknown => {
   };
 };
 
-// `options.schemas.additionalProperties: 'forbid'`: every object that lists
-// its properties allows no others, unless it declares otherwise
+/**
+ * `options.schemas.additionalProperties: 'forbid'`: every object that lists
+ * its properties allows no others, unless it declares otherwise
+ */
 export const forbidAdditionalProperties = (
   schemas: Record<string, OpenApiSchema>,
 ): Record<string, OpenApiSchema> =>

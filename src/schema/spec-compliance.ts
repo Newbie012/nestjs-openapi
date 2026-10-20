@@ -7,8 +7,10 @@ import {
 
 const VALID_COMPONENT_NAME = /^[a-zA-Z0-9._-]+$/;
 
-// Page<User> → Page_User, Page<User[]> → Page_UserArray,
-// Result<A | B, C> → Result_A_Or_B_C
+/**
+ * Page<User> → Page_User, Page<User[]> → Page_UserArray,
+ * Result<A | B, C> → Result_A_Or_B_C
+ */
 export const sanitizeComponentName = (name: string) => {
   if (VALID_COMPONENT_NAME.test(name)) return name;
   return name
@@ -32,7 +34,7 @@ const mapDeep = (
   );
 };
 
-// Points every `$ref` and discriminator mapping at the renamed component
+/** Points every `$ref` and discriminator mapping at the renamed component */
 export const renameSchemaRefs = (
   value: unknown,
   renames: ReadonlyMap<string, string>,
@@ -101,9 +103,6 @@ export const sanitizeComponentNames = (
   };
 };
 
-// OpenAPI 3.0 schemas only have `example` (the first value is used); 3.1
-// (JSON Schema) wants an `examples` array, so a map of example objects
-// becomes the list of their values
 const exampleValues = (examples: unknown) => {
   if (Array.isArray(examples)) return examples;
   if (!examples || typeof examples !== 'object') return [examples];

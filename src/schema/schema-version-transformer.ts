@@ -56,8 +56,6 @@ const getSingleRefAllOf = (schema: OpenApiSchema) => {
   return onlyMember.$ref;
 };
 
-// From 3.1 on, `$ref` takes sibling keywords, so the 3.0 wrapper
-// `{ allOf: [{ $ref }], description }` becomes `{ $ref, description }`
 const hoistSingleRefAllOf = (schema: OpenApiSchema): OpenApiSchema => {
   const ref = getSingleRefAllOf(schema);
   if (ref === undefined) return schema;
@@ -89,7 +87,6 @@ type Bound = 'Minimum' | 'Maximum';
 
 const BOUNDS: readonly Bound[] = ['Minimum', 'Maximum'];
 
-// The stricter of an inclusive and an exclusive bound
 const exclusiveWins = (bound: Bound, inclusive: unknown, exclusive: number) =>
   typeof inclusive !== 'number' ||
   (bound === 'Minimum' ? exclusive >= inclusive : exclusive <= inclusive);
@@ -148,10 +145,8 @@ const transformSchemaToV31 = (input: OpenApiSchema): OpenApiSchema => {
     transformSchemaToV31(sub as OpenApiSchema),
   ) as OpenApiSchema;
 
-  // Remove OpenAPI 3.0 nullable keyword and represent nullability in 3.1 schema form.
   const { nullable, ...restWithoutNullable } = withNullInEnum(schema);
 
-  // Simple primitive nullable: { type: "string", nullable: true } -> { type: ["string", "null"] }
   const transformedType =
     nullable && typeof schema.type === 'string'
       ? ([schema.type, 'null'] as const)
@@ -164,12 +159,10 @@ const transformSchemaToV31 = (input: OpenApiSchema): OpenApiSchema => {
 
   if (!nullable) return hoistSingleRefAllOf(transformedSchema);
 
-  // Nullability is already encoded in type array form.
   if (schema.type && typeof schema.type === 'string') {
     return transformedSchema;
   }
 
-  // oneOf/anyOf can represent nullability directly by adding a null branch.
   if (transformedSchema.oneOf) {
     return {
       ...transformedSchema,
@@ -188,15 +181,12 @@ const transformSchemaToV31 = (input: OpenApiSchema): OpenApiSchema => {
     };
   }
 
-  // A wrapped reference keeps its metadata beside the null union:
-  // { anyOf: [{ $ref }, { type: 'null' }], description }
   const ref = getSingleRefAllOf(transformedSchema);
   if (ref !== undefined) {
     const { allOf: _allOf, ...metadata } = transformedSchema;
     return { ...metadata, anyOf: [{ $ref: ref }, NULL_SCHEMA] };
   }
 
-  // allOf/$ref/other schema forms need an outer union to keep nullability.
   return { anyOf: [unwrapSingleRefAllOf(transformedSchema), NULL_SCHEMA] };
 };
 
@@ -212,11 +202,9 @@ export const transformSchemasForVersion = (
   version: OpenApiVersion,
 ): Record<string, OpenApiSchema> => {
   if (version === '3.0.3') {
-    // No transformation needed for 3.0
     return schemas;
   }
 
-  // For 3.1.0 and 3.2.0, convert nullable to type arrays
   return Object.fromEntries(
     Object.entries(schemas).map(([key, schema]) => [
       key,
@@ -225,9 +213,6 @@ export const transformSchemasForVersion = (
   );
 };
 
-// Bytes sent as the whole body are of the body's media type: a binary schema
-// under `application/zip` is `contentMediaType: application/zip`. A JSON or
-// wildcard key names no byte format, so it keeps application/octet-stream
 const transformMediaSchemaToV31 = (
   schema: OpenApiSchema,
   contentType: string,
@@ -270,12 +255,10 @@ export const transformSpecForVersion = (
     return { ...spec, openapi: version };
   }
 
-  // Transform component schemas
   const transformedSchemas = spec.components?.schemas
     ? transformSchemasForVersion(spec.components.schemas, version)
     : undefined;
 
-  // Transform path-level schemas
   const transformedPaths = transformPathsForVersion(spec.paths, version);
 
   return {
@@ -307,7 +290,6 @@ const ANNOTATION_KEYS = new Set([
   'externalDocs',
 ]);
 
-// The single JSON type a schema allows, when it can be told
 const inferSchemaType = (
   schema: unknown,
   components: Readonly<Record<string, unknown>>,
@@ -354,7 +336,6 @@ const inferSchemaType = (
           inferSchemaType(item, components, seen),
         )
       : undefined;
-  // allOf members all hold, so any one that knows its type gives it
   const allOf = member('allOf')?.find((type) => type !== undefined);
   if (allOf) return allOf;
   for (const key of ['oneOf', 'anyOf']) {
@@ -490,7 +471,6 @@ const adaptSchemaForV30 = (
   );
 };
 
-// Every `schema` of an operation: parameters, request bodies, responses
 const adaptOperationsForV30 = (
   value: unknown,
   components: Readonly<Record<string, unknown>>,
@@ -554,7 +534,10 @@ const SCOPED_SCHEME_TYPES: ReadonlySet<string> = new Set([
  */
 export const emptyNonOAuthScopesForV30 = (
   spec: OpenApiSpec,
-): { readonly spec: OpenApiSpec; readonly dropped: readonly DroppedScopes[] } => {
+): {
+  readonly spec: OpenApiSpec;
+  readonly dropped: readonly DroppedScopes[];
+} => {
   const schemes = spec.components?.securitySchemes ?? {};
   const dropped: DroppedScopes[] = [];
 
@@ -588,7 +571,9 @@ export const emptyNonOAuthScopesForV30 = (
             : undefined;
           return [
             key,
-            operationSecurity ? { ...operation, security: operationSecurity } : operation,
+            operationSecurity
+              ? { ...operation, security: operationSecurity }
+              : operation,
           ];
         }),
       ),

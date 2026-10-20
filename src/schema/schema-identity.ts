@@ -41,8 +41,6 @@ export const EMPTY_PLAN: SchemaNamePlan = {
   shared: new Map(),
 };
 
-// `AddressDto__oapiShared0`: unlike the internal `__oapi<n>` names, it
-// survives generation and is resolved afterwards
 const sharedName = (name: string, index: number) =>
   `${name}__oapiShared${index}`;
 
@@ -135,8 +133,6 @@ export const planSchemaNames = (
   const toRelative = (filePath: string) =>
     relative(baseDir, filePath).split('\\').join('/');
 
-  // Each declaration sharing a name is generated under a temporary name of
-  // its own; whether they collide depends on the schemas they produce
   const declarations = new Map<string, PlannedDeclaration>();
   const shared = new Map<string, SchemaNameCollision>();
   for (const [name, refs] of byName) {
@@ -163,9 +159,6 @@ export const planSchemaNames = (
     }
   }
 
-  // A name reached through one declaration can still be shadowed by another
-  // declaration elsewhere (an unused exported class with the same name); the
-  // schema generated under that name may come from the wrong one.
   const files = [
     ...new Set([
       ...candidateFiles,
@@ -195,8 +188,6 @@ export const applyPlanToMethods = (
   plan: SchemaNamePlan,
 ) =>
   methods.map((method) => {
-    // The operation names a declaration by its own name or an import alias;
-    // both become the planned name, or the declaration's name if unplanned
     const renames = (method.referencedDeclarations ?? []).flatMap((ref) => {
       if (!ref.topLevel) return [];
       const target =
@@ -421,10 +412,6 @@ export const regenerateDeclarations = Effect.fn('SchemaIdentity.regenerate')(
 
     const reachable = collectReachable(methods);
 
-    // Each planned declaration gets a unique internal name, with every
-    // reference to it. Rename locations are all found on the unchanged
-    // program and applied as text to an in-memory overlay: modifying the
-    // shared project would rebuild its type checker.
     const project = getRunProject(tsconfig);
     project.addSourceFilesAtPaths([
       ...new Set([...reachable.values()].map((ref) => ref.filePath)),
@@ -484,8 +471,6 @@ export const regenerateDeclarations = Effect.fn('SchemaIdentity.regenerate')(
       overlay.set(fileName, text);
     }
 
-    // Schemas referencing a renamed declaration live in the files the
-    // renames touched; regenerate those so their references follow
     const forcedNames = new Set(internalToFinal.values());
     for (const ref of reachable.values()) {
       if (ref.generic) continue;
@@ -498,8 +483,6 @@ export const regenerateDeclarations = Effect.fn('SchemaIdentity.regenerate')(
 
     const generated = yield* generateNamedSchemas(locations, tsconfig, overlay);
 
-    // Generic instantiations the operations use directly (`Page<AddressDto>`)
-    // whose arguments were renamed: generate them over the renamed sources
     const generics = collectRenamedGenerics(
       methods,
       plan,

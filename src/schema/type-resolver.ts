@@ -24,11 +24,9 @@ export function resolveTypeLocations(
 ): Map<string, string> {
   const resolved = new Map<string, string>();
 
-  // Build an index of all exported types in the project
   const typeIndex = buildTypeIndex(project);
 
   for (const typeName of missingTypes) {
-    // Strip generic parameters for lookup (e.g., "PaginatedResponse<User>" -> "PaginatedResponse")
     const baseTypeName = typeName.replace(/<.*>$/, '');
 
     const filePath = typeIndex.get(baseTypeName);
@@ -49,10 +47,8 @@ function buildTypeIndex(project: Project): Map<string, string> {
   for (const sourceFile of project.getSourceFiles()) {
     const filePath = sourceFile.getFilePath();
 
-    // Skip node_modules
     if (filePath.includes('node_modules')) continue;
 
-    // Index exported classes
     for (const cls of sourceFile.getClasses()) {
       if (cls.isExported()) {
         const name = cls.getName();
@@ -62,7 +58,6 @@ function buildTypeIndex(project: Project): Map<string, string> {
       }
     }
 
-    // Index exported interfaces
     for (const iface of sourceFile.getInterfaces()) {
       if (iface.isExported()) {
         const name = iface.getName();
@@ -70,7 +65,6 @@ function buildTypeIndex(project: Project): Map<string, string> {
       }
     }
 
-    // Index exported type aliases
     for (const typeAlias of sourceFile.getTypeAliases()) {
       if (typeAlias.isExported()) {
         const name = typeAlias.getName();
@@ -78,7 +72,6 @@ function buildTypeIndex(project: Project): Map<string, string> {
       }
     }
 
-    // Index exported enums
     for (const enumDecl of sourceFile.getEnums()) {
       if (enumDecl.isExported()) {
         const name = enumDecl.getName();
@@ -115,7 +108,7 @@ export function resolveLocalTypeLocations(
 export function createTypeResolverProject(tsconfig: string): Project {
   return new Project({
     tsConfigFilePath: tsconfig,
-    skipAddingFilesFromTsConfig: false, // Need all files for type resolution
+    skipAddingFilesFromTsConfig: false,
     compilerOptions: {
       skipLibCheck: true,
       skipDefaultLibCheck: true,
@@ -156,14 +149,11 @@ export function resolveTypeLocationsFast(
 ): Map<string, string> {
   const resolved = new Map<string, string>();
 
-  // Strip generics from type names
   const typeNames = [...missingTypes].map((t) => t.replace(/<.*>$/, ''));
 
-  // Build a single pattern for all types: (Type1|Type2|Type3)
   const typePattern = typeNames.join('|');
   const pattern = `export\\s+${DECLARATION_PREFIX}(${typePattern})\\b`;
 
-  // Common directories to exclude for performance
   const excludeDirs = [
     'node_modules',
     'dist',
@@ -179,14 +169,12 @@ export function resolveTypeLocationsFast(
     let result: string;
 
     if (hasRipgrep()) {
-      // Use ripgrep (much faster for large codebases)
       const excludeArgs = excludeDirs.map((d) => `-g '!${d}/'`).join(' ');
       result = execSync(
         `rg -H --no-heading -t ts ${excludeArgs} '${pattern}' "${baseDir}" 2>/dev/null`,
         { encoding: 'utf-8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
       );
     } else {
-      // Fall back to grep with exclusions
       const excludeArgs = excludeDirs
         .map((d) => `--exclude-dir=${d}`)
         .join(' ');
@@ -196,7 +184,6 @@ export function resolveTypeLocationsFast(
       );
     }
 
-    // Parse output: filename:match or filename:line:match
     for (const line of result.split('\n')) {
       if (!line.trim()) continue;
 
@@ -205,10 +192,8 @@ export function resolveTypeLocationsFast(
 
       const filePath = line.substring(0, colonIdx);
 
-      // Skip node_modules (double-check in case exclude didn't work)
       if (filePath.includes('node_modules')) continue;
 
-      // Extract the type name from the match
       for (const typeName of typeNames) {
         const typeRegex = new RegExp(
           `export\\s+${DECLARATION_PREFIX}${typeName}\\b`,
@@ -219,7 +204,7 @@ export function resolveTypeLocationsFast(
       }
     }
   } catch {
-    // grep/rg returns non-zero if no match, which throws - return what we have
+    return resolved;
   }
 
   return resolved;
