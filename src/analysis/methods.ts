@@ -45,6 +45,7 @@ import { Node } from 'ts-morph';
 import {
   getDecoratorNames,
   getEffectiveDecorators,
+  getEffectiveDecoratorsInApplyOrder,
   type DecoratorCall,
   type DecoratorExpansionOptions,
 } from './decorators.js';
@@ -1014,7 +1015,7 @@ const getMethodInfoVariants = (
       ...extractContentTypes(controllerCalls, methodCalls, 'ApiProduces'),
     ],
     security: [...security],
-    extensions: extractExtensions(controllerCalls, methodCalls),
+    extensions: extractExtensions(controller, method, expansion),
     extraModels: [
       ...readExtraModelNames(controllerCalls),
       ...readExtraModelNames(methodCalls),
@@ -1045,13 +1046,18 @@ const getMethodInfoInternal = (
   Option.fromNullable(getMethodInfoVariants(controller, method, options)[0]);
 
 // @nestjs/swagger only reads @ApiExtension on methods; on a controller it
-// applies to all its methods, the method's own winning
+// applies to all its methods, the method's own winning. On one target, the
+// decorator Nest applies last (the topmost) wins
 const extractExtensions = (
-  controllerCalls: readonly DecoratorCall[],
-  methodCalls: readonly DecoratorCall[],
+  controller: ClassDeclaration,
+  method: MethodDeclaration,
+  expansion: DecoratorExpansionOptions | undefined,
 ) =>
   Object.fromEntries(
-    [...controllerCalls, ...methodCalls].flatMap((call) => {
+    [
+      ...getEffectiveDecoratorsInApplyOrder(controller, expansion),
+      ...getEffectiveDecoratorsInApplyOrder(method, expansion),
+    ].flatMap((call) => {
       if (call.name !== 'ApiExtension') return [];
       const key = asString(call.args[0]);
       return key?.startsWith('x-') && call.args[1]

@@ -112,6 +112,130 @@ describe('getMethodInfo', () => {
     });
   });
 
+  describe('@ApiExtension extraction', () => {
+    it('adds method extensions with object, array, number and boolean values', () => {
+      const code = `
+        import { Controller, Get } from '@nestjs/common';
+        import { ApiExtension } from '@nestjs/swagger';
+
+        const LIMIT = 60;
+
+        @Controller('/books')
+        class BooksController {
+          @Get()
+          @ApiExtension('x-rate-limit', { perMinute: LIMIT, burst: true })
+          @ApiExtension('x-audiences', ['public', 'partners'])
+          @ApiExtension('x-cost', 3)
+          @ApiExtension('x-internal', false)
+          findAll() {
+            return [];
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.extensions).toEqual({
+        'x-rate-limit': { perMinute: 60, burst: true },
+        'x-audiences': ['public', 'partners'],
+        'x-cost': 3,
+        'x-internal': false,
+      });
+    });
+
+    it('applies controller extensions to its methods, the method winning', () => {
+      const code = `
+        import { Controller, Get } from '@nestjs/common';
+        import { ApiExtension } from '@nestjs/swagger';
+
+        @Controller('/books')
+        @ApiExtension('x-owner', 'catalog')
+        @ApiExtension('x-stability', 'stable')
+        class BooksController {
+          @Get()
+          @ApiExtension('x-stability', 'beta')
+          findAll() {
+            return [];
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.extensions).toEqual({
+        'x-owner': 'catalog',
+        'x-stability': 'beta',
+      });
+    });
+
+    it('keeps the topmost of repeated keys on one target, as Nest applies it last', () => {
+      const code = `
+        import { Controller, Get } from '@nestjs/common';
+        import { ApiExtension } from '@nestjs/swagger';
+
+        @Controller('/books')
+        class BooksController {
+          @Get()
+          @ApiExtension('x-stability', 'beta')
+          @ApiExtension('x-stability', 'stable')
+          findAll() {
+            return [];
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.extensions).toEqual({ 'x-stability': 'beta' });
+    });
+
+    it('reads @ApiExtension inside applyDecorators() wrappers', () => {
+      const code = `
+        import { Controller, Get, applyDecorators } from '@nestjs/common';
+        import { ApiExtension } from '@nestjs/swagger';
+
+        const Internal = (team: string) =>
+          applyDecorators(ApiExtension('x-internal', true), ApiExtension('x-team', team));
+
+        @Controller('/books')
+        class BooksController {
+          @Get()
+          @Internal('search')
+          findAll() {
+            return [];
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.extensions).toEqual({
+        'x-internal': true,
+        'x-team': 'search',
+      });
+    });
+
+    it('ignores names without the x- prefix, which @nestjs/swagger rejects', () => {
+      const code = `
+        import { Controller, Get } from '@nestjs/common';
+        import { ApiExtension } from '@nestjs/swagger';
+
+        @Controller('/books')
+        class BooksController {
+          @Get()
+          @ApiExtension('owner', 'catalog')
+          findAll() {
+            return [];
+          }
+        }
+      `;
+
+      const info = testSetup.getMethodInfo(code);
+
+      expect(info?.extensions).toEqual({});
+    });
+  });
+
   describe('Parameter extraction with descriptions', () => {
     it('should extract query parameters with @ApiQuery descriptions', () => {
       const code = `

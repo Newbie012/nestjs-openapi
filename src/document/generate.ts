@@ -92,14 +92,17 @@ import {
   NAMED_ENUM_REF,
   type SchemaNaming,
 } from '../analysis/property-schema.js';
-import type { DecoratorExpansionOptions } from '../analysis/decorators.js';
+import {
+  readDecoratorUses,
+  type DecoratorExpansionOptions,
+} from '../analysis/decorators.js';
 import { clearSchemaProgramCache } from '../schema/schema-program.js';
 import {
   adaptExamplesForVersion,
   sanitizeComponentNames,
 } from '../schema/spec-compliance.js';
 import type { MethodInfo, ResolvedParameter } from '../model/domain.js';
-import type { PathTransform } from '../config/types.js';
+import type { OverlayDocument, PathTransform } from '../config/types.js';
 import { clearRunProjects, getRunProject } from '../analysis/run-project.js';
 import {
   applyMappedTypes,
@@ -107,8 +110,24 @@ import {
   getMappedTypeBase,
 } from '../analysis/mapped-types.js';
 import { OutputService } from './output-service.js';
+import { applyOperationExtensions } from './operation-extensions.js';
+import { applyOverlay } from './overlay.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
+
+// Path item keys that hold operations; an overlay may add others, such as
+// `summary` or `parameters`. OpenAPI 3.2 also has `additionalOperations`
+const OPERATION_KEYS = new Set([
+  'get',
+  'put',
+  'post',
+  'delete',
+  'options',
+  'head',
+  'patch',
+  'trace',
+  'query',
+]);
 const DEFAULT_DTO_GLOB = [
   '**/*.dto.ts',
   '**/*.entity.ts',
@@ -925,6 +944,27 @@ const findTsConfigEffect = Effect.fn('Generate.findTsConfig')(function* (
   return undefined;
 });
 
+const withSource = (
+  infos: readonly MethodInfo[],
+  controller: ClassDeclaration,
+  module: ClassDeclaration,
+  entry: string,
+): readonly MethodInfo[] => {
+  const controllerDecorators = readDecoratorUses(controller);
+  return infos.map((info) => {
+    const method = controller.getMethod(info.methodName);
+    return {
+      ...info,
+      source: {
+        entry,
+        module: module.getName() ?? '',
+        methodDecorators: method ? readDecoratorUses(method) : [],
+        controllerDecorators,
+      },
+    };
+  });
+};
+
 /**
  * Internal Effect-based logic to extract method infos from a single entry
  */
@@ -933,6 +973,8 @@ const extractMethodInfosFromEntry = (
   entry: string,
   extractOptions: ExtractParametersOptions = {},
   scope: ModuleScope = {},
+  // The entry as written in the config, when operations record their source
+  sourceEntry?: string,
 ) =>
   Effect.fn('Generate.extractMethodInfosFromEntry')(function* (
     inputTsconfig: string,
@@ -968,17 +1010,24 @@ const extractMethodInfosFromEntry = (
       return yield* EntryNotFoundError.classNotFound(inputEntry, 'Module');
     }
 
-    const controllers = yield* ModuleTraversalService.getDocumentedControllers(
-      entryClass,
-      scope,
-    );
+    const controllers =
+      yield* ModuleTraversalService.getDocumentedControllerModules(
+        entryClass,
+        scope,
+      );
 
     const methodInfos = yield* Effect.forEach(
       controllers,
-      (controller) =>
+      ({ controller, module }) =>
         MethodExtractionService.getControllerMethodInfos(
           controller,
           inputExtractOptions,
+        ).pipe(
+          Effect.map((infos) =>
+            sourceEntry === undefined
+              ? infos
+              : withSource(infos, controller, module, sourceEntry),
+          ),
         ),
       { concurrency: 'unbounded' },
     );
@@ -998,11 +1047,18 @@ const extractMethodInfosEffect = Effect.fn('Generate.extractMethodInfos')(
     entries: readonly string[],
     extractOptions: ExtractParametersOptions,
     scope: ModuleScope,
+    sourceEntries?: readonly string[],
   ) {
     const fromEntries = yield* Effect.forEach(
       entries,
-      (entry) =>
-        extractMethodInfosFromEntry(tsconfig, entry, extractOptions, scope),
+      (entry, index) =>
+        extractMethodInfosFromEntry(
+          tsconfig,
+          entry,
+          extractOptions,
+          scope,
+          sourceEntries?.[index],
+        ),
       { concurrency: 'unbounded' },
     );
 
@@ -1111,9 +1167,10 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     const security = openapi.security ?? {};
 
     const rawEntry = files.entry ?? DEFAULT_ENTRY;
-    const entries = (Array.isArray(rawEntry) ? rawEntry : [rawEntry]).map((e) =>
-      resolve(configDir, e),
-    );
+    const configEntries: readonly string[] = Array.isArray(rawEntry)
+      ? rawEntry
+      : [rawEntry];
+    const entries = configEntries.map((e) => resolve(configDir, e));
     const output = resolve(configDir, config.output);
 
     const tsconfig = yield* resolveTsconfigForGenerate(
@@ -1146,10 +1203,16 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     yield* Effect.annotateCurrentSpan('dtoGlobCount', dtoGlobArray.length);
     const [extractedMethodInfos, initialSchemas] = yield* Effect.all(
       [
-        extractMethodInfosEffect(tsconfig, entries, extractOptions, {
-          include: options.include,
-          deepScanRoutes: options.deepScanRoutes,
-        }).pipe(
+        extractMethodInfosEffect(
+          tsconfig,
+          entries,
+          extractOptions,
+          {
+            include: options.include,
+            deepScanRoutes: options.deepScanRoutes,
+          },
+          options.operationExtensions ? configEntries : undefined,
+        ).pipe(
           Effect.tap((methods) =>
             Effect.logDebug('Method extraction complete').pipe(
               Effect.annotateLogs({ methodCount: methods.length, entries }),
@@ -1234,6 +1297,13 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
     const transformer = yield* TransformerService;
     let paths = yield* transformer.transformMethods(routedMethods);
+    if (options.operationExtensions) {
+      paths = yield* applyOperationExtensions(
+        paths,
+        routedMethods,
+        options.operationExtensions,
+      );
+    }
     yield* Effect.annotateCurrentSpan(
       'initialPathCount',
       Object.keys(paths).length,
@@ -1707,6 +1777,15 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         ? adaptSpecForV30(spec)
         : transformSpecForVersion(spec, openApiVersion);
 
+    if (options.overlay) {
+      spec = yield* applyOverlay(
+        spec,
+        options.overlay as string | OverlayDocument,
+        configDir,
+        options.overlayUnmatchedTarget,
+      );
+    }
+
     // Sort keys to match NestJS Swagger output order
     const sortedSpec = sortObjectKeysDeep(spec, true);
 
@@ -1721,12 +1800,22 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     );
     yield* OutputService.writeOutput(output, serializedSpec, format);
 
-    const pathCount = Object.keys(paths).length;
-    const operationCount = Object.values(paths).reduce(
-      (acc, methods) => acc + Object.keys(methods).length,
+    // An overlay may remove `paths`, which OpenAPI 3.1 allows
+    const finalPaths = (sortedSpec.paths ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    const pathCount = Object.keys(finalPaths).length;
+    const operationCount = Object.values(finalPaths).reduce(
+      (acc, pathItem) =>
+        acc +
+        Object.keys(pathItem).filter((key) => OPERATION_KEYS.has(key)).length +
+        Object.keys(pathItem.additionalOperations ?? {}).length,
       0,
     );
-    const schemaCount = Object.keys(schemas).length;
+    const schemaCount = Object.keys(
+      sortedSpec.components?.schemas ?? {},
+    ).length;
     yield* Effect.annotateCurrentSpan('finalPathCount', pathCount);
     yield* Effect.annotateCurrentSpan('finalOperationCount', operationCount);
     yield* Effect.annotateCurrentSpan('finalSchemaCount', schemaCount);

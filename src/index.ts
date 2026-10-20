@@ -78,6 +78,11 @@ export type {
   SchemaNameCollision,
   SchemaNameCollisionStrategy,
   PathTransform,
+  OperationContext,
+  OperationExtensions,
+  OperationExtensionsHook,
+  OverlayDocument,
+  OverlayAction,
 } from './config/types.js';
 
 /**
@@ -140,6 +145,8 @@ export {
   ConfigLoadError,
   ConfigValidationError,
   SchemaNameCollisionError,
+  OperationExtensionsError,
+  OverlayError,
   DtoGlobResolutionError,
   InvalidMethodError,
   PublicApiError,

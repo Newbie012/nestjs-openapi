@@ -115,29 +115,57 @@ export const findMissingIncludes = (
   return include.filter((name) => !found.has(name));
 };
 
+export interface DocumentedController {
+  readonly controller: ClassDeclaration;
+  /** The module declaring the controller */
+  readonly module: ClassDeclaration;
+}
+
+const declaredIn = (mod: ClassDeclaration) =>
+  getModuleMetadata(mod).controllers.map((controller) => ({
+    controller,
+    module: mod,
+  }));
+
 // SwaggerModule.createDocument()'s rules: with `include`, only controllers
 // declared in the included modules, plus, with `deepScanRoutes`, those of
 // their direct, non-global imports
-export const getDocumentedControllers = Effect.fn(
-  'Modules.getDocumentedControllers',
+export const getDocumentedControllerModules = Effect.fn(
+  'Modules.getDocumentedControllerModules',
 )(function* (root: ClassDeclaration, scope: ModuleScope = {}) {
   const include = scope.include ?? [];
   if (include.length === 0) {
-    return yield* getAllControllers(root);
+    const modules = yield* getModules(root);
+    return modules.flatMap(({ declaration, controllers }) =>
+      controllers.map((controller) => ({ controller, module: declaration })),
+    ) as readonly DocumentedController[];
   }
 
   const included = includedModules(root, include);
-  const controllers = included.flatMap((mod) => {
-    const { controllers: own, imports } = getModuleMetadata(mod);
+  const documented = included.flatMap((mod) => {
     const fromImports = scope.deepScanRoutes
-      ? imports
-          .filter((imported) => !isGlobalModule(imported))
-          .flatMap((imported) => getModuleMetadata(imported).controllers)
+      ? getModuleMetadata(mod)
+          .imports.filter((imported) => !isGlobalModule(imported))
+          .flatMap(declaredIn)
       : [];
-    return [...fromImports, ...own];
+    return [...fromImports, ...declaredIn(mod)];
   });
 
-  return [...new Set(controllers)] as readonly ClassDeclaration[];
+  const seen = new Set<ClassDeclaration>();
+  return documented.filter(({ controller }) => {
+    if (seen.has(controller)) return false;
+    seen.add(controller);
+    return true;
+  }) as readonly DocumentedController[];
+});
+
+export const getDocumentedControllers = Effect.fn(
+  'Modules.getDocumentedControllers',
+)(function* (root: ClassDeclaration, scope: ModuleScope = {}) {
+  const documented = yield* getDocumentedControllerModules(root, scope);
+  return documented.map(
+    ({ controller }) => controller,
+  ) as readonly ClassDeclaration[];
 });
 
 const serviceGetModules = Effect.fn('ModuleTraversalService.getModules')(
@@ -160,6 +188,7 @@ export class ModuleTraversalService extends Effect.Service<ModuleTraversalServic
       getModules: serviceGetModules,
       getAllControllers: serviceGetAllControllers,
       getDocumentedControllers,
+      getDocumentedControllerModules,
     }),
   },
 ) {}

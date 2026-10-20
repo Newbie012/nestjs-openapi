@@ -232,6 +232,36 @@ options: {
 }
 ```
 
+### `operationExtensions`
+
+Adds `x-` extensions to each operation. The function gets what the generator knows about the operation and returns the extensions to add, or `undefined` for none:
+
+| Field                                        | Example                                                                  |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| `httpMethod`                                 | `'post'`                                                                 |
+| `path`                                       | `'/api/users/{id}'`, after `basePath` and `transformPath`                |
+| `operationId`                                | `'UsersController_update'`                                               |
+| `controller`, `method`                       | `'UsersController'`, `'update'`                                          |
+| `module`                                     | `'UsersModule'`, the module declaring the controller                     |
+| `entry`                                      | The `files.entry` the operation was found from, as written in the config |
+| `decorators.method`, `decorators.controller` | The decorators as written, top to bottom, each a `{ name, args }`        |
+
+Decorator arguments are evaluated statically, as for [`decorators`](#decorators): literals, arrays and objects become values, constants and enum members are resolved, and classes become a `TypeRef`. This is how your own decorators reach the spec:
+
+```typescript
+options: {
+  // @Roles('admin') becomes x-roles: ['admin']
+  operationExtensions: ({ decorators }) => {
+    const roles = [...decorators.controller, ...decorators.method]
+      .filter((decorator) => decorator.name === 'Roles')
+      .flatMap((decorator) => decorator.args);
+    return roles.length > 0 ? { 'x-roles': roles } : undefined;
+  },
+}
+```
+
+Keys set with `@ApiExtension` on the method or its controller win over the returned ones. A returned name that does not start with `x-` fails generation.
+
 ### `versioning`
 
 The versioning you pass to `app.enableVersioning()`, which static analysis cannot see. With `type: 'uri'`, paths get the version of their method (`@Version()`), else of their controller (`@Controller({ version })`), else `defaultVersion`, exactly as Nest builds them: `/v1/users`, one path per version for arrays, none for `VERSION_NEUTRAL`. Operation ids get the version too (`UsersController_findAll_v1`), as in @nestjs/swagger. Header, media-type and custom versioning do not change paths.
@@ -388,6 +418,35 @@ options: {
   pathFilter: /^\/api\/v2\//,
 }
 ```
+
+### `overlay`
+
+Applies an [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/v1.0.0.html) document to the generated spec, before it is written. Give the overlay object, or the path of a JSON or YAML file, relative to the config file:
+
+```yaml
+# public.overlay.yaml
+overlay: 1.0.0
+info:
+  title: Public API
+  version: 1.0.0
+actions:
+  - target: $.paths['/admin/users']
+    description: Hide the admin routes
+    remove: true
+  - target: $.paths['/users'].get
+    update:
+      x-rate-limit: { perMinute: 100 }
+```
+
+```typescript
+options: {
+  overlay: 'public.overlay.yaml',
+}
+```
+
+Actions run in order, each on the result of the previous one. `target` is an [RFC 9535](https://www.rfc-editor.org/rfc/rfc9535) JSONPath. `update` is merged into each object it selects (nested objects merge, other values replace) or appended to each array it selects; `remove: true` deletes what it selects.
+
+An action whose `target` matches nothing fails generation and names the action, so a renamed route cannot silently drop a change. Set `overlayUnmatchedTarget: 'warn'` to log a warning and skip it instead.
 
 ### `query`
 
