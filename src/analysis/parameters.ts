@@ -225,7 +225,7 @@ const withDeclaration = (
     () => inferred.description,
   ),
   ...(declared.schema ? { declaredSchema: declared.schema } : {}),
-  extra: { ...(inferred.extra ?? {}), ...declared.extra },
+  extra: declared.extra,
 });
 
 const fromDeclaration = (declared: DeclaredParameter): ResolvedParameter => ({

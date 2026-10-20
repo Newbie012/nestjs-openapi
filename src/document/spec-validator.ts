@@ -242,9 +242,8 @@ const isBranchNoise = ({ keyword, params }: AjvError) =>
 export async function validateStructure(
   spec: OpenApiSpec,
 ): Promise<readonly StructuralError[]> {
-  const detachedCopy = structuredClone(spec);
   const result = await new Validator().validate(
-    detachedCopy as unknown as Parameters<Validator['validate']>[0],
+    spec as unknown as Parameters<Validator['validate']>[0],
   );
   const schemaErrors: StructuralError[] = result.valid
     ? []

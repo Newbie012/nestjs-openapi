@@ -206,17 +206,7 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
 
   const symbol = awaited.getSymbol?.();
 
-  const getOriginalTypeName = (): string | null => {
-    if (!symbol) return null;
-    const aliased = symbol.getAliasedSymbol?.();
-    if (aliased) {
-      const name = aliased.getName();
-      if (name && !name.startsWith('__')) return name;
-    }
-    return null;
-  };
-
-  let text = getOriginalTypeName() ?? rawTypeText;
+  let text = rawTypeText;
 
   const compilerType = awaited.compilerType as {
     aliasSymbol?: {

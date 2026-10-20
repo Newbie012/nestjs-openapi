@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "mapped-type-base-outside-schema-files",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "patch": {
+        "operationId": "ShapeController_update",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShapeDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UpdateShapeDto": {
+        "properties": {
+          "name": {
+            "description": "The shape's name",
+            "type": "string"
+          },
+          "sides": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}
