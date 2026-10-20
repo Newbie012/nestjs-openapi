@@ -32,10 +32,6 @@
  * ```
  */
 
-// =============================================================================
-// Primary Public API
-// =============================================================================
-
 /**
  * Generate OpenAPI specification from a NestJS application
  */
@@ -108,10 +104,6 @@ export type {
   SwaggerOptions,
 } from './runtime/module.js';
 
-// =============================================================================
-// Advanced API (for users who need more control)
-// =============================================================================
-
 /**
  * Internal generate function (Effect-based)
  * Use this if you want to integrate with Effect-TS
@@ -121,12 +113,9 @@ export {
   generateAsync,
   generatePathsEffect,
   generatePathsAsync,
-  generateFromConfigEffect,
-  generateFromConfigAsync,
   type GenerateOptions,
 } from './internal.js';
 
-// Domain Types
 export type {
   ParameterLocation,
   ResolvedParameter,
@@ -137,7 +126,6 @@ export type {
   ResolvedConfig,
 } from './model/domain.js';
 
-// Errors
 export {
   ProjectInitError,
   EntryNotFoundError,
@@ -159,78 +147,39 @@ export {
   type GeneratorError,
 } from './config/errors.js';
 
-// Services
 export {
-  ProjectService,
-  ProjectServiceLive,
   makeProjectContext,
   type ProjectContext,
   type ProjectOptions,
 } from './analysis/project.js';
 
-// Module Exploration
 export {
   getModules,
   getAllControllers,
-  ModuleTraversalService,
   type ModuleWithControllers,
 } from './analysis/modules.js';
 
-// Controller Analysis
 export {
   getControllerPrefix,
   getControllerName,
   isHttpMethod,
-  getHttpMethods,
   getDecoratorName,
   getControllerTags,
   getHttpDecorator,
-  isHttpDecorator,
   normalizePath,
 } from './analysis/controllers.js';
 
-// Method Analysis
-export {
-  getMethodInfo,
-  getMethodInfoEffect,
-  getControllerMethodInfos,
-  getControllerMethodInfosEffect,
-  MethodExtractionService,
-} from './analysis/methods.js';
+export { getMethodInfo, getControllerMethodInfos } from './analysis/methods.js';
 
-// Transformation
-export {
-  TransformerService,
-  transformMethod,
-  transformMethodEffect,
-  transformMethods,
-  transformMethodsEffect,
-} from './document/transformer.js';
+export { transformMethod, transformMethods } from './document/transformer.js';
 
-// Schema merging
-export {
-  mergeSchemas,
-  mergeSchemasEffect,
-  mergeGeneratedSchemas,
-  mergeGeneratedSchemasEffect,
-  filterSchemas,
-  filterSchemasEffect,
-  type MergedResult,
-} from './schema/schema-merger.js';
+export { mergeSchemas, type MergedResult } from './schema/schema-merger.js';
 
-// Schema normalization
 export {
-  normalizeSchemas,
-  normalizeSchemasEffect,
-  filterInternalSchemas,
-  filterInternalSchemasEffect,
   normalizeStructureRefs,
-  normalizeStructureRefsEffect,
   toPascalCase,
-  type NormalizerOptions,
 } from './schema/schema-normalizer.js';
 
-// Schema generation
 export {
   generateSchemas,
   generateSchemasFromFiles,
@@ -241,30 +190,21 @@ export {
   type JsonSchema,
 } from './schema/schema-generator.js';
 
-export { SchemaService } from './schema/schema-service.js';
-
-// Validation mapping
 export {
-  ValidationMapperService,
   extractPropertyConstraints,
   isPropertyOptional,
   extractPropertyValidationInfo,
   extractClassValidationInfo,
   extractClassValidationInfoEffect,
-  extractClassConstraints,
-  getRequiredProperties,
   applyConstraintsToSchema,
   mergeValidationConstraints,
-  mergeValidationConstraintsEffect,
   type ValidationConstraints,
   type PropertyValidationInfo,
   type ClassValidationInfo,
 } from './analysis/validation-mapper.js';
 
-export { ValidationService } from './analysis/validation-service.js';
 export { OutputService } from './document/output-service.js';
 
-// Config utilities
 export {
   ConfigService,
   findConfigFile,
@@ -274,14 +214,11 @@ export {
   loadAndResolveConfig,
 } from './config/config.js';
 
-// Service layers
 export { generatorServicesLayer } from './runtime/service-layer.js';
 
-// AST Utilities
 export {
   resolveClassFromSymbol,
   getArrayInitializer,
-  getStringLiteralValue,
   getSymbolFromIdentifier,
 } from './analysis/ast.js';
 
@@ -294,7 +231,6 @@ export {
   type ModuleMetadata,
 } from './analysis/nest-ast.js';
 
-// Spec Validation
 export {
   validateSpec,
   categorizeBrokenRefs,

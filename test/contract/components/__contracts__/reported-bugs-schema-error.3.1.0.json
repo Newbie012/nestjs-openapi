@@ -1,0 +1,47 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Reported Bugs Schema Error API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/state": {
+      "get": {
+        "operationId": "AppController_getState",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StateDto": {
+        "properties": {
+          "installed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "installed"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

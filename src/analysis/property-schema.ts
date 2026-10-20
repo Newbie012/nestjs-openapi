@@ -14,8 +14,10 @@ export type EnumStyle = 'nest' | 'ref';
 export const DEFAULT_ENUM_STYLE: EnumStyle = 'ref';
 
 export type SchemaNaming = {
-  // Collision handling may name a declaration differently from its
-  // TypeScript name
+  /**
+   * Collision handling may name a declaration differently from its
+   * TypeScript name
+   */
   readonly componentName: (name: string, node: Node | undefined) => string;
   readonly enums?: EnumStyle;
 };
@@ -55,7 +57,6 @@ const TYPE_OPTIONS = new Set([
   'enumSchema',
 ]);
 
-// Read elsewhere into typed constraints, so not copied twice
 const TYPED_KEYWORDS = new Set([
   'description',
   'title',
@@ -111,7 +112,6 @@ export const toSchemaJson = (
           return schemaRefPath(naming.componentName(opaque.name, opaque.node));
         }
         if (opaque.kind === 'reference') {
-          // A class used where a schema is expected: `items: { type: Dto }`
           return typeSchema(opaque, naming);
         }
         if (opaque.kind === 'thunk') return toSchemaJson(opaque.value, naming);
@@ -142,8 +142,10 @@ export const typeSchema = (
   return name !== undefined ? PRIMITIVE_TYPE_NAMES[name] : undefined;
 };
 
-// Marks an enum named on purpose (`enumName`): the 'nest' enum style keeps
-// it while inlining enums inferred from TypeScript types
+/**
+ * Marks a ref to an enum named on purpose (`enumName`): the 'nest' enum style
+ * keeps it while inlining refs to enums inferred from TypeScript types
+ */
 export const NAMED_ENUM_REF: unique symbol = Symbol('namedEnumRef');
 
 const enumValueType = (values: readonly EnumValue[]) =>
@@ -181,8 +183,6 @@ const wrapArray = (schema: JsonSchema, isArray: boolean) =>
     ? { type: 'array', items: schema }
     : schema;
 
-// As in @nestjs/swagger, what the decorator says about the type replaces the
-// type inferred from TypeScript, and every other keyword is copied
 const sameValues = (
   values: readonly EnumValue[],
   others: readonly EnumValue[] | undefined,
@@ -191,6 +191,10 @@ const sameValues = (
   values.length === others.length &&
   values.every((value) => others.includes(value));
 
+/**
+ * As in @nestjs/swagger, what the decorator says about the type replaces the
+ * type inferred from TypeScript, and every other keyword is copied
+ */
 export const readDeclaredPropertySchema = (
   options: StaticValue | undefined,
   naming: SchemaNaming,
@@ -219,9 +223,6 @@ export const readDeclaredPropertySchema = (
           ? { name: unwrapped.name, node: unwrapped.node }
           : undefined;
       const enumName = asString(properties['enumName']);
-      // Values alone (`Object.values(Status)`, a literal array) name no
-      // enum: in 'ref' style the TypeScript type, when it has the same
-      // values, keeps its component
       if (
         naming.enums === 'ref' &&
         enumName === undefined &&
@@ -270,9 +271,3 @@ export const readDeclaredPropertySchema = (
 
   return { keywords };
 };
-
-export const allowsNull = (schema: JsonSchema) =>
-  schema.nullable === true ||
-  (Array.isArray(schema.type) && schema.type.includes('null')) ||
-  (schema.anyOf ?? []).some((member) => member.type === 'null') ||
-  (schema.oneOf ?? []).some((member) => member.type === 'null');

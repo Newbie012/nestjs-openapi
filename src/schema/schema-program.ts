@@ -1,6 +1,3 @@
-// Building the program here, rather than letting ts-json-schema-generator
-// load a tsconfig, allows restricting a run to some files, in-memory files
-// and source edits, and reusing parsed library declarations across runs.
 import { Effect, Either } from 'effect';
 import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -13,11 +10,12 @@ import { MAPPED_TYPE_HELPERS } from '../analysis/mapped-types.js';
 const require = createRequire(import.meta.url);
 const tsj =
   require('ts-json-schema-generator') as typeof import('ts-json-schema-generator');
-// The generator inspects nodes with its own `typescript` instance, so the
-// program must be built with the same one.
-const ts = createRequire(require.resolve('ts-json-schema-generator'))(
-  'typescript',
-) as typeof TypeScript;
+const loadGeneratorTypescript = () =>
+  createRequire(require.resolve('ts-json-schema-generator'))(
+    'typescript',
+  ) as typeof TypeScript;
+
+const ts = loadGeneratorTypescript();
 
 export type SchemaProgramOptions = {
   readonly tsconfig: string;
@@ -47,7 +45,6 @@ export type SchemaGeneratorHandle = {
     filePath: string,
     name: string,
   ) => string | undefined;
-  // A new generator per call, so one failure leaves nothing behind for the next
   readonly createSchemaForNodes: (
     nodes: readonly TypeScript.Node[],
   ) => TsJsonSchemaOutput;
@@ -60,7 +57,6 @@ const BASE_GENERATOR_CONFIG: TsJsonSchemaConfig = {
   sortProps: true,
   strictTuples: false,
   encodeRefs: false,
-  // Left out unless declared, as @nestjs/swagger does
   additionalProperties: true,
 };
 
@@ -119,8 +115,6 @@ const hasModifier = (node: TypeScript.Node, kind: TypeScript.SyntaxKind) =>
   ts.canHaveModifiers(node) &&
   (ts.getModifiers(node) ?? []).some((modifier) => modifier.kind === kind);
 
-// @nestjs/swagger names a schema after every class, exported or not; the
-// generator only names exported ones
 const exportInsertions = (sourceFile: TypeScript.SourceFile) =>
   sourceFile.statements.flatMap((statement) => {
     if (
@@ -131,13 +125,14 @@ const exportInsertions = (sourceFile: TypeScript.SourceFile) =>
     ) {
       return [];
     }
-    // Before the first non-decorator modifier (`abstract`) or `class`
-    const anchor =
+    const firstModifierOrClassKeyword =
       ts.getModifiers(statement)?.[0] ??
       statement
         .getChildren(sourceFile)
         .find((child) => child.kind === ts.SyntaxKind.ClassKeyword);
-    return anchor ? [anchor.getStart(sourceFile)] : [];
+    return firstModifierOrClassKeyword
+      ? [firstModifierOrClassKeyword.getStart(sourceFile)]
+      : [];
   });
 
 const isMappedTypeHeritage = (clause: TypeScript.HeritageClause) =>
@@ -208,11 +203,8 @@ const transformSource = (
   return edits.length > 0 ? applyEdits(sourceFile.text, edits) : undefined;
 };
 
-// Parsing library declarations dominates the cost of each program
 const librarySourceCache = new Map<string, TypeScript.SourceFile>();
 
-// Recovery builds programs that differ from the first by one edited file:
-// only that file is parsed again, and TypeScript skips binding the rest
 const projectSourceCache = new Map<string, TypeScript.SourceFile>();
 
 export const clearSchemaProgramCache = () => {
@@ -283,7 +275,6 @@ const createCompilerHost = (
         return sourceFile;
       }
 
-      // Keyed by modification time and size: files can change between runs
       const stats = statSync(absolute, { throwIfNoEntry: false });
       const key = `${absolute}|${JSON.stringify(languageVersion)}|${strip}|${stats?.mtimeMs}:${stats?.size}`;
       const cached = projectSourceCache.get(key);
@@ -308,7 +299,7 @@ const createCompilerHost = (
   };
 };
 
-// Diagnostic positions refer to this text, not the file on disk
+/** Diagnostic positions refer to this text, not the file on disk */
 export const readProgramSource = (
   filePath: string,
   options: SchemaProgramOptions,
@@ -430,9 +421,6 @@ const isSchemaType = (
   ts.isTypeAliasDeclaration(node) ||
   ts.isEnumDeclaration(node);
 
-// Explicit roots instead of the generator's own `'*'`, which also treats
-// every function and arrow-function constant as a root; some of those crash
-// it ("Invalid value used as weak map key"), losing the whole file
 const collectRootTypes = (program: TypeScript.Program) => {
   const checker = program.getTypeChecker();
   const rootFiles = new Set(
@@ -460,7 +448,6 @@ const collectRootTypes = (program: TypeScript.Program) => {
       ) {
         add(statement);
       }
-      // export { A, B } and export { A } from './a'
       if (
         ts.isExportDeclaration(statement) &&
         statement.exportClause &&
@@ -487,9 +474,6 @@ const collectRootTypes = (program: TypeScript.Program) => {
 
 const MAX_INLINE_DEPTH = 3;
 
-// The generator cannot index some library typings built from mapped types,
-// but the checker resolves them: references to them are replaced with the
-// structure the checker resolves
 const inlineExternalTypes = (
   program: TypeScript.Program,
   declaration: TypeScript.Node,

@@ -1,0 +1,28 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Books API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "components": {
+    "schemas": {
+      "BookDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

@@ -1,6 +1,9 @@
 import { Node, type ClassDeclaration, type Expression } from 'ts-morph';
 import { getCalleeName, resolveDeclarations } from './ast.js';
-import type { GeneratedSchemas, JsonSchema } from '../schema/schema-generator.js';
+import type {
+  GeneratedSchemas,
+  JsonSchema,
+} from '../schema/schema-generator.js';
 import { asStrings, evaluate } from './static-value.js';
 
 export const MAPPED_TYPE_HELPERS: ReadonlySet<string> = new Set([
@@ -80,9 +83,11 @@ const mergeShapes = (shapes: readonly ObjectShape[]): ObjectShape => ({
   required: [...new Set(shapes.flatMap((shape) => shape.required))],
 });
 
-// The schema generator cannot evaluate mapped-type helper calls, so it only
-// sees a class's own properties; the inherited part is composed here from
-// the base classes' schemas
+/**
+ * The schema generator cannot evaluate mapped-type helper calls, so it only
+ * sees a class's own properties; the inherited part is composed here from
+ * the base classes' schemas
+ */
 export const applyMappedTypes = (
   schemas: GeneratedSchemas,
   classes: ReadonlyMap<string, ClassDeclaration>,

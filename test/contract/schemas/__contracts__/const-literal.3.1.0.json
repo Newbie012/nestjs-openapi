@@ -1,0 +1,48 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "const-literal",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "get": {
+        "operationId": "ShapeController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShapeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShapeDto": {
+        "properties": {
+          "kind": {
+            "const": "card",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

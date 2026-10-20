@@ -1,0 +1,74 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "spread-controllers-imports",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/c": {
+      "get": {
+        "operationId": "CController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "C"
+        ]
+      }
+    },
+    "/b": {
+      "get": {
+        "operationId": "BController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "B"
+        ]
+      }
+    },
+    "/a": {
+      "get": {
+        "operationId": "AController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "A"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

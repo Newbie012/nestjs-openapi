@@ -109,7 +109,7 @@ export default defineConfig({
 
 ### Sharing config across files
 
-`extends` is defined in the types but not executed by the Promise-based generator. Use manual composition instead (see [Config Inheritance](/docs/advanced/extending)).
+`extends` loads a base config; paths in it are relative to the file that declares them (see [`extends`](/docs/guides/configuration#extends)). You can also compose configs by hand (see [Config Inheritance](/docs/advanced/extending)).
 
 ### Without defineConfig
 
@@ -209,6 +209,7 @@ defineConfig({
     extractValidation: true, // default
     excludeDecorators: ['ApiExcludeEndpoint'],
     pathFilter: /regex/ /* or function */,
+    order: 'source', // default; 'alphabetical' sorts A to Z
     schemas: {
       aliasRefs: 'collapse', // default
       additionalProperties: 'omit', // default; 'forbid' writes `false`

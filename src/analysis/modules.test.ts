@@ -4,7 +4,6 @@ import { Project } from 'ts-morph';
 import {
   getModules,
   getAllControllers,
-  ModuleTraversalService,
 } from './modules.js';
 
 describe('Modules', () => {
@@ -228,7 +227,7 @@ describe('Modules', () => {
       expect(result).toEqual([]);
     });
 
-    it('provides service accessors via ModuleTraversalService.Default', async () => {
+    it('collects controllers through getAllControllers', async () => {
       const project = createProject();
       const sourceFile = project.createSourceFile(
         'service-test.ts',
@@ -247,11 +246,7 @@ describe('Modules', () => {
       );
 
       const appModule = sourceFile.getClass('AppModule')!;
-      const result = await Effect.runPromise(
-        ModuleTraversalService.getAllControllers(appModule).pipe(
-          Effect.provide(ModuleTraversalService.Default),
-        ),
-      );
+      const result = await Effect.runPromise(getAllControllers(appModule));
 
       expect(result).toHaveLength(1);
       expect(result[0].getName()).toBe('UserController');

@@ -1,5 +1,7 @@
 import {
   Node,
+  SyntaxKind,
+  type Expression,
   type MethodDeclaration,
   type SourceFile,
   type Symbol as TsSymbol,
@@ -70,7 +72,8 @@ const collectImportAliases = (sourceFile: SourceFile) => {
 
 const recordDeclaration = (node: Node, state: WalkState, topLevel: boolean) => {
   const declaration = toSchemaDeclaration(node);
-  if (!declaration || !isUserCode(declaration.node)) return;
+  if (!declaration) return;
+  if (!isUserCode(declaration.node) && declaration.kind !== 'enum') return;
 
   const name = declaration.node.getName();
   if (!name) return;
@@ -96,6 +99,21 @@ const recordDeclaration = (node: Node, state: WalkState, topLevel: boolean) => {
   walkDeclarationMembers(declaration.node, state);
 };
 
+const recordMappedTypeBases = (node: Node, state: WalkState) => {
+  const heritage = Node.isClassDeclaration(node)
+    ? node.getExtends()?.getExpression()
+    : undefined;
+  if (!heritage || !Node.isCallExpression(heritage)) return;
+  heritage.forEachDescendant((descendant) => {
+    if (!Node.isIdentifier(descendant)) return;
+    for (const declaration of resolveDeclarations(descendant)) {
+      if (Node.isClassDeclaration(declaration)) {
+        recordDeclaration(declaration, state, false);
+      }
+    }
+  });
+};
+
 const PROPERTY_DECORATORS = new Set(['ApiProperty', 'ApiPropertyOptional']);
 
 const walkDeclarationMembers = (node: Node, state: WalkState) => {
@@ -107,21 +125,7 @@ const walkDeclarationMembers = (node: Node, state: WalkState) => {
     return;
   }
 
-  // Mapped-type bases, `extends PartialType(OmitType(UserDto, ['id']))`,
-  // are not in the class type's properties
-  const heritage = Node.isClassDeclaration(node)
-    ? node.getExtends()?.getExpression()
-    : undefined;
-  if (heritage && Node.isCallExpression(heritage)) {
-    heritage.forEachDescendant((descendant) => {
-      if (!Node.isIdentifier(descendant)) return;
-      for (const declaration of resolveDeclarations(descendant)) {
-        if (Node.isClassDeclaration(declaration)) {
-          recordDeclaration(declaration, state, false);
-        }
-      }
-    });
-  }
+  recordMappedTypeBases(node, state);
 
   for (const property of node.getType().getProperties()) {
     const declaration =
@@ -152,14 +156,11 @@ const walkType = (type: Type, state: WalkState, topLevel: boolean) => {
   if (state.visitedTypes.has(type) && !topLevel) return;
   state.visitedTypes.add(type);
 
-  // `type ItemList = ItemDto[]` is a component too, generated from its
-  // alias; record it before walking the array, union or intersection
   const aliasSymbol = type.getAliasSymbol();
   const arrayElement = type.getArrayElementType();
-  if (
-    aliasSymbol &&
-    (arrayElement || type.isUnion() || type.isIntersection())
-  ) {
+  const isAliasedComposite =
+    arrayElement !== undefined || type.isUnion() || type.isIntersection();
+  if (aliasSymbol && isAliasedComposite) {
     recordSymbol(aliasSymbol, state, topLevel);
   }
 
@@ -215,6 +216,54 @@ const walkReference = (
   }
 };
 
+const walkTypeNode = (typeNode: Node, state: WalkState, topLevel: boolean) => {
+  const references = Node.isTypeReference(typeNode)
+    ? [typeNode, ...typeNode.getDescendantsOfKind(SyntaxKind.TypeReference)]
+    : typeNode.getDescendantsOfKind(SyntaxKind.TypeReference);
+  for (const reference of references) {
+    const name = reference.getTypeName();
+    const identifier = Node.isQualifiedName(name) ? name.getRight() : name;
+    for (const declaration of resolveDeclarations(identifier)) {
+      recordDeclaration(declaration, state, topLevel);
+    }
+  }
+};
+
+const returnedExpressions = (fn: Node): readonly Expression[] => {
+  const body =
+    Node.isBodyable(fn) || Node.isBodied(fn) ? fn.getBody() : undefined;
+  if (!body) return [];
+  if (!Node.isBlock(body)) return Node.isExpression(body) ? [body] : [];
+  return body
+    .getDescendantsOfKind(SyntaxKind.ReturnStatement)
+    .filter(
+      (statement) =>
+        statement.getFirstAncestor(Node.isFunctionLikeDeclaration) === fn,
+    )
+    .flatMap((statement) => statement.getExpression() ?? []);
+};
+
+const unwrapExpression = (expression: Expression): Expression =>
+  Node.isAwaitExpression(expression) ||
+  Node.isParenthesizedExpression(expression)
+    ? unwrapExpression(expression.getExpression())
+    : expression;
+
+const writtenReturnTypes = (fn: Node, seen: Set<Node>): readonly Node[] => {
+  if (seen.has(fn) || !Node.isFunctionLikeDeclaration(fn)) return [];
+  seen.add(fn);
+  const annotated = fn.getReturnTypeNode();
+  if (annotated) return [annotated];
+  return returnedExpressions(fn).flatMap((expression) => {
+    const unwrapped = unwrapExpression(expression);
+    return Node.isCallExpression(unwrapped)
+      ? resolveDeclarations(unwrapped.getExpression()).flatMap((callee) =>
+          writtenReturnTypes(callee, seen),
+        )
+      : [];
+  });
+};
+
 const TYPE_BEARING_DECORATORS = /^Api(\w*Response|Body|Query|Param|Header)$/;
 
 export const collectReferencedDeclarations = (
@@ -231,10 +280,15 @@ export const collectReferencedDeclarations = (
   };
 
   walkType(getAwaitedReturnType(method), state, true);
+  for (const typeNode of writtenReturnTypes(method, new Set())) {
+    walkTypeNode(typeNode, state, true);
+  }
 
   for (const parameter of method.getParameters()) {
     if (parameter.getDecorators().length > 0) {
       walkType(parameter.getType(), state, true);
+      const typeNode = parameter.getTypeNode();
+      if (typeNode) walkTypeNode(typeNode, state, true);
     }
   }
 

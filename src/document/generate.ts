@@ -1,8 +1,7 @@
 /**
- * Promise-based entry point for generating OpenAPI specifications.
- *
- * This module provides a clean, Promise-based API that hides the internal
- * Effect-TS implementation from consumers.
+ * The generation pipeline: collects operations and schemas from the source,
+ * normalizes and merges them into one document, adapts it to the requested
+ * OpenAPI version and writes it, with a Promise wrapper around the Effect.
  */
 
 import { Effect } from 'effect';
@@ -26,31 +25,34 @@ import {
 } from '../config/errors.js';
 import {
   findMissingIncludes,
-  ModuleTraversalService,
+  getDocumentedControllerModules,
   type ModuleScope,
 } from '../analysis/modules.js';
 import {
-  MethodExtractionService,
+  getControllerMethodInfos,
   type ExtractParametersOptions,
 } from '../analysis/methods.js';
-import { TransformerService } from './transformer.js';
+import { toOpenApiPath, transformMethods } from './transformer.js';
 import {
   generateNamedSchemas,
+  generateSchemas,
   generateSchemasFromVirtualFile,
   type GeneratedSchemas,
   type JsonSchema,
 } from '../schema/schema-generator.js';
-import { normalizeStructureRefsEffect } from '../schema/schema-normalizer.js';
+import { normalizeStructureRefs } from '../schema/schema-normalizer.js';
 import { collapseAliasRefs } from '../schema/schema-alias-collapser.js';
-import { expandConstSchemas } from '../schema/schema-const-expander.js';
+import { OPERATION_KEYS } from '../schema/schema-walk.js';
 import {
   forbidAdditionalProperties,
-  mergeSchemasEffect,
+  mergeSchemas,
+  reachableSchemaNames,
 } from '../schema/schema-merger.js';
 import { filterMethods } from '../analysis/filter.js';
 import {
   transformSpecForVersion,
   adaptSpecForV30,
+  emptyNonOAuthScopesForV30,
 } from '../schema/schema-version-transformer.js';
 import { ConfigService } from '../config/config.js';
 import {
@@ -60,18 +62,12 @@ import {
 } from './spec-validator.js';
 import { runGeneratorApiPromise } from '../public-api.js';
 import {
-  createTypeResolverProject,
-  resolveTypeLocations,
-  resolveLocalTypeLocations,
-  resolveTypeLocationsFast,
-} from '../schema/type-resolver.js';
-import {
-  ValidationMapperService,
+  extractClassValidationInfoEffect,
+  mergeValidationConstraints,
   type ValidationConstraints,
 } from '../analysis/validation-mapper.js';
 import { runtimeLayerFor } from '../runtime/runtime-layer.js';
 import { generatorServicesLayer } from '../runtime/service-layer.js';
-import { SchemaService } from '../schema/schema-service.js';
 import {
   EMPTY_PLAN,
   applyPlanToMethods,
@@ -115,19 +111,6 @@ import { applyOverlay } from './overlay.js';
 
 const DEFAULT_ENTRY = 'src/app.module.ts';
 
-// Path item keys that hold operations; an overlay may add others, such as
-// `summary` or `parameters`. OpenAPI 3.2 also has `additionalOperations`
-const OPERATION_KEYS = new Set([
-  'get',
-  'put',
-  'post',
-  'delete',
-  'options',
-  'head',
-  'patch',
-  'trace',
-  'query',
-]);
 const DEFAULT_DTO_GLOB = [
   '**/*.dto.ts',
   '**/*.entity.ts',
@@ -170,7 +153,7 @@ const mergeSecurityWithGlobal = (
   globalSecurity: readonly SecurityRequirement[] | undefined,
 ): OpenApiPaths => {
   if (!globalSecurity || globalSecurity.length === 0) {
-    return paths; // No global security to merge
+    return paths;
   }
 
   const mergedPaths: MutablePaths = {};
@@ -180,25 +163,16 @@ const mergeSecurityWithGlobal = (
 
     for (const [method, operation] of Object.entries(methods)) {
       if (operation.security && operation.security.length > 0) {
-        // Preserve OR alternatives by building a cross product:
-        // (global A OR global B) AND (operation C OR operation D)
-        // -> (A+C) OR (A+D) OR (B+C) OR (B+D)
-        const mergedSecurity: SecurityRequirement[] = [];
-
-        for (const globalReq of globalSecurity) {
-          for (const operationReq of operation.security) {
-            mergedSecurity.push(
-              mergeSingleSecurityRequirement(globalReq, operationReq),
-            );
-          }
-        }
-
+        const operationSecurity = operation.security;
         mergedMethods[method] = {
           ...operation,
-          security: mergedSecurity,
+          security: globalSecurity.flatMap((globalReq) =>
+            operationSecurity.map((operationReq) =>
+              mergeSingleSecurityRequirement(globalReq, operationReq),
+            ),
+          ),
         };
       } else {
-        // No decorator security - operation inherits global (no change)
         mergedMethods[method] = operation;
       }
     }
@@ -206,7 +180,7 @@ const mergeSecurityWithGlobal = (
     mergedPaths[path] = mergedMethods;
   }
 
-  return mergedPaths as OpenApiPaths;
+  return mergedPaths;
 };
 
 /**
@@ -222,52 +196,190 @@ const OPENAPI_FIELD_ORDER = [
   'security',
 ];
 
+type KeyContext =
+  | 'root'
+  | 'paths'
+  | 'pathItem'
+  | 'components'
+  | 'schemas'
+  | 'schema'
+  | 'properties'
+  | 'value'
+  | 'other';
+
+const SCHEMA_CHILD_KEYS = new Set([
+  'items',
+  'additionalProperties',
+  'not',
+  'allOf',
+  'anyOf',
+  'oneOf',
+  'prefixItems',
+  'contains',
+  'propertyNames',
+  'if',
+  'then',
+  'else',
+  'unevaluatedItems',
+  'unevaluatedProperties',
+]);
+
+const VALUE_KEYS = new Set(['example', 'examples', 'default', 'enum', 'const']);
+
+const childContext = (parent: KeyContext, key: string): KeyContext => {
+  if (parent === 'value') return 'value';
+  if (parent === 'root') {
+    if (key === 'paths') return 'paths';
+    if (key === 'components') return 'components';
+    return 'other';
+  }
+  if (parent === 'paths') return 'pathItem';
+  if (parent === 'components') return key === 'schemas' ? 'schemas' : 'other';
+  if (parent === 'schemas' || parent === 'properties') return 'schema';
+  if (parent === 'schema') {
+    if (key === 'properties') return 'properties';
+    if (VALUE_KEYS.has(key)) return 'value';
+    if (SCHEMA_CHILD_KEYS.has(key)) return 'schema';
+    return 'other';
+  }
+  if (VALUE_KEYS.has(key)) return 'value';
+  if (key === 'schema') return 'schema';
+  return 'other';
+};
+
+const KEEPS_SOURCE_ORDER: ReadonlySet<KeyContext> = new Set([
+  'paths',
+  'pathItem',
+  'properties',
+]);
+
 /**
- * Recursively sort object keys.
+ * Recursively order object keys.
  * - Top-level OpenAPI fields are ordered per spec convention
- * - Nested objects are sorted alphabetically for consistency
+ * - With `'alphabetical'`, every other object is sorted A to Z
+ * - With `'source'`, paths, the operations of a path item and schema
+ *   properties keep the order they were built in; every other object is
+ *   still sorted A to Z
  */
-const sortObjectKeysDeep = <T>(obj: T, isTopLevel = false): T => {
+const orderObjectKeysDeep = <T>(
+  obj: T,
+  order: 'source' | 'alphabetical',
+  context: KeyContext = 'root',
+): T => {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => sortObjectKeysDeep(item, false)) as T;
+    return obj.map((item) =>
+      orderObjectKeysDeep(item, order, context === 'value' ? 'value' : 'other'),
+    ) as T;
   }
 
-  const sorted: Record<string, unknown> = {};
+  const ordered: Record<string, unknown> = {};
   const objRecord = obj as Record<string, unknown>;
   const keys = Object.keys(objRecord);
 
-  // Sort keys: use OpenAPI order for top-level, alphabetical otherwise
-  const sortedKeys = isTopLevel
-    ? keys.sort((a, b) => {
-        const aIndex = OPENAPI_FIELD_ORDER.indexOf(a);
-        const bIndex = OPENAPI_FIELD_ORDER.indexOf(b);
-        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-        if (aIndex !== -1) return -1;
-        if (bIndex !== -1) return 1;
-        return a.localeCompare(b);
-      })
-    : keys.sort();
+  const orderedKeys =
+    context === 'root'
+      ? keys.sort((a, b) => {
+          const aIndex = OPENAPI_FIELD_ORDER.indexOf(a);
+          const bIndex = OPENAPI_FIELD_ORDER.indexOf(b);
+          if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+          return a.localeCompare(b);
+        })
+      : order === 'source' && KEEPS_SOURCE_ORDER.has(context)
+        ? keys
+        : keys.sort();
 
-  for (const key of sortedKeys) {
-    sorted[key] = sortObjectKeysDeep(objRecord[key], false);
+  for (const key of orderedKeys) {
+    ordered[key] = orderObjectKeysDeep(
+      objRecord[key],
+      order,
+      childContext(context, key),
+    );
   }
 
-  return sorted as T;
+  return ordered as T;
+};
+
+const REF_PREFIX = '#/components/schemas/';
+
+/**
+ * Orders `components.schemas` by first reach: walking the ordered paths, then
+ * each schema as it is reached, in document order. Schemas nothing reaches
+ * follow, A to Z.
+ */
+const orderSchemasByReach = (spec: OpenApiSpec): OpenApiSpec => {
+  const schemas = spec.components?.schemas;
+  if (!schemas) return spec;
+  const reached = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (
+        key === '$ref' &&
+        typeof value === 'string' &&
+        value.startsWith(REF_PREFIX)
+      ) {
+        const name = value.slice(REF_PREFIX.length);
+        if (name in schemas && !reached.has(name)) {
+          reached.add(name);
+          visit(schemas[name]);
+        }
+      } else {
+        visit(value);
+      }
+    }
+  };
+  visit(spec.paths);
+  const names = [
+    ...reached,
+    ...Object.keys(schemas).filter((name) => !reached.has(name)),
+  ];
+  return {
+    ...spec,
+    components: {
+      ...spec.components,
+      schemas: Object.fromEntries(names.map((name) => [name, schemas[name]!])),
+    },
+  };
 };
 
 /**
- * Find all schema refs in paths that aren't defined in schemas.
+ * Adds schemas found after the first round, normalized on their own. They
+ * win over the schemas found before, except where `kept` names a schema
+ * that is already there (one generated from its planned declaration).
+ */
+const withLaterSource = (
+  schemas: GeneratedSchemas,
+  source: GeneratedSchemas,
+  kept: ReadonlyMap<string, unknown> = new Map(),
+): GeneratedSchemas => ({
+  definitions: {
+    ...schemas.definitions,
+    ...Object.fromEntries(
+      Object.entries(normalizeStructureRefs(source).definitions).filter(
+        ([name]) => !(kept.has(name) && schemas.definitions[name]),
+      ),
+    ),
+  },
+});
+
+/**
+ * Find all schema refs in paths that aren't among the `defined` names.
  * Returns a set of missing schema names.
  */
 const findMissingSchemaRefs = (
   paths: OpenApiSpec['paths'],
-  schemas: Record<string, OpenApiSchema>,
+  defined: ReadonlySet<string>,
 ): Set<string> => {
-  const defined = new Set(Object.keys(schemas));
   const missing = new Set<string>();
 
   const findRefs = (obj: unknown): void => {
@@ -325,26 +437,31 @@ const NON_IMPORTABLE_TYPE_NAMES = new Set([
   'extends',
 ]);
 
-// The names a type text refers to, read with the TypeScript parser so that
-// property names in `{ sent: boolean }`, index signature keys and mapped type
-// parameters are not taken for types to import
-const extractTypeIdentifiers = (typeRef: string): Set<string> => {
+const parseTypeRef = (
+  typeRef: string,
+): { identifiers: Set<string>; unqualified: string } => {
+  const prefix = 'type __Ref = ';
   const source = ts.createSourceFile(
     'type-ref.ts',
-    `type __Ref = ${typeRef};`,
+    `${prefix}${typeRef};`,
     ts.ScriptTarget.Latest,
   );
   const names = new Set<string>();
+  const qualifiers: Array<{ start: number; end: number }> = [];
   const visit = (node: ts.Node): void => {
-    if (
+    if (ts.isTypeReferenceNode(node) && ts.isQualifiedName(node.typeName)) {
+      names.add(node.typeName.right.text);
+      qualifiers.push({
+        start: node.typeName.getStart(source),
+        end: node.typeName.right.getStart(source),
+      });
+    } else if (
       ts.isTypeReferenceNode(node) ||
       ts.isExpressionWithTypeArguments(node)
     ) {
       let name: ts.Node = ts.isTypeReferenceNode(node)
         ? node.typeName
         : node.expression;
-      // `Dtos.UserDto` is imported as `Dtos`
-      while (ts.isQualifiedName(name)) name = name.left;
       while (ts.isPropertyAccessExpression(name)) name = name.expression;
       if (ts.isIdentifier(name)) names.add(name.text);
     }
@@ -356,40 +473,33 @@ const extractTypeIdentifiers = (typeRef: string): Set<string> => {
     ts.forEachChild(node, visit);
   };
   visit(source);
-  return new Set(
-    [...names].filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
-  );
+
+  let unqualified = typeRef;
+  for (const { start, end } of qualifiers.sort((a, b) => b.start - a.start)) {
+    unqualified =
+      unqualified.slice(0, start - prefix.length) +
+      unqualified.slice(end - prefix.length);
+  }
+
+  return {
+    identifiers: new Set(
+      [...names].filter((name) => !NON_IMPORTABLE_TYPE_NAMES.has(name)),
+    ),
+    unqualified,
+  };
 };
+
+/**
+ * The declarations a type reference needs imported. A namespace-qualified
+ * argument such as `Dtos.UserDto` names the declaration on its right, since
+ * the namespace import itself declares nothing to look up.
+ */
+const extractTypeIdentifiers = (typeRef: string): Set<string> =>
+  parseTypeRef(typeRef).identifiers;
 
 const toModuleImportPath = (fromDir: string, filePath: string): string => {
   const importPath = relative(fromDir, filePath).replace(/\\/g, '/');
   return importPath.startsWith('.') ? importPath : `./${importPath}`;
-};
-
-const resolveSymbolLocations = (
-  tsconfig: string,
-  symbolNames: Set<string>,
-): Map<string, string> => {
-  if (symbolNames.size === 0) {
-    return new Map();
-  }
-
-  const tsconfigDir = dirname(tsconfig);
-  const resolved = resolveTypeLocationsFast(tsconfigDir, symbolNames);
-
-  const unresolved = new Set(
-    [...symbolNames].filter((name) => !resolved.has(name)),
-  );
-
-  if (unresolved.size > 0) {
-    const project = createTypeResolverProject(tsconfig);
-    const morphResolved = resolveTypeLocations(project, unresolved);
-    for (const [name, filePath] of morphResolved) {
-      resolved.set(name, filePath);
-    }
-  }
-
-  return resolved;
 };
 
 const missingGenericSchemasCache = new Map<string, GeneratedSchemas>();
@@ -425,8 +535,6 @@ const generatedTargetName = (schema: unknown): string | undefined => {
     : undefined;
 };
 
-// `ApiResponse<{ sent: boolean }>`: an argument with no name of its own, so
-// the instantiation is written where it is used, as inline types are
 const isAnonymousInstantiation = (name: string): boolean => {
   if (!isGenericSchemaRef(name)) return false;
   const source = ts.createSourceFile(
@@ -486,21 +594,22 @@ const generateMissingGenericSchemasEffect = Effect.fn(
 
     const aliasName = `__MissingGenericRef${index}`;
     aliases.push({ aliasName, schemaName: genericRef });
-    aliasLines.push(`export type ${aliasName} = ${genericRef};`);
+    aliasLines.push(
+      `export type ${aliasName} = ${parseTypeRef(genericRef).unqualified};`,
+    );
   }
 
   if (aliases.length === 0) {
     return { definitions: {} };
   }
 
-  // An in-memory module next to the tsconfig, so relative imports resolve
-  const virtualDir = dirname(tsconfig);
-  const virtualFilePath = join(virtualDir, '.openapi.missing-generic.ts');
+  const tsconfigDir = dirname(tsconfig);
+  const virtualFilePath = join(tsconfigDir, '.openapi.missing-generic.ts');
 
   const importLines = [...importGroups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([filePath, symbols]) => {
-      const importPath = toModuleImportPath(virtualDir, filePath);
+      const importPath = toModuleImportPath(tsconfigDir, filePath);
       const names = [...symbols].sort().join(', ');
       return `import type { ${names} } from '${importPath}';`;
     });
@@ -517,8 +626,6 @@ const generateMissingGenericSchemasEffect = Effect.fn(
       generated.definitions[schemaName] ??
       generated.definitions[aliasName] ??
       undefined;
-    // The generator names `ApiResponse<{ sent: boolean }>` after positions
-    // in the virtual file; the schema keeps the name the source wrote
     const target = generatedTargetName(resolvedSchema);
     if (target !== undefined && target !== schemaName) {
       const body = generated.definitions[target];
@@ -546,7 +653,6 @@ const resolveDtoFilesEffect = Effect.fn('Generate.resolveDtoFiles')(function* (
   dtoGlobPatterns: readonly string[],
   basePath: string,
 ) {
-  // Find all DTO files in parallel
   const absolutePatterns = dtoGlobPatterns.map((pattern) =>
     pattern.startsWith('/') ? pattern : join(basePath, pattern),
   );
@@ -561,25 +667,18 @@ const resolveDtoFilesEffect = Effect.fn('Generate.resolveDtoFiles')(function* (
     { concurrency: 'unbounded' },
   );
 
-  const dtoFiles = [...new Set(fileArrays.flat())];
-
-  yield* Effect.annotateCurrentSpan('dtoPatternCount', absolutePatterns.length);
-  yield* Effect.annotateCurrentSpan('dtoFileCount', dtoFiles.length);
-
-  return dtoFiles;
+  return [...new Set(fileArrays.flat())];
 });
 
-// Classes are also looked up in everything the schema files import, so
-// decorator metadata does not depend on dtoGlob; a class in a schema file
-// wins over one only reached through imports
-const indexSchemaClasses = (
+export const indexSchemaClasses = (
   project: Project,
   sourceFiles: ReadonlySet<string>,
   schemaNames: ReadonlySet<string>,
   plannedSources: ReadonlyMap<string, DeclarationRef>,
 ) => {
   const index = new Map<string, ClassDeclaration>();
-  const rank = (filePath: string) => (sourceFiles.has(filePath) ? 0 : 1);
+  const schemaFileFirst = (filePath: string) =>
+    sourceFiles.has(filePath) ? 0 : 1;
 
   for (const [name, ref] of plannedSources) {
     if (ref.kind !== 'class' || !schemaNames.has(name)) continue;
@@ -602,7 +701,8 @@ const indexSchemaClasses = (
       const current = index.get(name);
       if (
         !current ||
-        rank(filePath) < rank(current.getSourceFile().getFilePath())
+        schemaFileFirst(filePath) <
+          schemaFileFirst(current.getSourceFile().getFilePath())
       ) {
         index.set(name, classDecl);
       }
@@ -621,18 +721,14 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
     expansion: DecoratorExpansionOptions,
     withValidation: boolean,
     naming: SchemaNaming,
-    namedEnums: Set<string>,
-    enumNameUses: EnumNameUse[],
   ) {
     if (sourceFilePaths.length === 0) {
-      return inputSchemas;
+      return { schemas: inputSchemas, enumNameUses: [] };
     }
 
     const project = getRunProject(tsconfig);
 
     project.addSourceFilesAtPaths([...sourceFilePaths]);
-    // Follow imports: schemas for nested types come from imported files, and
-    // enums referenced by decorators need their declarations.
     project.resolveSourceFileDependencies();
 
     let schemas = inputSchemas;
@@ -643,8 +739,6 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
       plannedSources,
     );
 
-    // Base classes of mapped types are needed even when nothing else
-    // references them
     const missingBases = new Map<string, ClassDeclaration>();
     for (const classDecl of classes.values()) {
       const base = getMappedTypeBase(classDecl);
@@ -668,8 +762,7 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
         ),
         tsconfig,
       );
-      const normalizedBases =
-        yield* normalizeStructureRefsEffect(generatedBases);
+      const normalizedBases = normalizeStructureRefs(generatedBases);
       schemas = {
         definitions: {
           ...normalizedBases.definitions,
@@ -679,24 +772,35 @@ const overlayClassMetadataEffect = Effect.fn('Generate.overlayClassMetadata')(
       for (const [name, decl] of missingBases) classes.set(name, decl);
     }
 
-    if (withValidation) {
-      schemas = yield* overlayValidationConstraintsEffect(
-        classes,
-        schemas,
-        expansion,
-        naming,
-        namedEnums,
-        enumNameUses,
-      );
-    }
+    const validated = withValidation
+      ? yield* overlayValidationConstraintsEffect(
+          classes,
+          schemas,
+          expansion,
+          naming,
+        )
+      : { schemas, enumNameUses: [] };
 
-    const composed = applyMappedTypes(schemas, classes, naming.componentName);
-    return naming.enums === 'ref' ? composed : inlineInferredEnumRefs(composed);
+    const composed = applyMappedTypes(
+      validated.schemas,
+      classes,
+      naming.componentName,
+    );
+    return {
+      schemas:
+        naming.enums === 'ref' ? composed : inlineInferredEnumRefs(composed),
+      enumNameUses: validated.enumNameUses,
+    };
   },
 );
 
-// As @nestjs/swagger does, an enum inferred from a TypeScript type is
-// written in place; one named with `enumName` carries NAMED_ENUM_REF and stays
+/**
+ * 'nest' enum style, refs inside definitions: as @nestjs/swagger does, a ref
+ * to an enum inferred from a TypeScript type is written in place, while a ref
+ * that carries NAMED_ENUM_REF (an `enumName`) stays. Decided per ref, so the
+ * same component can be inlined at one property and kept at another. Refs in
+ * paths are left to `inlineUnnamedEnums`.
+ */
 const inlineInferredEnumRefs = (
   schemas: GeneratedSchemas,
 ): GeneratedSchemas => {
@@ -734,6 +838,29 @@ const inlineInferredEnumRefs = (
   };
 };
 
+/**
+ * 'nest' enum style, paths and merged components: every enum-only component
+ * that no `enumName` names is written in place and removed. Decided per
+ * component name, after the merge, where the NAMED_ENUM_REF marker read by
+ * `inlineInferredEnumRefs` is gone.
+ */
+const inlineUnnamedEnums = (
+  paths: OpenApiPaths,
+  schemas: Record<string, OpenApiSchema>,
+  enumNameUses: readonly EnumNameUse[],
+) => {
+  const named = new Set(enumNameUses.map((use) => use.name));
+  return inlineSchemas(
+    paths,
+    schemas,
+    new Set(
+      Object.entries(schemas).flatMap(([name, schema]) =>
+        isEnumOnlySchema(schema) && !named.has(name) ? [name] : [],
+      ),
+    ),
+  );
+};
+
 type EnumNameUse = {
   readonly name: string;
   readonly className: string;
@@ -758,8 +885,6 @@ const inlineRef = (value: unknown, ref: string, schema: unknown): unknown => {
   );
 };
 
-// An `enumName` given to different values by the documented schemas: each
-// use is written in place, and the clash reported
 const separateEnumNameClashes = (
   paths: OpenApiPaths,
   schemas: Record<string, OpenApiSchema>,
@@ -813,11 +938,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
   schemas: GeneratedSchemas,
   expansion: DecoratorExpansionOptions,
   naming: SchemaNaming,
-  namedEnums: Set<string>,
-  enumNameUses: EnumNameUse[],
 ) {
-  const validation = yield* ValidationMapperService;
-
   const classConstraints = new Map<
     string,
     Record<string, ValidationConstraints>
@@ -827,11 +948,7 @@ const overlayValidationConstraintsEffect = Effect.fn(
 
   for (const [className, classDecl] of classes) {
     const { constraints, required, optional, unreadable } =
-      yield* validation.extractClassValidationInfo(
-        classDecl,
-        expansion,
-        naming,
-      );
+      yield* extractClassValidationInfoEffect(classDecl, expansion, naming);
 
     for (const note of unreadable ?? []) {
       yield* Effect.logWarning(note);
@@ -850,26 +967,21 @@ const overlayValidationConstraintsEffect = Effect.fn(
     }
   }
 
-  // Where each `enumName` is used, to find names given to different values
-  for (const [className, properties] of classConstraints) {
-    for (const [property, constraints] of Object.entries(properties)) {
-      const component = constraints.enumComponent;
-      if (component) {
-        enumNameUses.push({
-          name: component.name,
-          className,
-          property,
-          schema: component.schema,
-        });
-      }
-    }
-  }
-  for (const properties of classConstraints.values()) {
-    for (const constraints of Object.values(properties)) {
-      if (constraints.enumComponent)
-        namedEnums.add(constraints.enumComponent.name);
-    }
-  }
+  const enumNameUses: readonly EnumNameUse[] = [...classConstraints].flatMap(
+    ([className, properties]) =>
+      Object.entries(properties).flatMap(([property, { enumComponent }]) =>
+        enumComponent
+          ? [
+              {
+                name: enumComponent.name,
+                className,
+                property,
+                schema: enumComponent.schema,
+              },
+            ]
+          : [],
+      ),
+  );
 
   yield* Effect.logDebug('Validation extraction complete').pipe(
     Effect.annotateLogs({
@@ -879,13 +991,15 @@ const overlayValidationConstraintsEffect = Effect.fn(
     }),
   );
 
-  // Merge constraints into schemas
-  return yield* validation.mergeValidationConstraints(
-    schemas,
-    classConstraints,
-    classRequired,
-    classOptional,
-  );
+  return {
+    schemas: mergeValidationConstraints(
+      schemas,
+      classConstraints,
+      classRequired,
+      classOptional,
+    ),
+    enumNameUses,
+  };
 });
 
 const finalizePath = (
@@ -896,7 +1010,7 @@ const finalizePath = (
   const prefix = basePath ? `/${basePath.replace(/^\/+|\/+$/g, '')}` : '';
   const joined =
     method.path === '/' && prefix ? prefix : `${prefix}${method.path}`;
-  const path = joined.replace(/:([^/]+)/g, '{$1}') || '/';
+  const path = toOpenApiPath(joined);
   if (!transformPath) return path;
 
   const transformed = transformPath(path, {
@@ -968,75 +1082,55 @@ const withSource = (
 /**
  * Internal Effect-based logic to extract method infos from a single entry
  */
-const extractMethodInfosFromEntry = (
+const extractMethodInfosFromEntry = Effect.fn(
+  'Generate.extractMethodInfosFromEntry',
+)(function* (
   tsconfig: string,
   entry: string,
   extractOptions: ExtractParametersOptions = {},
   scope: ModuleScope = {},
-  // The entry as written in the config, when operations record their source
-  sourceEntry?: string,
-) =>
-  Effect.fn('Generate.extractMethodInfosFromEntry')(function* (
-    inputTsconfig: string,
-    inputEntry: string,
-    inputExtractOptions: ExtractParametersOptions,
-  ) {
-    const project = getRunProject(inputTsconfig);
+  entryAsConfigured?: string,
+) {
+  const project = getRunProject(tsconfig);
 
-    // Add only the entry file - ts-morph will resolve imports on-demand
-    project.addSourceFilesAtPaths(inputEntry);
+  project.addSourceFilesAtPaths(entry);
 
-    const entrySourceFile = project.getSourceFile(inputEntry);
-    if (!entrySourceFile) {
-      return yield* EntryNotFoundError.fileNotFound(inputEntry);
-    }
+  const entrySourceFile = project.getSourceFile(entry);
+  if (!entrySourceFile) {
+    return yield* EntryNotFoundError.fileNotFound(entry);
+  }
 
-    // Find the module class - try AppModule first, then any class with @Module decorator
-    let entryClass = entrySourceFile.getClass('AppModule');
-    if (!entryClass) {
-      // Try to find any class with @Module decorator
-      for (const cls of entrySourceFile.getClasses()) {
-        const hasModuleDecorator = cls
-          .getDecorators()
-          .some((d) => d.getName() === 'Module');
-        if (hasModuleDecorator) {
-          entryClass = cls;
-          break;
-        }
+  let entryClass = entrySourceFile.getClass('AppModule');
+  if (!entryClass) {
+    for (const cls of entrySourceFile.getClasses()) {
+      const hasModuleDecorator = cls
+        .getDecorators()
+        .some((d) => d.getName() === 'Module');
+      if (hasModuleDecorator) {
+        entryClass = cls;
+        break;
       }
     }
+  }
 
-    if (!entryClass) {
-      return yield* EntryNotFoundError.classNotFound(inputEntry, 'Module');
-    }
+  if (!entryClass) {
+    return yield* EntryNotFoundError.classNotFound(entry, 'Module');
+  }
 
-    const controllers =
-      yield* ModuleTraversalService.getDocumentedControllerModules(
-        entryClass,
-        scope,
-      );
+  const controllers = yield* getDocumentedControllerModules(entryClass, scope);
 
-    const methodInfos = yield* Effect.forEach(
-      controllers,
-      ({ controller, module }) =>
-        MethodExtractionService.getControllerMethodInfos(
-          controller,
-          inputExtractOptions,
-        ).pipe(
-          Effect.map((infos) =>
-            sourceEntry === undefined
-              ? infos
-              : withSource(infos, controller, module, sourceEntry),
-          ),
-        ),
-      { concurrency: 'unbounded' },
-    );
+  const methodInfos = controllers.map(({ controller, module }) => {
+    const infos = getControllerMethodInfos(controller, extractOptions);
+    return entryAsConfigured === undefined
+      ? infos
+      : withSource(infos, controller, module, entryAsConfigured);
+  });
 
-    return {
-      methodInfos: methodInfos.flat(),
-      missingIncludes: findMissingIncludes(entryClass, scope.include ?? []),
-    };
-  })(tsconfig, entry, extractOptions);
+  return {
+    methodInfos: methodInfos.flat(),
+    missingIncludes: findMissingIncludes(entryClass, scope.include ?? []),
+  };
+});
 
 /**
  * Internal Effect-based logic to extract method infos from multiple entries
@@ -1062,21 +1156,19 @@ const extractMethodInfosEffect = Effect.fn('Generate.extractMethodInfos')(
       { concurrency: 'unbounded' },
     );
 
-    // A module found in any entry is found
-    const missing = (scope.include ?? []).filter((name) =>
+    const missingInEveryEntry = (scope.include ?? []).filter((name) =>
       fromEntries.every(({ missingIncludes }) =>
         missingIncludes.includes(name),
       ),
     );
-    if (missing.length > 0) {
+    if (missingInEveryEntry.length > 0) {
       yield* Effect.logWarning(
         'Modules listed in options.include were not found in the module graph',
-      ).pipe(Effect.annotateLogs({ modules: missing.join(', ') }));
+      ).pipe(Effect.annotateLogs({ modules: missingInEveryEntry.join(', ') }));
     }
 
     const allMethodInfos = fromEntries.map(({ methodInfos }) => methodInfos);
 
-    // Flatten and deduplicate by path + method combination
     const seen = new Set<string>();
     const deduped: (typeof allMethodInfos)[number] = [];
 
@@ -1136,6 +1228,11 @@ export interface GenerateResult {
   readonly validation: ValidationResult;
 }
 
+const resetRunCaches = (): void => {
+  clearSchemaProgramCache();
+  clearRunProjects();
+};
+
 /**
  * Canonical Effect-native generation pipeline.
  */
@@ -1144,9 +1241,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     const absoluteConfigPath = resolve(configPath);
     const configDir = dirname(absoluteConfigPath);
 
-    // Parsed library declarations are shared within a run, not across runs
-    clearSchemaProgramCache();
-    clearRunProjects();
+    resetRunCaches();
 
     yield* Effect.annotateCurrentSpan('configPath', absoluteConfigPath);
 
@@ -1180,9 +1275,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       absoluteConfigPath,
     );
 
-    yield* Effect.annotateCurrentSpan('entryCount', entries.length);
-    yield* Effect.annotateCurrentSpan('tsconfig', tsconfig);
-
     const expansion: DecoratorExpansionOptions = {
       decorators: options.decorators,
     };
@@ -1200,7 +1292,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           ? files.dtoGlob
           : [files.dtoGlob];
 
-    yield* Effect.annotateCurrentSpan('dtoGlobCount', dtoGlobArray.length);
     const [extractedMethodInfos, initialSchemas] = yield* Effect.all(
       [
         extractMethodInfosEffect(
@@ -1219,7 +1310,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             ),
           ),
         ),
-        SchemaService.generateSchemas({
+        generateSchemas({
           dtoGlob: dtoGlobArray as string[],
           tsconfig,
           basePath: configDir,
@@ -1237,18 +1328,11 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       { concurrency: 2 },
     );
 
-    // Process method infos into paths
     const filteredMethodInfos = filterMethods(extractedMethodInfos, {
       excludeDecorators: options.excludeDecorators,
       pathFilter: options.pathFilter,
     });
-    yield* Effect.annotateCurrentSpan(
-      'filteredMethodCount',
-      filteredMethodInfos.length,
-    );
 
-    // One schema per declaration: plan names for the declarations the
-    // documented operations reach, and point the operations at them
     const dtoFiles = yield* resolveDtoFilesEffect(dtoGlobArray, configDir);
     const schemaNamePlan = initialSchemas
       ? planSchemaNames(filteredMethodInfos, dtoFiles, configDir)
@@ -1257,7 +1341,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       filteredMethodInfos,
       schemaNamePlan,
     );
-    // @ApiExtraModels adds schemas even when no operation references them
     const extraModelRoots = [
       ...new Set(
         documentedMethods.flatMap((method) => method.extraModels ?? []),
@@ -1265,9 +1348,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     ];
     const enumStyle = options.enums ?? DEFAULT_ENUM_STYLE;
     const schemaNaming = namingForPlan(schemaNamePlan, enumStyle);
-    // Enums named with `enumName` stay components in 'nest' style
-    const namedEnums = new Set<string>();
-    const enumNameUses: EnumNameUse[] = [];
 
     const routedMethods: MethodInfo[] = [];
     for (const method of documentedMethods) {
@@ -1295,8 +1375,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       });
     }
 
-    const transformer = yield* TransformerService;
-    let paths = yield* transformer.transformMethods(routedMethods);
+    let paths = transformMethods(routedMethods);
     if (options.operationExtensions) {
       paths = yield* applyOperationExtensions(
         paths,
@@ -1304,30 +1383,11 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         options.operationExtensions,
       );
     }
-    yield* Effect.annotateCurrentSpan(
-      'initialPathCount',
-      Object.keys(paths).length,
-    );
 
-    yield* Effect.annotateCurrentSpan(
-      'basePathApplied',
-      options.basePath ? 'true' : 'false',
-    );
+    paths = mergeSecurityWithGlobal(paths, security.global);
 
-    // Merge decorator security with global security
-    // Operations with decorator security get merged with global (AND logic)
-    // Operations without decorator security inherit global as-is
-    paths = mergeSecurityWithGlobal(
-      paths as OpenApiPaths,
-      security.global,
-    ) as typeof paths;
-    yield* Effect.annotateCurrentSpan(
-      'globalSecurityRequirementCount',
-      security.global?.length ?? 0,
-    );
-
-    // Process schemas if generated
     let schemas: Record<string, OpenApiSchema> = {};
+    let enumNameUses: readonly EnumNameUse[] = [];
 
     if (initialSchemas) {
       const regenerated = yield* regenerateDeclarations(
@@ -1344,12 +1404,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         },
       };
 
-      // Files schemas were generated from; decorator metadata is read from
-      // the classes declared in them and in the files they import.
       const schemaSourceFiles = new Set<string>(dtoFiles);
 
-      // Declarations the operations reach that nothing generated yet, such as
-      // classes only named in @ApiProperty({ type: () => X })
       const reachedWithoutSchema = new Map<string, string>();
       for (const method of filteredMethodInfos) {
         for (const ref of method.referencedDeclarations ?? []) {
@@ -1361,7 +1417,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }
       }
       if (reachedWithoutSchema.size > 0) {
-        const reachedSchemas = yield* normalizeStructureRefsEffect(
+        const reachedSchemas = normalizeStructureRefs(
           yield* generateNamedSchemas(reachedWithoutSchema, tsconfig),
         );
         generatedSchemas = {
@@ -1375,252 +1431,50 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }
       }
 
-      // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
-      generatedSchemas = yield* normalizeStructureRefsEffect(generatedSchemas);
+      generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
-      // First merge to get initial schemas
-      let mergeResult = yield* mergeSchemasEffect(
-        paths as unknown as OpenApiSpec['paths'],
-        generatedSchemas,
-        extraModelRoots,
-      );
-      schemas = mergeResult.schemas;
-      yield* Effect.annotateCurrentSpan(
-        'initialMergedSchemaCount',
-        Object.keys(schemas).length,
-      );
-
-      // Hybrid approach: Find and resolve any missing schemas automatically
       const missingRefs = findMissingSchemaRefs(
-        paths as unknown as OpenApiSpec['paths'],
-        schemas,
+        paths,
+        reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
       );
-      const missingGenericRefsBeforeResolution = [...missingRefs].filter(
-        isGenericSchemaRef,
-      );
-      const missingNonGenericRefsBeforeResolution = new Set(
-        [...missingRefs].filter((ref) => !isGenericSchemaRef(ref)),
-      );
-      yield* Effect.annotateCurrentSpan(
-        'missingRefCountBeforeResolution',
-        missingRefs.size,
-      );
-      yield* Effect.annotateCurrentSpan(
-        'missingGenericRefCountBeforeResolution',
-        missingGenericRefsBeforeResolution.length,
-      );
-      yield* Effect.annotateCurrentSpan(
-        'missingNonGenericRefCountBeforeResolution',
-        missingNonGenericRefsBeforeResolution.size,
-      );
+      const missingGenericRefs = [...missingRefs].filter(isGenericSchemaRef);
 
-      if (missingRefs.size > 0) {
-        const resolvedNonGenericLocations = new Map<string, string>();
-
-        if (missingNonGenericRefsBeforeResolution.size > 0) {
-          // Types declared in the controller's own file, exported or not,
-          // resolve there first, as in TypeScript
-          const controllerFiles = [
-            ...new Set(
-              filteredMethodInfos.flatMap((method) =>
-                method.controllerFile ? [method.controllerFile] : [],
-              ),
-            ),
-          ];
-          for (const [type, path] of resolveLocalTypeLocations(
-            controllerFiles,
-            missingNonGenericRefsBeforeResolution,
-          )) {
-            resolvedNonGenericLocations.set(type, path);
+      if (missingGenericRefs.length > 0) {
+        const genericSymbols = new Set<string>();
+        for (const ref of missingGenericRefs) {
+          for (const symbol of extractTypeIdentifiers(ref)) {
+            genericSymbols.add(symbol);
           }
+        }
 
-          // Fast grep-based resolution (much faster for large codebases)
-          const tsconfigDir = dirname(tsconfig);
-          const fastResolved = resolveTypeLocationsFast(
-            tsconfigDir,
-            new Set(
-              [...missingNonGenericRefsBeforeResolution].filter(
-                (type) => !resolvedNonGenericLocations.has(type),
-              ),
-            ),
-          );
-
-          for (const [type, path] of fastResolved) {
-            resolvedNonGenericLocations.set(type, path);
-          }
-
-          // Fall back to ts-morph for types not found by fast resolution
-          const unresolvedTypes = new Set(
-            [...missingNonGenericRefsBeforeResolution].filter(
-              (t) => !resolvedNonGenericLocations.has(t.replace(/<.*>$/, '')),
-            ),
-          );
-          yield* Effect.annotateCurrentSpan(
-            'unresolvedTypeCountAfterFastLookup',
-            unresolvedTypes.size,
-          );
-
-          if (unresolvedTypes.size > 0) {
-            const project = createTypeResolverProject(tsconfig);
-            const morphResolved = resolveTypeLocations(
-              project,
-              unresolvedTypes,
-            );
-
-            for (const [type, path] of morphResolved) {
-              resolvedNonGenericLocations.set(type, path);
+        const reachedLocations = new Map<string, string>();
+        for (const method of filteredMethodInfos) {
+          for (const ref of method.referencedDeclarations ?? []) {
+            if (
+              genericSymbols.has(ref.name) &&
+              !reachedLocations.has(ref.name)
+            ) {
+              reachedLocations.set(ref.name, ref.filePath);
             }
           }
-        } else {
-          yield* Effect.annotateCurrentSpan(
-            'unresolvedTypeCountAfterFastLookup',
-            0,
-          );
         }
-        yield* Effect.annotateCurrentSpan(
-          'resolvedTypeLocationCount',
-          resolvedNonGenericLocations.size,
-        );
+        for (const filePath of reachedLocations.values()) {
+          schemaSourceFiles.add(filePath);
+        }
 
-        if (resolvedNonGenericLocations.size > 0) {
-          const additionalFiles = [
-            ...new Set(resolvedNonGenericLocations.values()),
-          ];
-          for (const filePath of additionalFiles)
-            schemaSourceFiles.add(filePath);
-
-          const additionalSchemas = yield* generateNamedSchemas(
-            resolvedNonGenericLocations,
+        generatedSchemas = withLaterSource(
+          generatedSchemas,
+          yield* generateMissingGenericSchemasEffect(
+            missingGenericRefs,
             tsconfig,
-          );
-
-          if (Object.keys(additionalSchemas.definitions).length > 0) {
-            const normalizedAdditional =
-              yield* normalizeStructureRefsEffect(additionalSchemas);
-
-            const combinedSchemas: GeneratedSchemas = {
-              definitions: {
-                ...generatedSchemas.definitions,
-                ...normalizedAdditional.definitions,
-                // Keep schemas generated from their planned declarations
-                ...Object.fromEntries(
-                  [...plannedSources.keys()].flatMap((name) => {
-                    const schema = generatedSchemas.definitions[name];
-                    return schema ? [[name, schema]] : [];
-                  }),
-                ),
-              },
-            };
-            generatedSchemas = combinedSchemas;
-
-            mergeResult = yield* mergeSchemasEffect(
-              paths as unknown as OpenApiSpec['paths'],
-              combinedSchemas,
-              extraModelRoots,
-            );
-            schemas = mergeResult.schemas;
-            yield* Effect.annotateCurrentSpan(
-              'schemaCountAfterAdditionalResolution',
-              Object.keys(schemas).length,
-            );
-          }
-        }
-
-        const unresolvedAfterFileResolution = findMissingSchemaRefs(
-          paths as unknown as OpenApiSpec['paths'],
-          schemas,
+            reachedLocations,
+          ),
         );
-        yield* Effect.annotateCurrentSpan(
-          'missingRefCountAfterFileResolution',
-          unresolvedAfterFileResolution.size,
-        );
-        const unresolvedGenericRefs = [...unresolvedAfterFileResolution].filter(
-          isGenericSchemaRef,
-        );
-        yield* Effect.annotateCurrentSpan(
-          'unresolvedGenericRefCount',
-          unresolvedGenericRefs.length,
-        );
-
-        if (unresolvedGenericRefs.length > 0) {
-          const genericSymbols = new Set<string>();
-          for (const ref of unresolvedGenericRefs) {
-            for (const symbol of extractTypeIdentifiers(ref)) {
-              genericSymbols.add(symbol);
-            }
-          }
-
-          // The declarations the operations reach, by symbol, win over a
-          // lookup by name, which finds any declaration with that name
-          const reachedLocations = new Map<string, string>();
-          for (const method of filteredMethodInfos) {
-            for (const ref of method.referencedDeclarations ?? []) {
-              if (
-                genericSymbols.has(ref.name) &&
-                !reachedLocations.has(ref.name)
-              ) {
-                reachedLocations.set(ref.name, ref.filePath);
-              }
-            }
-          }
-          const resolvedGenericSymbols = new Map([
-            ...resolveSymbolLocations(
-              tsconfig,
-              new Set(
-                [...genericSymbols].filter(
-                  (name) => !reachedLocations.has(name),
-                ),
-              ),
-            ),
-            ...reachedLocations,
-          ]);
-          for (const [name, filePath] of resolvedNonGenericLocations) {
-            resolvedGenericSymbols.set(name, filePath);
-          }
-          for (const filePath of resolvedGenericSymbols.values()) {
-            schemaSourceFiles.add(filePath);
-          }
-
-          const genericSchemas = yield* generateMissingGenericSchemasEffect(
-            unresolvedGenericRefs,
-            tsconfig,
-            resolvedGenericSymbols,
-          );
-
-          if (Object.keys(genericSchemas.definitions).length > 0) {
-            const normalizedGeneric =
-              yield* normalizeStructureRefsEffect(genericSchemas);
-            const combinedSchemas: GeneratedSchemas = {
-              definitions: {
-                ...generatedSchemas.definitions,
-                ...normalizedGeneric.definitions,
-              },
-            };
-            generatedSchemas = combinedSchemas;
-
-            mergeResult = yield* mergeSchemasEffect(
-              paths as unknown as OpenApiSpec['paths'],
-              combinedSchemas,
-              extraModelRoots,
-            );
-            schemas = mergeResult.schemas;
-            yield* Effect.annotateCurrentSpan(
-              'schemaCountAfterGenericResolution',
-              Object.keys(schemas).length,
-            );
-          }
-        }
       }
 
-      // Overlay class metadata once every schema is known, so types resolved
-      // outside dtoGlob get theirs too
       const shouldExtractValidation = options.extractValidation !== false;
-      yield* Effect.annotateCurrentSpan(
-        'validationExtractionEnabled',
-        shouldExtractValidation ? 'true' : 'false',
-      );
       if (Object.keys(generatedSchemas.definitions).length > 0) {
-        generatedSchemas = yield* overlayClassMetadataEffect(
+        const overlaid = yield* overlayClassMetadataEffect(
           [...schemaSourceFiles],
           tsconfig,
           generatedSchemas,
@@ -1631,64 +1485,40 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           expansion,
           shouldExtractValidation,
           schemaNaming,
-          namedEnums,
-          enumNameUses,
         );
-        mergeResult = yield* mergeSchemasEffect(
-          paths as unknown as OpenApiSpec['paths'],
-          generatedSchemas,
+        enumNameUses = overlaid.enumNameUses;
+        schemas = mergeSchemas(
+          paths,
+          overlaid.schemas,
           extraModelRoots,
-        );
-        schemas = mergeResult.schemas;
+        ).schemas;
       }
     }
 
-    // 'nest' enums: values are written in place unless `enumName` names them
     if (enumStyle === 'nest') {
-      const enumComponents = new Set(
-        Object.entries(schemas).flatMap(([name, schema]) =>
-          isEnumOnlySchema(schema) && !namedEnums.has(name) ? [name] : [],
-        ),
-      );
-      const inlined = inlineSchemas(
-        paths as OpenApiPaths,
-        schemas,
-        enumComponents,
-      );
-      paths = inlined.paths as typeof paths;
+      const inlined = inlineUnnamedEnums(paths, schemas, enumNameUses);
+      paths = inlined.paths;
       schemas = inlined.schemas;
     }
 
-    // Same-name declarations with equal schemas share one component; the
-    // collision strategy decides about the others
-    const enumNames = separateEnumNameClashes(
-      paths as OpenApiPaths,
-      schemas,
-      enumNameUses,
-    );
+    const enumNames = separateEnumNameClashes(paths, schemas, enumNameUses);
     const resolvedNames = yield* resolveSchemaNames(
-      paths as OpenApiPaths,
+      paths,
       enumNames.schemas,
       schemaNamePlan,
       options.schemaNameCollision ?? 'inline',
       enumNames.clashes,
     );
-    paths = resolvedNames.paths as typeof paths;
+    paths = resolvedNames.paths;
     schemas = resolvedNames.schemas;
 
-    // 'inline' collision strategy: colliding schemas are written in place,
-    // and so are instantiations with an anonymous type argument
     const inlineNames = new Set([
       ...resolvedNames.inline,
       ...Object.keys(schemas).filter(isAnonymousInstantiation),
     ]);
     if (inlineNames.size > 0) {
-      const inlined = inlineSchemas(
-        paths as OpenApiPaths,
-        schemas,
-        inlineNames,
-      );
-      paths = inlined.paths as typeof paths;
+      const inlined = inlineSchemas(paths, schemas, inlineNames);
+      paths = inlined.paths;
       schemas = inlined.schemas;
       for (const name of inlined.kept) {
         yield* Effect.logWarning(
@@ -1698,21 +1528,17 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     }
 
     if (aliasRefsMode === 'collapse' && Object.keys(schemas).length > 0) {
-      const collapsed = collapseAliasRefs(paths as OpenApiPaths, schemas);
-      paths = collapsed.paths as typeof paths;
+      const collapsed = collapseAliasRefs(paths, schemas);
+      paths = collapsed.paths;
       schemas = collapsed.schemas;
     }
-    yield* Effect.annotateCurrentSpan('aliasRefMode', aliasRefsMode);
 
-    // Get OpenAPI version from config (default to 3.0.3)
     const openApiVersion = openapi.version ?? '3.0.3';
     yield* Effect.annotateCurrentSpan('openApiVersion', openApiVersion);
 
-    // Component names must match ^[a-zA-Z0-9._-]+$; generic instantiations
-    // such as `Page<User>` become `Page_User` unless raw names are asked for
     if ((options.schemas?.genericNames ?? 'sanitized') === 'sanitized') {
-      const sanitized = sanitizeComponentNames(paths as OpenApiPaths, schemas);
-      paths = sanitized.paths as typeof paths;
+      const sanitized = sanitizeComponentNames(paths, schemas);
+      paths = sanitized.paths;
       schemas = sanitized.schemas;
     }
 
@@ -1720,18 +1546,9 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       schemas = forbidAdditionalProperties(schemas);
     }
 
-    // `examples` in schemas: 3.0 has only `example`, 3.1 wants an array
-    const adapted = adaptExamplesForVersion(
-      paths as OpenApiPaths,
-      schemas,
-      openApiVersion,
-    );
-    paths = adapted.paths as typeof paths;
+    const adapted = adaptExamplesForVersion(paths, schemas, openApiVersion);
+    paths = adapted.paths;
     schemas = adapted.schemas;
-
-    // `const` is JSON Schema, and OpenAPI only adopted it in 3.1. For 3.0.3,
-    // rewrite it as a single-value `enum`, which that version understands.
-    schemas = expandConstSchemas(schemas, openApiVersion);
 
     const securitySchemes =
       security.schemes && security.schemes.length > 0
@@ -1749,7 +1566,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           }
         : undefined;
 
-    // Always include servers and tags (even if empty) to match NestJS Swagger output
     let spec: OpenApiSpec = {
       openapi: openApiVersion,
       info: {
@@ -1762,7 +1578,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         ...(openapi.info.license && { license: openapi.info.license }),
       },
       servers: openapi.servers ?? [],
-      paths: paths as unknown as OpenApiSpec['paths'],
+      paths: paths,
       ...(components && { components }),
       tags: openapi.tags ?? [],
       ...(security.global &&
@@ -1771,11 +1587,19 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         }),
     };
 
-    // Transform spec for OpenAPI 3.1/3.2 if needed
-    spec =
-      openApiVersion === '3.0.3'
-        ? adaptSpecForV30(spec)
-        : transformSpecForVersion(spec, openApiVersion);
+    if (openApiVersion === '3.0.3') {
+      const { spec: scoped, dropped } = emptyNonOAuthScopesForV30(
+        adaptSpecForV30(spec),
+      );
+      spec = scoped;
+      for (const { scheme, scopes } of dropped) {
+        yield* Effect.logWarning(
+          `Dropped scopes [${scopes.join(', ')}] from security scheme '${scheme}': OpenAPI 3.0 allows scopes only on OAuth2 and OpenID Connect schemes. Use openapi.version 3.1.0 or later to keep them.`,
+        );
+      }
+    } else {
+      spec = transformSpecForVersion(spec, openApiVersion);
+    }
 
     if (options.overlay) {
       spec = yield* applyOverlay(
@@ -1786,13 +1610,14 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
     }
 
-    // Sort keys to match NestJS Swagger output order
-    const sortedSpec = sortObjectKeysDeep(spec, true);
+    const order = options.order ?? 'source';
+    const keyOrdered = orderObjectKeysDeep(spec, order);
+    const sortedSpec =
+      order === 'source' ? orderSchemasByReach(keyOrdered) : keyOrdered;
 
     yield* OutputService.ensureOutputDirectory(output);
 
     const format = overrides?.format ?? config.format ?? 'json';
-    yield* Effect.annotateCurrentSpan('outputFormat', format);
     const serializedSpec = yield* OutputService.serializeSpec(
       sortedSpec,
       output,
@@ -1800,7 +1625,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     );
     yield* OutputService.writeOutput(output, serializedSpec, format);
 
-    // An overlay may remove `paths`, which OpenAPI 3.1 allows
     const finalPaths = (sortedSpec.paths ?? {}) as Record<
       string,
       Record<string, unknown>
@@ -1820,7 +1644,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     yield* Effect.annotateCurrentSpan('finalOperationCount', operationCount);
     yield* Effect.annotateCurrentSpan('finalSchemaCount', schemaCount);
 
-    // Broken refs, and breaks of the OpenAPI specification
     const refValidation = validateSpec(sortedSpec);
     const structuralErrors = yield* Effect.promise(() =>
       validateStructure(sortedSpec),
@@ -1868,12 +1691,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       validation,
     };
   },
-  Effect.ensuring(
-    Effect.sync(() => {
-      clearSchemaProgramCache();
-      clearRunProjects();
-    }),
-  ),
+  Effect.ensuring(Effect.sync(resetRunCaches)),
 );
 
 /**

@@ -6,13 +6,13 @@ import type {
   OpenApiSchema,
   SchemaNameCollisionStrategy,
 } from '../config/types.js';
+import { SCHEMA_REF_PREFIX } from './schema-walk.js';
 import {
   defaultCollisionNames,
   type SchemaNamePlan,
 } from './schema-identity.js';
 import { renameSchemaRefs } from './spec-compliance.js';
 
-const REF_PREFIX = '#/components/schemas/';
 const IDENTIFIER = /[A-Za-z_$][\w$]*/g;
 
 /** Two `enumName`s that name different values */
@@ -24,15 +24,13 @@ export interface EnumNameClash {
 type Schemas = Readonly<Record<string, OpenApiSchema>>;
 
 const refTarget = (ref: unknown) =>
-  typeof ref === 'string' && ref.startsWith(REF_PREFIX)
-    ? ref.slice(REF_PREFIX.length)
+  typeof ref === 'string' && ref.startsWith(SCHEMA_REF_PREFIX)
+    ? ref.slice(SCHEMA_REF_PREFIX.length)
     : undefined;
 
 const byJson = (a: unknown, b: unknown) =>
   JSON.stringify(a).localeCompare(JSON.stringify(b));
 
-// Key order, `required` and `enum` order carry no meaning; a reference is
-// replaced by what `refKey` says about its target
 const normalize = (
   value: unknown,
   refKey: (name: string) => string,
@@ -94,8 +92,6 @@ export const equalSchemaGroups = (
   }
 };
 
-// Where two schemas differ: `properties.total`, or
-// `properties.rows.items (RowDto differs)`
 const differences = (
   a: unknown,
   b: unknown,
@@ -206,8 +202,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
       (name.match(IDENTIFIER) ?? []).filter((id) => shared.has(id));
     const groups = equalSchemaGroups(schemas, plainName);
 
-    // The temporary names of each shared name, and the name the strategy
-    // gives each declaration, asked only once one differs
     const byName = new Map<string, string[]>();
     for (const [temporary, entry] of shared) {
       byName.set(entry.name, [...(byName.get(entry.name) ?? []), temporary]);
@@ -260,7 +254,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
     const fileOf = (component: string) =>
       shared.get(temporaryIn(component)[0]!)!.relativePath;
 
-    // A declaration differs from its namesakes when their components do
     const resolved = new Map<string, string>();
     const split = new Set<string>();
     for (const [name, temporaries] of byName) {
@@ -286,8 +279,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
       }
     }
 
-    // Generic instantiations: compared by what they are named once the
-    // declarations above are resolved, `ResultDto<string>`
     const renames = new Map<string, string>();
     const instantiations = new Map<string, string[]>();
     for (const component of Object.keys(schemas)) {
@@ -316,8 +307,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
       }
       collisionFor(text, classes, fileOf);
       for (const members of classes) {
-        // The declarations still under their shared name are the ones this
-        // instantiation tells apart
         const finalName = members[0]!.replace(IDENTIFIER, (id) => {
           if (!shared.has(id)) return id;
           const name = resolved.get(id)!;
@@ -338,7 +327,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
       return yield* failWith(collisions, enumNameClashes);
     }
 
-    // Names the strategy returned must be given, unique and new
     const empty = [...strategyNames].find(
       ([, name]) => typeof name !== 'string' || name.length === 0,
     );
@@ -378,7 +366,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
       }
     }
 
-    // Equal schemas share one component: the declaration from the first file
     const representatives = new Map<string, string>();
     for (const component of [...renames.keys()].sort((a, b) =>
       fileOf(a).localeCompare(fileOf(b)),
@@ -388,7 +375,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
         representatives.set(finalName, component);
       }
     }
-    // Components under their own names first: a resolved one wins its name
     const resolvedSchemas: Record<string, OpenApiSchema> = {};
     for (const [name, schema] of Object.entries(schemas)) {
       if (renames.has(name)) continue;
@@ -418,8 +404,6 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
     }
     yield* warnEnumClashes(enumNameClashes);
 
-    // 'inline': the differing components are written in place, and so are
-    // instantiations over them, `PageDto<Shipping_AddressDto>`
     const patterns = [...split].map((name) => identifierPattern(name));
     const inline =
       strategy === 'inline'

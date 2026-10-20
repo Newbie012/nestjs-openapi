@@ -1,0 +1,655 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Schema Same Shapes API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/same/invoices": {
+      "get": {
+        "operationId": "AppController_invoice",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/same/refunds": {
+      "get": {
+        "operationId": "AppController_refund",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/same/tags": {
+      "get": {
+        "operationId": "AppController_tags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagFiltersDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/same/forests": {
+      "get": {
+        "operationId": "AppController_forest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForestDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/same/groves": {
+      "get": {
+        "operationId": "AppController_grove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroveDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/differ/daily": {
+      "get": {
+        "operationId": "AppController_daily",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/differ/weekly": {
+      "get": {
+        "operationId": "AppController_weekly",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyReportDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/differ/tasks": {
+      "get": {
+        "operationId": "AppController_task",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/differ/comments": {
+      "get": {
+        "operationId": "AppController_comment",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/differ/items": {
+      "get": {
+        "operationId": "AppController_items",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemListDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/differ/shelves": {
+      "get": {
+        "operationId": "AppController_shelf",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "InvoiceDto": {
+        "properties": {
+          "total": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusDto"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceDto_string"
+            },
+            "type": "array"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethodDto"
+          }
+        },
+        "required": [
+          "total",
+          "status",
+          "options",
+          "method"
+        ],
+        "type": "object"
+      },
+      "MoneyDto": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object"
+      },
+      "StatusDto": {
+        "enum": [
+          "open",
+          "paid"
+        ],
+        "type": "string"
+      },
+      "ChoiceDto_string": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "type": "object"
+      },
+      "PaymentMethodDto": {
+        "enum": [
+          "cash",
+          "card"
+        ],
+        "type": "string"
+      },
+      "RefundDto": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyDto"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusDto"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethodDto"
+          }
+        },
+        "required": [
+          "amount",
+          "status",
+          "method"
+        ],
+        "type": "object"
+      },
+      "TagFiltersDto": {
+        "properties": {
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceDto_TagDto"
+            },
+            "type": "array"
+          },
+          "names": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceDto_string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tags",
+          "names"
+        ],
+        "type": "object"
+      },
+      "ChoiceDto_TagDto": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/TagDto"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "type": "object"
+      },
+      "TagDto": {
+        "properties": {
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "type": "object"
+      },
+      "ForestDto": {
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/BranchDto"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "type": "object"
+      },
+      "BranchDto": {
+        "properties": {
+          "leaves": {
+            "items": {
+              "$ref": "#/components/schemas/LeafDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "leaves"
+        ],
+        "type": "object"
+      },
+      "LeafDto": {
+        "properties": {
+          "branch": {
+            "$ref": "#/components/schemas/BranchDto"
+          }
+        },
+        "type": "object"
+      },
+      "GroveDto": {
+        "properties": {
+          "root": {
+            "$ref": "#/components/schemas/BranchDto"
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "type": "object"
+      },
+      "DailyReportDto": {
+        "properties": {
+          "section": {
+            "$ref": "#/components/schemas/AReport_SectionDto"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AReport_ResultDto_string"
+          },
+          "count": {
+            "$ref": "#/components/schemas/ResultDto_number"
+          }
+        },
+        "required": [
+          "section",
+          "summary",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AReport_SectionDto": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AReport_RowDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "type": "object"
+      },
+      "AReport_RowDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AReport_ResultDto_string": {
+        "properties": {
+          "data": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "ResultDto_number": {
+        "properties": {
+          "data": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "WeeklyReportDto": {
+        "properties": {
+          "section": {
+            "$ref": "#/components/schemas/BReport_SectionDto"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/BReport_ResultDto_string"
+          }
+        },
+        "required": [
+          "section",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "BReport_SectionDto": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BReport_RowDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "type": "object"
+      },
+      "BReport_RowDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "total"
+        ],
+        "type": "object"
+      },
+      "BReport_ResultDto_string": {
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "TaskDto": {
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/ANote_NoteDto"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "high"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "note",
+          "priority"
+        ],
+        "type": "object"
+      },
+      "ANote_NoteDto": {
+        "properties": {
+          "text": {
+            "description": "Plain text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "CommentDto": {
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/BNote_NoteDto"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "note",
+          "priority"
+        ],
+        "type": "object"
+      },
+      "BNote_NoteDto": {
+        "properties": {
+          "text": {
+            "description": "Markdown",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "ItemListDto": {
+        "items": {
+          "$ref": "#/components/schemas/Item_ItemDto"
+        },
+        "type": "array"
+      },
+      "Item_ItemDto": {
+        "properties": {
+          "sku": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sku"
+        ],
+        "type": "object"
+      },
+      "ShelfDto": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Shelf_ItemDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "Shelf_ItemDto": {
+        "properties": {
+          "shelf": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "shelf"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

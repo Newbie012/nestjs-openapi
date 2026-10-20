@@ -3,7 +3,6 @@ import { Effect } from 'effect';
 import { resolve, join } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { generate } from './document/generate.js';
-import { generateFromConfigAsync } from './internal.js';
 import { generateEffect } from './document/generate.js';
 import { generatorServicesLayer } from './runtime/service-layer.js';
 import { runtimeLayerFor } from './runtime/runtime-layer.js';
@@ -27,7 +26,7 @@ describe('Behavior regression guardrails', () => {
     }
   });
 
-  it('keeps behavior identical across public, internal, and raw Effect entrypoints', async () => {
+  it('keeps behavior identical across the public and raw Effect entrypoints', async () => {
     const configPath = join(TEST_DIR, 'behavior.config.ts');
     const outputPath = join(TEST_DIR, 'behavior.openapi.json');
 
@@ -50,9 +49,6 @@ export default defineConfig({
     const fromPublic = await generate(configPath);
     const publicSpecContent = readFileSync(outputPath, 'utf-8');
 
-    const fromInternal = await generateFromConfigAsync(configPath);
-    const internalSpecContent = readFileSync(outputPath, 'utf-8');
-
     const fromEffect = await Effect.runPromise(
       generateEffect(configPath).pipe(
         Effect.provide(generatorServicesLayer),
@@ -61,9 +57,7 @@ export default defineConfig({
     );
     const effectSpecContent = readFileSync(outputPath, 'utf-8');
 
-    expect(fromInternal).toEqual(fromPublic);
     expect(fromEffect).toEqual(fromPublic);
-    expect(internalSpecContent).toBe(publicSpecContent);
     expect(effectSpecContent).toBe(publicSpecContent);
   });
 });

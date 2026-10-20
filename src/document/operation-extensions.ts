@@ -1,12 +1,12 @@
 import { Effect } from 'effect';
 import { OperationExtensionsError } from '../config/errors.js';
 import type {
+  OpenApiPaths,
   OperationContext,
   OperationExtensionsHook,
 } from '../config/types.js';
-import type { MethodInfo, OpenApiPaths } from '../model/domain.js';
-
-const openApiPath = (path: string) => path.replace(/:([^/]+)/g, '{$1}') || '/';
+import type { MethodInfo } from '../model/domain.js';
+import { toOpenApiPath } from './transformer.js';
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -22,11 +22,10 @@ export const applyOperationExtensions = Effect.fn(
   methods: readonly MethodInfo[],
   hook: OperationExtensionsHook,
 ) {
-  // The last method documenting a path and verb is the one in `paths`
   const byOperation = new Map<string, MethodInfo>();
   for (const method of methods) {
     byOperation.set(
-      `${method.httpMethod.toLowerCase()} ${openApiPath(method.path)}`,
+      `${method.httpMethod.toLowerCase()} ${toOpenApiPath(method.path)}`,
       method,
     );
   }

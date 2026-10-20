@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect';
+import { Option } from 'effect';
 import type {
   MethodDeclaration,
   ClassDeclaration,
@@ -15,6 +15,7 @@ import type {
   ParameterLocation,
   OperationMetadata,
 } from '../model/domain.js';
+import { describeSchemaType } from './enum-types.js';
 import {
   getControllerName,
   getControllerTags,
@@ -64,7 +65,6 @@ import {
   unwrapThunk,
 } from './static-value.js';
 
-// Caches for expensive operations to avoid repeated AST traversal
 const methodInfoCache = new WeakMap<
   MethodDeclaration,
   Map<string, readonly MethodInfo[]>
@@ -166,8 +166,6 @@ const PRIMITIVE_TYPES = new Set([
   'Date',
 ]);
 
-
-
 const parseTypeText = (
   text: string,
 ): { type: Option.Option<string>; inline: Option.Option<string> } => {
@@ -201,31 +199,16 @@ const hasAliasedImportCollision = (
 };
 
 const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
-  // Check cache first
   const cached = returnTypeInfoCache.get(method);
   if (cached !== undefined) return cached;
 
   const awaited = getAwaitedReturnType(method);
-  const rawTypeText = awaited.getText(method);
+  const rawTypeText = describeSchemaType(awaited, method);
 
   const symbol = awaited.getSymbol?.();
 
-  // Try to get original name for aliased imports (e.g., "import { Foo as Bar }")
-  // This ensures refs match schema names generated from the original export
-  const getOriginalTypeName = (): string | null => {
-    if (!symbol) return null;
-    const aliased = symbol.getAliasedSymbol?.();
-    if (aliased) {
-      const name = aliased.getName();
-      if (name && !name.startsWith('__')) return name;
-    }
-    return null;
-  };
+  let text = rawTypeText;
 
-  let text = getOriginalTypeName() ?? rawTypeText;
-
-  // For aliased generic types (e.g. ApiResponse as ApiResponseType),
-  // prefer the original exported symbol name so refs match generated schemas.
   const compilerType = awaited.compilerType as {
     aliasSymbol?: {
       escapedName?: string | number | symbol;
@@ -250,8 +233,6 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
     }
   }
 
-  // Some generic aliases expose the original symbol via getSymbol() instead of
-  // compilerType.aliasSymbol. Normalize those as well.
   const symbolName = symbol?.getName();
   if (symbolName && !symbolName.startsWith('__')) {
     const genericBase = getGenericBaseType(text);
@@ -268,7 +249,6 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
   const promiseMatch = text.match(/^Promise<(.+)>$/);
   if (promiseMatch) text = promiseMatch[1].trim();
 
-  // Clean import(...).TypeName to just TypeName
   text = text.replace(/\bimport\([^)]*\)\./g, '');
 
   const resolveExternalImportFilePath = (): Option.Option<string> => {
@@ -277,7 +257,10 @@ const getReturnTypeInfo = (method: MethodDeclaration): ReturnTypeInfo => {
     );
     if (importTypeMatch) {
       const moduleSpecifier = importTypeMatch[1]!;
-      if (!moduleSpecifier.startsWith('.') && !moduleSpecifier.startsWith('/')) {
+      if (
+        !moduleSpecifier.startsWith('.') &&
+        !moduleSpecifier.startsWith('/')
+      ) {
         return Option.some(`/node_modules/${moduleSpecifier}/index.d.ts`);
       }
     }
@@ -442,26 +425,20 @@ const BUILT_IN_TYPES = new Set([
 
 /** Check if a type is a class/interface that can be expanded */
 const isExpandableType = (typeName: string): boolean => {
-  // Primitives and built-ins should not be expanded
   if (PRIMITIVE_TYPES.has(typeName)) return false;
   if (BUILT_IN_TYPES.has(typeName.split('<')[0])) return false;
-  // Union types, intersection types, etc. should not be expanded
   if (typeName.includes(' | ') || typeName.includes(' & ')) return false;
-  // Array types should not be expanded
   if (typeName.endsWith('[]')) return false;
-  // Expand named class/interface types (PascalCase or camelCase)
   return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(typeName);
 };
 
 /** Convert TypeScript type to simpler type string for OpenAPI */
 const tsTypeToString = (typeText: string): string => {
   const trimmed = typeText.trim();
-  // Handle common types
   if (trimmed === 'string' || trimmed === 'String') return 'string';
   if (trimmed === 'number' || trimmed === 'Number') return 'number';
   if (trimmed === 'boolean' || trimmed === 'Boolean') return 'boolean';
   if (trimmed === 'Date') return 'Date';
-  // For union with undefined, extract the non-undefined type
   if (trimmed.includes(' | undefined')) {
     return trimmed.replace(' | undefined', '').trim();
   }
@@ -493,10 +470,8 @@ const expandDtoProperties = (
 
   for (const prop of properties) {
     const propName = prop.getName();
-    // Skip internal properties
     if (propName.startsWith('_')) continue;
 
-    // Get property type from declarations
     const declarations = prop.getDeclarations();
     let propTypeText = 'unknown';
     let isOptional = false;
@@ -504,9 +479,7 @@ const expandDtoProperties = (
 
     if (declarations.length > 0) {
       const decl = declarations[0];
-      // Check if property declaration (class property with decorators)
       const propDecl = decl.asKind?.(ts.SyntaxKind.PropertyDeclaration);
-      // Check if property signature (interface property)
       const propSig = decl.asKind?.(ts.SyntaxKind.PropertySignature);
 
       if (propDecl) {
@@ -519,13 +492,11 @@ const expandDtoProperties = (
           propDecl.getTypeNode()?.getKind() === ts.SyntaxKind.TypeLiteral ||
           isInlineObjectTypeText(declaredPropTypeText);
 
-        // Extract optionality and constraints in a single pass for performance
         const validationInfo = extractPropertyValidationInfo(
           propDecl,
           expansion,
         );
 
-        // Check for optionality: ? token, initializer, OR @IsOptional() decorator
         isOptional =
           propDecl.hasQuestionToken() ||
           propDecl.hasInitializer?.() ||
@@ -533,7 +504,6 @@ const expandDtoProperties = (
           hasUndefinedUnion ||
           isInlineObjectType;
 
-        // Use extracted validation constraints
         if (Object.keys(validationInfo.constraints).length > 0) {
           constraints = validationInfo.constraints;
         }
@@ -548,7 +518,6 @@ const expandDtoProperties = (
           isInlineObjectTypeText(declaredPropTypeText);
         isOptional =
           propSig.hasQuestionToken() || hasUndefinedUnion || isInlineObjectType;
-        // Interface properties don't have decorators, so no constraints to extract
       }
     }
 
@@ -594,7 +563,6 @@ const extractParameters = (
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
 ): readonly ResolvedParameter[] => {
-  // Cache by extraction options, since query style changes output shape.
   const optionsKey = getExtractParametersOptionsCacheKey(options);
   const cached = parametersCache.get(method)?.get(optionsKey);
   if (cached !== undefined) return cached;
@@ -626,18 +594,13 @@ const extractParameters = (
       if (decoratorName === 'Headers' && !hasExplicitName) return params;
       const paramType = param.getType();
 
-      // Get type name, preferring symbol name for correct resolution of aliased imports
-      // When someone writes "import { Foo as Bar }", getText() returns "Bar" but
-      // symbol.getName() returns "Foo" (the original export name)
-      const rawTsType = paramType.getText(param);
+      const rawTsType = describeSchemaType(paramType, param);
+      const rewritesEnumMembers = rawTsType !== paramType.getText(param);
       const declaredTsType = param.getTypeNode()?.getText() ?? rawTsType;
       let tsType = rawTsType;
       const symbol = paramType.getSymbol?.();
-      if (symbol) {
+      if (symbol && !rewritesEnumMembers) {
         const symbolName = getDeclaringEnumName(symbol) ?? symbol.getName();
-        // Use symbol name if it's a valid identifier (not __type etc.)
-        // But skip built-in types like Array, Promise, etc. - those should use getText()
-        // to preserve the full generic signature like "Array<string>"
         if (
           symbolName &&
           !symbolName.startsWith('__') &&
@@ -647,18 +610,14 @@ const extractParameters = (
         }
       }
 
-      // Clean import(...).TypeName to just TypeName (for cases where getText returns full path)
       tsType = tsType.replace(/\bimport\([^)]*\)\./g, '');
 
-      // Check if we should expand query DTO to individual parameters
-      // Conditions: @Query() without explicit name, type is a class, style is not "ref"
       if (
         decoratorName === 'Query' &&
         !hasExplicitName &&
         options.query?.style !== 'ref' &&
         isExpandableType(tsType)
       ) {
-        // Expand DTO properties to individual query parameters
         const expandedParams = expandDtoProperties(
           method,
           paramType,
@@ -668,7 +627,6 @@ const extractParameters = (
           params.push(...expandedParams);
           return params;
         }
-        // If expansion failed (no properties found), fall through to default behavior
       }
 
       if (
@@ -737,7 +695,6 @@ const readStringArguments = (
     .filter((call) => call.name === name)
     .flatMap((call) => asStrings(call.args));
 
-// As in @nestjs/swagger, the controller's and the method's are combined
 const extractContentTypes = (
   controllerCalls: readonly DecoratorCall[],
   methodCalls: readonly DecoratorCall[],
@@ -799,7 +756,6 @@ const expandDeclaredQueryType = (
   return expandDtoProperties(method, classDecl.getType(), expansion);
 };
 
-// Method-level @ApiTags add to the controller's, as in @nestjs/swagger
 const extractTags = (
   controller: ClassDeclaration,
   methodCalls: readonly DecoratorCall[],
@@ -828,7 +784,9 @@ const readControllerPaths = (controllerCalls: readonly DecoratorCall[]) => {
 const VERSION_NEUTRAL: unique symbol = Symbol('VERSION_NEUTRAL');
 type Version = string | typeof VERSION_NEUTRAL;
 
-const readVersion = (value: StaticValue | undefined): readonly Version[] | undefined => {
+const readVersion = (
+  value: StaticValue | undefined,
+): readonly Version[] | undefined => {
   const unwrapped = unwrapThunk(value);
   if (!unwrapped) return undefined;
   if (unwrapped.kind === 'array') {
@@ -843,7 +801,10 @@ const readVersion = (value: StaticValue | undefined): readonly Version[] | undef
 
 const fromConfigVersion = (value: VersioningOptions['defaultVersion']) => {
   if (value === undefined) return undefined;
-  const list = (Array.isArray(value) ? value : [value]) as readonly (string | symbol)[];
+  const list = (Array.isArray(value) ? value : [value]) as readonly (
+    | string
+    | symbol
+  )[];
   return list.map((version) =>
     typeof version === 'symbol' ? VERSION_NEUTRAL : version,
   );
@@ -857,9 +818,6 @@ const joinPaths = (...fragments: readonly string[]) => {
   return `/${joined}`.replace(/\/+/g, '/');
 };
 
-// One path per version (URI versioning) and per controller and method path,
-// as Nest's RoutePathFactory builds them, with the `methodKey` of
-// @nestjs/swagger's default operationId: `findAll`, `findAll[1]`, `findAll_v1`
 const getRouteVariants = (
   methodName: string,
   controllerCalls: readonly DecoratorCall[],
@@ -906,7 +864,8 @@ const getRouteVariants = (
   const isAlias = paths.length > 1 && paths.length !== pathVersions.length;
   return paths.map((path, index) => {
     const pathVersion = pathVersions.find(
-      (version) => path.includes(`/${version}/`) || path.endsWith(`/${version}`),
+      (version) =>
+        path.includes(`/${version}/`) || path.endsWith(`/${version}`),
     );
     const methodKey = isAlias ? `${methodName}[${index}]` : methodName;
     return {
@@ -916,7 +875,6 @@ const getRouteVariants = (
   });
 };
 
-// `@All()` documents every method, as @nestjs/swagger does
 const ALL_METHODS: readonly HttpMethod[] = [
   'GET',
   'POST',
@@ -932,7 +890,6 @@ const getMethodInfoVariants = (
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
 ): readonly MethodInfo[] => {
-  // Cache by extraction options, since query style can change parameter output.
   const optionsKey = getExtractParametersOptionsCacheKey(options);
   const cached = methodInfoCache.get(method)?.get(optionsKey);
   if (cached !== undefined) return cached;
@@ -963,7 +920,6 @@ const getMethodInfoVariants = (
     options.versioning,
   );
 
-  // Extract security requirements from controller and method decorators
   const controllerSecurity = extractControllerSecurity(controller, expansion);
   const methodSecurity = extractMethodSecurity(method, expansion);
   const hasMethodSecurity = hasMethodSecurityDecorators(method, expansion);
@@ -1028,7 +984,6 @@ const getMethodInfoVariants = (
         ...base,
         httpMethod: verb,
         path: route.path,
-        // @nestjs/swagger names @All() operations after the bare method name
         operationKey:
           httpMethod === 'ALL'
             ? `${method.getName()}_${verb.toLowerCase()}`
@@ -1038,16 +993,6 @@ const getMethodInfoVariants = (
   );
 };
 
-const getMethodInfoInternal = (
-  controller: ClassDeclaration,
-  method: MethodDeclaration,
-  options: ExtractParametersOptions = {},
-): Option.Option<MethodInfo> =>
-  Option.fromNullable(getMethodInfoVariants(controller, method, options)[0]);
-
-// @nestjs/swagger only reads @ApiExtension on methods; on a controller it
-// applies to all its methods, the method's own winning. On one target, the
-// decorator Nest applies last (the topmost) wins
 const extractExtensions = (
   controller: ClassDeclaration,
   method: MethodDeclaration,
@@ -1081,19 +1026,7 @@ export const getMethodInfo = (
   method: MethodDeclaration,
   options: ExtractParametersOptions = {},
 ): Option.Option<MethodInfo> =>
-  getMethodInfoInternal(controller, method, options);
-
-export const getMethodInfoEffect = Effect.fn('Methods.getMethodInfo')(
-  function* (
-    controller: ClassDeclaration,
-    method: MethodDeclaration,
-    options: ExtractParametersOptions = {},
-  ) {
-    return yield* Effect.succeed(
-      getMethodInfoInternal(controller, method, options),
-    );
-  },
-);
+  Option.fromNullable(getMethodInfoVariants(controller, method, options)[0]);
 
 export const getControllerMethodInfos = (
   controller: ClassDeclaration,
@@ -1102,42 +1035,3 @@ export const getControllerMethodInfos = (
   controller
     .getMethods()
     .flatMap((method) => getMethodInfoVariants(controller, method, options));
-
-export const getControllerMethodInfosEffect = Effect.fn(
-  'Methods.getControllerMethodInfos',
-)(function* (
-  controller: ClassDeclaration,
-  options: ExtractParametersOptions = {},
-) {
-  return yield* Effect.sync(() => getControllerMethodInfos(controller, options));
-});
-
-const serviceGetMethodInfo = Effect.fn('MethodExtractionService.getMethodInfo')(
-  function* (
-    controller: ClassDeclaration,
-    method: MethodDeclaration,
-    options: ExtractParametersOptions = {},
-  ) {
-    return yield* getMethodInfoEffect(controller, method, options);
-  },
-);
-
-const serviceGetControllerMethodInfos = Effect.fn(
-  'MethodExtractionService.getControllerMethodInfos',
-)(function* (
-  controller: ClassDeclaration,
-  options: ExtractParametersOptions = {},
-) {
-  return yield* getControllerMethodInfosEffect(controller, options);
-});
-
-export class MethodExtractionService extends Effect.Service<MethodExtractionService>()(
-  'MethodExtractionService',
-  {
-    accessors: true,
-    effect: Effect.succeed({
-      getMethodInfo: serviceGetMethodInfo,
-      getControllerMethodInfos: serviceGetControllerMethodInfos,
-    }),
-  },
-) {}

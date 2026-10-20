@@ -1,0 +1,396 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "description": "Tests query DTO inlining behavior - DTOs should be expanded to individual parameters",
+    "title": "Query DTO Inlining Test API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "ItemsController_findAll",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get items with pagination (DTO inlined)",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/search": {
+      "get": {
+        "operationId": "ItemsController_search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "inactive",
+                "pending"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Search items with filters (DTO inlined)",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/combined": {
+      "get": {
+        "operationId": "ItemsController_combined",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeDeleted",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Combined query params",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/named": {
+      "get": {
+        "operationId": "ItemsController_namedFilter",
+        "parameters": [
+          {
+            "description": "Filter object as JSON",
+            "in": "query",
+            "name": "filter",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FilterQueryDto"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Named query param (not inlined)",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/primitive": {
+      "get": {
+        "operationId": "ItemsController_primitiveParams",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Primitive query params",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/validated": {
+      "get": {
+        "operationId": "ItemsController_validatedSearch",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortOrder",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SortOrder",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Search with validated query params",
+        "tags": [
+          "Items"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FilterQueryDto": {
+        "description": "Filter DTO with required and optional fields",
+        "properties": {
+          "search": {
+            "description": "Required search term",
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional category filter",
+            "type": "string"
+          },
+          "status": {
+            "description": "Optional status filter",
+            "enum": [
+              "active",
+              "inactive",
+              "pending"
+            ],
+            "type": "string"
+          },
+          "dateFrom": {
+            "description": "Optional date range",
+            "type": "string"
+          },
+          "dateTo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "search"
+        ],
+        "type": "object"
+      },
+      "SortOrder": {
+        "description": "Sort order enum for testing enum validation",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      }
+    }
+  },
+  "tags": []
+}

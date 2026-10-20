@@ -1,22 +1,25 @@
-import { Effect, Option } from 'effect';
+import { Option } from 'effect';
 import type {
   MethodInfo,
   MethodSecurityRequirement,
-  OpenApiOperation,
-  OpenApiParameter,
-  OpenApiPaths,
-  OpenApiSchema,
   ParameterConstraints,
   RequestBodyMetadata,
   ResolvedParameter,
   ResponseMetadata,
 } from '../model/domain.js';
-import type { SecurityRequirement } from '../config/types.js';
+import type {
+  OpenApiOperation,
+  OpenApiParameter,
+  OpenApiPaths,
+  OpenApiSchema,
+  SecurityRequirement,
+} from '../config/types.js';
 import {
   applyPropertyConstraints,
   type ValidationConstraints,
 } from '../analysis/validation-mapper.js';
 import type { JsonSchema } from '../schema/schema-generator.js';
+import { withNull } from '../schema/nullable.js';
 
 /**
  * Converts internal MethodSecurityRequirement[] to OpenAPI SecurityRequirement[] format.
@@ -162,7 +165,6 @@ const BINARY_TYPE_NAMES = new Set([
   'ReadableStream',
 ]);
 
-// A value that says nothing about its type
 const UNTYPED_VALUE_TYPES = new Set(['unknown', 'any']);
 const TYPE_REFERENCE_PATTERN = /^[a-zA-Z_$][a-zA-Z0-9_$]*(<[^>]+>)?$/;
 
@@ -171,11 +173,6 @@ const buildInlineObjectSchema = (parsed: InlineObjectType): OpenApiSchema => ({
   properties: parsed.properties,
   ...(parsed.required.length > 0 ? { required: parsed.required } : {}),
 });
-
-const withNullable = (schema: OpenApiSchema): OpenApiSchema =>
-  schema.$ref
-    ? { allOf: [{ $ref: schema.$ref }], nullable: true }
-    : { ...schema, nullable: true };
 
 const resolveInlineObjectSchema: TypeSchemaResolver = (tsType) =>
   Option.fromNullable(parseInlineObjectType(tsType)).pipe(
@@ -188,12 +185,31 @@ type UnionType = {
   readonly hasNull: boolean;
 };
 
+const splitTopLevelUnion = (tsType: string): string[] => {
+  const members: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < tsType.length; index++) {
+    const char = tsType[index];
+    if ('<({['.includes(char)) depth++;
+    if ('>)}]'.includes(char) && tsType[index - 1] !== '=') depth--;
+    if (depth === 0 && tsType.startsWith(' | ', index)) {
+      members.push(tsType.slice(start, index).trim());
+      start = index + 3;
+    }
+  }
+  return [...members, tsType.slice(start).trim()];
+};
+
 const parseUnionType = (tsType: string): UnionType | undefined => {
   if (!tsType.includes(' | ')) {
     return undefined;
   }
 
-  const members = tsType.split(' | ').map((member) => member.trim());
+  const members = splitTopLevelUnion(tsType);
+  if (members.length < 2) {
+    return undefined;
+  }
   return {
     hasNull: members.includes('null'),
     types: members.filter(
@@ -202,9 +218,50 @@ const parseUnionType = (tsType: string): UnionType | undefined => {
   };
 };
 
+const STRING_LITERAL_PATTERN = /^"(?:[^"\\]|\\.)*"$/;
+const NUMBER_LITERAL_PATTERN = /^-?\d+(?:\.\d+)?$/;
+
+const parseLiteral = (tsType: string): string | number | undefined => {
+  if (STRING_LITERAL_PATTERN.test(tsType)) {
+    return JSON.parse(tsType) as string;
+  }
+  return NUMBER_LITERAL_PATTERN.test(tsType) ? Number(tsType) : undefined;
+};
+
+const literalSchemaType = (value: string | number): 'string' | 'number' =>
+  typeof value === 'string' ? 'string' : 'number';
+
+const resolveLiteralSchema: TypeSchemaResolver = (tsType) => {
+  const value = parseLiteral(tsType);
+  return value === undefined
+    ? undefined
+    : { type: literalSchemaType(value), const: value };
+};
+
+const buildLiteralUnionSchema = (
+  types: readonly string[],
+): OpenApiSchema | undefined => {
+  const values = types.map(parseLiteral);
+  const literals = values.filter(
+    (value): value is string | number => value !== undefined,
+  );
+  if (literals.length !== values.length || literals.length < 2) {
+    return undefined;
+  }
+  const kinds = new Set(literals.map(literalSchemaType));
+  return kinds.size === 1
+    ? { type: literalSchemaType(literals[0]), enum: literals }
+    : undefined;
+};
+
 const buildUnionSchema = (types: readonly string[]): OpenApiSchema => {
   if (types.length === 0) {
     return { type: 'object' };
+  }
+
+  const literalUnion = buildLiteralUnionSchema(types);
+  if (literalUnion !== undefined) {
+    return literalUnion;
   }
 
   if (types.length === 1) {
@@ -218,7 +275,7 @@ const resolveUnionSchema: TypeSchemaResolver = (tsType) =>
   Option.fromNullable(parseUnionType(tsType)).pipe(
     Option.map(({ types, hasNull }) => {
       const schema = buildUnionSchema(types);
-      return hasNull && types.length > 0 ? withNullable(schema) : schema;
+      return hasNull && types.length > 0 ? withNull(schema) : schema;
     }),
     Option.getOrUndefined,
   );
@@ -242,7 +299,6 @@ const resolveArraySchema: TypeSchemaResolver = (tsType) =>
       }
     : undefined;
 
-// `A, B<C, D>` → [`A`, `B<C, D>`]: commas inside brackets are not splits
 const splitTypeArguments = (text: string): string[] => {
   const parts: string[] = [];
   let depth = 0;
@@ -260,11 +316,39 @@ const splitTypeArguments = (text: string): string[] => {
   return [...parts, current.trim()].filter((part) => part !== '');
 };
 
+const literalKeys = (keyText: string): readonly string[] | undefined => {
+  const keys = keyText.split(' | ').map((key) => parseLiteral(key.trim()));
+  return keys.length > 0 && keys.every((key) => key !== undefined)
+    ? keys.map(String)
+    : undefined;
+};
+
+const buildKeyedRecordSchema = (
+  keys: readonly string[],
+  value: string,
+): OpenApiSchema => ({
+  type: 'object',
+  properties: Object.fromEntries(
+    keys.map((key) => [key, tsTypeToOpenApiSchema(value)]),
+  ),
+  required: keys,
+  additionalProperties: false,
+});
+
+const PARTIAL_TYPE_PATTERN = /^Partial<(.+)>$/;
+
+const resolvePartialSchema: TypeSchemaResolver = (tsType) => {
+  const match = PARTIAL_TYPE_PATTERN.exec(tsType);
+  if (!match) return undefined;
+  const inner = resolveCollectionSchema(match[1].trim());
+  if (inner?.properties === undefined) return undefined;
+  const { required: _required, additionalProperties: _closed, ...rest } = inner;
+  return rest;
+};
+
 const COLLECTION_TYPE_PATTERN =
   /^(Record|Map|ReadonlyMap|Set|ReadonlySet)<(.+)>$/;
 
-// JSON has no Map or Set: a body or response declared as one is sent as an
-// object keyed by strings, or as an array of unique items
 const resolveCollectionSchema: TypeSchemaResolver = (tsType) => {
   const match = COLLECTION_TYPE_PATTERN.exec(tsType);
   if (!match) return undefined;
@@ -281,6 +365,9 @@ const resolveCollectionSchema: TypeSchemaResolver = (tsType) => {
   }
   if (typeArguments.length !== 2) return undefined;
   const value = typeArguments[1];
+  const keys =
+    collection === 'Record' ? literalKeys(typeArguments[0]) : undefined;
+  if (keys !== undefined) return buildKeyedRecordSchema(keys, value);
   return {
     type: 'object',
     ...(UNTYPED_VALUE_TYPES.has(value)
@@ -296,10 +383,12 @@ const resolveReferenceSchema: TypeSchemaResolver = (tsType) =>
 
 const TYPE_SCHEMA_RESOLVERS: readonly TypeSchemaResolver[] = [
   resolveInlineObjectSchema,
+  resolveLiteralSchema,
   resolveUnionSchema,
   resolvePrimitiveSchema,
   resolveBinarySchema,
   resolveArraySchema,
+  resolvePartialSchema,
   resolveCollectionSchema,
   resolveReferenceSchema,
 ];
@@ -384,9 +473,6 @@ const applyParameterConstraints = (
 
 const PARAMETER_LEVEL_KEYS = ['description', 'deprecated', 'examples'] as const;
 
-// A Parameter Object's `examples` is a map of Example Objects. An array is the
-// JSON Schema keyword, so it stays on the schema, where each version's form
-// is written later
 const isParameterLevel = (key: string, value: unknown) =>
   value !== undefined && (key !== 'examples' || !Array.isArray(value));
 
@@ -417,7 +503,6 @@ const liftParameterKeys = (schema: OpenApiSchema) => {
 };
 
 const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
-  // `type: object` would mean exploded `key=value` pairs
   const baseSchema = UNTYPED_VALUE_TYPES.has(param.tsType.trim())
     ? {}
     : tsTypeToOpenApiSchema(param.tsType);
@@ -436,16 +521,12 @@ const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
   ) as OpenApiSchema;
 };
 
-// As in @nestjs/swagger, what @ApiQuery/@ApiParam/@ApiHeader declare is
-// merged over the inferred schema, and a declared type replaces it
 const buildParameterSchema = (param: ResolvedParameter) => {
   const inferred = liftParameterKeys(inferParameterSchema(param));
   const declared = param.declaredSchema as Record<string, unknown> | undefined;
   if (!declared) return inferred;
 
   const declaresType = TYPE_DEFINING_KEYS.some((key) => key in declared);
-  // A property's `examples` array describes the parameter, not its type, so
-  // a declared type keeps it, as @nestjs/swagger keeps undeclared fields
   const { examples } = inferred.schema as { examples?: unknown };
   const kept =
     Array.isArray(examples) && !('examples' in declared) ? { examples } : {};
@@ -521,7 +602,6 @@ const buildResponseSchema = (
   );
 };
 
-// As in @nestjs/swagger, an explicit `schema` wins over `type`
 const buildSchemaFromMetadata = (
   metadata: ResponseMetadata | RequestBodyMetadata,
 ): OpenApiSchema | undefined => {
@@ -640,8 +720,6 @@ const buildResponses = (
     ]),
   );
 
-  // Document the default success response unless the handler already declares
-  // a 2xx response via @ApiResponse.
   return {
     ...(hasDeclaredSuccessResponse(methodInfo.responses)
       ? {}
@@ -650,8 +728,6 @@ const buildResponses = (
   };
 };
 
-// As in @nestjs/swagger, @ApiBody wins over the @Body() parameter, and
-// documents a body even without one
 const buildRequestBody = (
   declared: RequestBodyMetadata | undefined,
   bodyParam: ResolvedParameter | undefined,
@@ -677,12 +753,15 @@ const buildRequestBody = (
   };
 };
 
-/** Transforms :param to {param} syntax */
-const buildOpenApiPath = (path: string): string =>
+/**
+ * Writes Express-style `:param` segments as OpenAPI `{param}` templates, and
+ * an empty path as `/`. A path that is already templated stays the same.
+ */
+export const toOpenApiPath = (path: string): string =>
   path.replace(/:([^/]+)/g, '{$1}') || '/';
 
-const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
-  const path = buildOpenApiPath(methodInfo.path);
+export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
+  const path = toOpenApiPath(methodInfo.path);
   const method = methodInfo.httpMethod.toLowerCase();
 
   const bodyParams = methodInfo.parameters.filter((p) => p.location === 'body');
@@ -698,24 +777,20 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
     getRequestContentTypes(methodInfo),
   );
 
-  // Use extracted operation metadata, falling back to generated defaults
   const operationId = Option.getOrElse(
     methodInfo.operation.operationId,
     () =>
       `${methodInfo.controllerName}_${methodInfo.operationKey ?? methodInfo.methodName}`,
   );
 
-  // Only include summary if explicitly provided via @ApiOperation
   const summary = Option.getOrUndefined(methodInfo.operation.summary);
   const description = Option.getOrUndefined(methodInfo.operation.description);
   const deprecated = Option.getOrUndefined(methodInfo.operation.deprecated);
 
-  // Build security requirements from decorators
   const security = buildSecurityRequirements(methodInfo.security);
 
   const operation: OpenApiOperation = {
     operationId,
-    // Always include parameters array (even if empty) to match NestJS Swagger
     parameters,
     ...(requestBody ? { requestBody } : {}),
     responses: buildResponses(methodInfo),
@@ -737,9 +812,6 @@ const transformMethodInternal = (methodInfo: MethodInfo): OpenApiPaths => {
   };
 };
 
-export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths =>
-  transformMethodInternal(methodInfo);
-
 type MutableOpenApiPaths = {
   [path: string]: {
     [method: string]: OpenApiOperation;
@@ -756,48 +828,4 @@ const mergeOpenApiPaths = (endpoints: readonly OpenApiPaths[]): OpenApiPaths =>
 
 export const transformMethods = (
   methodInfos: readonly MethodInfo[],
-): OpenApiPaths => mergeOpenApiPaths(methodInfos.map(transformMethodInternal));
-
-const serviceTransformMethod = Effect.fn('TransformerService.transformMethod')(
-  function* (methodInfo: MethodInfo) {
-    const paths = yield* Effect.sync(() => transformMethodInternal(methodInfo));
-
-    yield* Effect.annotateCurrentSpan(
-      'controllerName',
-      methodInfo.controllerName,
-    );
-    yield* Effect.annotateCurrentSpan('methodName', methodInfo.methodName);
-    yield* Effect.annotateCurrentSpan('httpMethod', methodInfo.httpMethod);
-    yield* Effect.annotateCurrentSpan('path', methodInfo.path);
-
-    return paths;
-  },
-);
-
-const serviceTransformMethods = Effect.fn(
-  'TransformerService.transformMethods',
-)(function* (methodInfos: readonly MethodInfo[]) {
-  const endpoints = yield* Effect.forEach(methodInfos, serviceTransformMethod, {
-    concurrency: 'unbounded',
-  });
-  const paths = mergeOpenApiPaths(endpoints);
-
-  yield* Effect.annotateCurrentSpan('methodCount', methodInfos.length);
-  yield* Effect.annotateCurrentSpan('pathCount', Object.keys(paths).length);
-
-  return paths;
-});
-
-export class TransformerService extends Effect.Service<TransformerService>()(
-  'TransformerService',
-  {
-    effect: Effect.succeed({
-      transformMethod: serviceTransformMethod,
-      transformMethods: serviceTransformMethods,
-    }),
-  },
-) {}
-
-export const transformMethodEffect = serviceTransformMethod;
-
-export const transformMethodsEffect = serviceTransformMethods;
+): OpenApiPaths => mergeOpenApiPaths(methodInfos.map(transformMethod));

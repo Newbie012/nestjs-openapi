@@ -1,0 +1,68 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Computed enums",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/checkouts": {
+      "get": {
+        "operationId": "CheckoutsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CheckoutDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Checkouts"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CheckoutDto": {
+        "properties": {
+          "paymentMethod": {
+            "description": "Payment method",
+            "enum": [
+              "card",
+              "paypal",
+              "bank_transfer"
+            ],
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "accounts": {
+            "properties": {
+              "paypal": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "region",
+          "accounts"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

@@ -59,7 +59,6 @@ export const createDecoratorFilter = (
   const excludeSet = new Set(excludeDecorators);
 
   return (method: MethodInfo): boolean => {
-    // Check if any of the method's decorators are in the exclude set
     const hasExcludedDecorator = method.decorators.some((decorator) =>
       excludeSet.has(decorator),
     );
@@ -90,8 +89,6 @@ export const createPathFilter = (
     return (method: MethodInfo): boolean => pathFilter(method.path);
   }
 
-  // Global/sticky regexes mutate lastIndex between calls.
-  // Preserve semantics by keeping flags and resetting state before each test.
   const pattern = new RegExp(pathFilter.source, pathFilter.flags);
 
   return (method: MethodInfo): boolean => {

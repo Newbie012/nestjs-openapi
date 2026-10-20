@@ -58,8 +58,10 @@ const toPascalCase = (constantName: string) =>
     .map((token) => `${token[0]!.toUpperCase()}${token.slice(1).toLowerCase()}`)
     .join('');
 
-// @nestjs/swagger derives its response shortcuts from HttpStatus the same
-// way: `NOT_FOUND` → `ApiNotFoundResponse`
+/**
+ * @nestjs/swagger derives its response shortcuts from HttpStatus the same
+ * way: `NOT_FOUND` → `ApiNotFoundResponse`
+ */
 export const RESPONSE_DECORATOR_STATUS: Readonly<
   Record<string, number | 'default'>
 > = {
@@ -90,7 +92,6 @@ export const readStatusCode = (
     return undefined;
   }
 
-  // HttpStatus.X whose enum could not be evaluated
   if (unwrapped.kind !== 'reference') return undefined;
   return HTTP_STATUS_MAP[unwrapped.name];
 };

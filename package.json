@@ -33,11 +33,12 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "vitest run test/openapi-e2e-apps.test.ts",
+    "test:e2e": "vitest run test/contract",
     "publint": "publint",
     "knip": "knip",
     "prepublishOnly": "npm run build && npm run publint",
-    "changelog": "node scripts/changelog.ts"
+    "changelog": "node scripts/changelog.ts",
+    "contract:diff": "node scripts/contract-diff.ts"
   },
   "keywords": [
     "nestjs",

@@ -1,0 +1,402 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "notification-service",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/notifications": {
+      "get": {
+        "description": "Retrieve notifications with optional filtering",
+        "operationId": "NotificationController_findAll",
+        "parameters": [
+          {
+            "description": "Filter by user ID",
+            "in": "query",
+            "name": "userId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by notification type",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "email",
+                "push",
+                "sms",
+                "in_app"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by notification status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "sent",
+                "delivered",
+                "failed",
+                "read"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of notifications"
+          }
+        },
+        "summary": "Get notifications",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "post": {
+        "description": "Create and send a new notification",
+        "operationId": "NotificationController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNotificationDto"
+              }
+            }
+          },
+          "description": "Notification data",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDto"
+                }
+              }
+            },
+            "description": "Notification created and queued"
+          }
+        },
+        "summary": "Send notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/stats": {
+      "get": {
+        "description": "Retrieve overall notification delivery statistics",
+        "operationId": "NotificationController_getStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationStatsDto"
+                }
+              }
+            },
+            "description": "Notification statistics"
+          }
+        },
+        "summary": "Get notification statistics",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/{id}": {
+      "get": {
+        "description": "Retrieve a specific notification by its identifier",
+        "operationId": "NotificationController_findOne",
+        "parameters": [
+          {
+            "description": "Notification unique identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "notif_abc123def456",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDto"
+                }
+              }
+            },
+            "description": "Notification details"
+          },
+          "404": {
+            "description": "Notification not found"
+          }
+        },
+        "summary": "Get notification by ID",
+        "tags": [
+          "notifications"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "NotificationDto": {
+        "properties": {
+          "id": {
+            "description": "Unique notification identifier",
+            "example": "notif_abc123def456",
+            "type": "string"
+          },
+          "userId": {
+            "description": "User ID who received the notification",
+            "example": "usr_123456789",
+            "type": "string"
+          },
+          "type": {
+            "description": "Notification type",
+            "enum": [
+              "email",
+              "push",
+              "sms",
+              "in_app"
+            ],
+            "example": "email",
+            "type": "string"
+          },
+          "title": {
+            "description": "Notification title",
+            "example": "Welcome to our platform!",
+            "type": "string"
+          },
+          "message": {
+            "description": "Notification message content",
+            "example": "Thank you for signing up. Get started by exploring our features.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Current status of the notification",
+            "enum": [
+              "pending",
+              "sent",
+              "delivered",
+              "failed",
+              "read"
+            ],
+            "example": "delivered",
+            "type": "string"
+          },
+          "priority": {
+            "description": "Priority level",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ],
+            "example": "medium",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "When notification was created",
+            "example": "2025-09-18T14:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "sentAt": {
+            "description": "When notification was sent (null if not sent)",
+            "example": "2025-09-18T14:05:00Z",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deliveredAt": {
+            "description": "When notification was delivered (null if not delivered)",
+            "example": "2025-09-18T14:05:30Z",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "readAt": {
+            "description": "When user read the notification (null if not read)",
+            "example": "2025-09-18T14:30:00Z",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "description": "Additional metadata",
+            "example": {
+              "campaign_id": "welcome_series_1",
+              "source": "signup"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "type",
+          "title",
+          "message",
+          "status",
+          "priority",
+          "createdAt",
+          "sentAt",
+          "deliveredAt",
+          "readAt",
+          "metadata"
+        ],
+        "type": "object"
+      },
+      "CreateNotificationDto": {
+        "properties": {
+          "userId": {
+            "description": "User ID to send notification to",
+            "example": "usr_123456789",
+            "type": "string"
+          },
+          "type": {
+            "description": "Notification type",
+            "enum": [
+              "email",
+              "push",
+              "sms",
+              "in_app"
+            ],
+            "example": "email",
+            "type": "string"
+          },
+          "title": {
+            "description": "Notification title",
+            "example": "Welcome to our platform!",
+            "type": "string"
+          },
+          "message": {
+            "description": "Notification message content",
+            "example": "Thank you for signing up. Get started by exploring our features.",
+            "type": "string"
+          },
+          "priority": {
+            "default": "medium",
+            "description": "Priority level",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ],
+            "type": "string"
+          },
+          "scheduledFor": {
+            "description": "Schedule delivery for later (optional)",
+            "example": "2025-09-18T16:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Additional metadata for the notification",
+            "example": {
+              "campaign_id": "welcome_series_1",
+              "source": "signup"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "userId",
+          "type",
+          "title",
+          "message",
+          "priority"
+        ],
+        "type": "object"
+      },
+      "NotificationStatsDto": {
+        "properties": {
+          "totalSent": {
+            "description": "Total notifications sent",
+            "example": 1542,
+            "type": "number"
+          },
+          "pending": {
+            "description": "Notifications pending delivery",
+            "example": 23,
+            "type": "number"
+          },
+          "delivered": {
+            "description": "Successfully delivered notifications",
+            "example": 1450,
+            "type": "number"
+          },
+          "failed": {
+            "description": "Failed delivery notifications",
+            "example": 69,
+            "type": "number"
+          },
+          "read": {
+            "description": "Read notifications",
+            "example": 892,
+            "type": "number"
+          },
+          "byType": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Breakdown by notification type",
+            "example": {
+              "email": 850,
+              "in_app": 122,
+              "push": 450,
+              "sms": 120
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "totalSent",
+          "pending",
+          "delivered",
+          "failed",
+          "read",
+          "byType"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

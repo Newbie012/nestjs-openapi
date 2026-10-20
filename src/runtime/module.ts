@@ -23,6 +23,7 @@ import { resolve } from 'node:path';
 import {
   Module,
   type DynamicModule,
+  RequestMethod,
   type Provider,
   type Type,
 } from '@nestjs/common';
@@ -34,15 +35,10 @@ import {
 } from '../config/errors.js';
 import type { OpenApiSpec } from '../config/types.js';
 
-// NestJS metadata constants (from @nestjs/common/constants)
 const PATH_METADATA = 'path';
 const METHOD_METADATA = 'method';
 const HEADERS_METADATA = '__headers__';
 const CONTROLLER_WATERMARK = '__controller__';
-
-// =============================================================================
-// Configuration Types
-// =============================================================================
 
 /**
  * Swagger UI configuration options
@@ -201,10 +197,6 @@ export interface OpenApiSetupOptions {
   readonly customSiteTitle?: string;
 }
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
 /**
  * Escape HTML special characters to prevent XSS
  */
@@ -339,7 +331,6 @@ export function loadSpecFile(
 export function resolveOptions(
   options: OpenApiModuleOptions,
 ): ResolvedOpenApiModuleOptions {
-  // Resolve swagger options
   let swaggerEnabled = false;
   let swaggerPath = '/api-docs';
   let swaggerTitle = '';
@@ -395,10 +386,6 @@ function createOpenApiModuleState(
   };
 }
 
-// =============================================================================
-// Module
-// =============================================================================
-
 /**
  * NestJS module for serving generated OpenAPI specifications at runtime.
  *
@@ -444,7 +431,6 @@ export class OpenApiModule {
   static forRoot(options: OpenApiModuleOptions): DynamicModule {
     const state = createOpenApiModuleState(options);
 
-    // If disabled, return empty module
     if (!state.options.enabled || !state.spec) {
       return {
         module: OpenApiModule,
@@ -465,7 +451,6 @@ export class OpenApiModule {
       },
     ];
 
-    // Create controllers dynamically using metadata
     const controllers = createOpenApiControllers(state.options, state.spec);
 
     return {
@@ -623,38 +608,46 @@ function sendResponse(
 }
 
 /**
+ * Marks a class as a controller with a single GET route at its root,
+ * answering with the given content type, as the Nest decorators would
+ */
+function defineGetRoute(
+  controller: Type<unknown>,
+  controllerPath: string,
+  handler: () => unknown,
+  contentType: string,
+): Type<unknown> {
+  Reflect.defineMetadata(CONTROLLER_WATERMARK, true, controller);
+  Reflect.defineMetadata(PATH_METADATA, controllerPath, controller);
+  Reflect.defineMetadata(METHOD_METADATA, RequestMethod.GET, handler);
+  Reflect.defineMetadata(PATH_METADATA, '/', handler);
+  Reflect.defineMetadata(
+    HEADERS_METADATA,
+    [{ name: 'Content-Type', value: contentType }],
+    handler,
+  );
+  return controller;
+}
+
+/**
  * Create a controller class for serving JSON spec
  */
 function createJsonController(
   controllerPath: string,
   spec: OpenApiSpec,
 ): Type<unknown> {
-  // Define the class with a method
   class JsonSpecController {
     getSpec(): OpenApiSpec {
       return spec;
     }
   }
 
-  // Mark as a NestJS controller
-  Reflect.defineMetadata(CONTROLLER_WATERMARK, true, JsonSpecController);
-
-  // Apply controller decorator metadata
-  Reflect.defineMetadata(PATH_METADATA, controllerPath, JsonSpecController);
-
-  // Get the method function
-  const method = JsonSpecController.prototype.getSpec;
-
-  // Apply method decorator metadata directly to the function (how NestJS does it)
-  Reflect.defineMetadata(METHOD_METADATA, 0, method); // GET = 0
-  Reflect.defineMetadata(PATH_METADATA, '/', method);
-  Reflect.defineMetadata(
-    HEADERS_METADATA,
-    [{ name: 'Content-Type', value: 'application/json' }],
-    method,
+  return defineGetRoute(
+    JsonSpecController,
+    controllerPath,
+    JsonSpecController.prototype.getSpec,
+    'application/json',
   );
-
-  return JsonSpecController;
 }
 
 /**
@@ -665,32 +658,18 @@ function createSwaggerUiController(
   title: string,
   jsonPath: string,
 ): Type<unknown> {
-  // Define the class with a method
   class SwaggerUiController {
     getSwaggerUi(): string {
       return generateSwaggerUiHtml(title, jsonPath);
     }
   }
 
-  // Mark as a NestJS controller
-  Reflect.defineMetadata(CONTROLLER_WATERMARK, true, SwaggerUiController);
-
-  // Apply controller decorator metadata
-  Reflect.defineMetadata(PATH_METADATA, controllerPath, SwaggerUiController);
-
-  // Get the method function
-  const method = SwaggerUiController.prototype.getSwaggerUi;
-
-  // Apply method decorator metadata directly to the function (how NestJS does it)
-  Reflect.defineMetadata(METHOD_METADATA, 0, method); // GET = 0
-  Reflect.defineMetadata(PATH_METADATA, '/', method);
-  Reflect.defineMetadata(
-    HEADERS_METADATA,
-    [{ name: 'Content-Type', value: 'text/html' }],
-    method,
+  return defineGetRoute(
+    SwaggerUiController,
+    controllerPath,
+    SwaggerUiController.prototype.getSwaggerUi,
+    'text/html',
   );
-
-  return SwaggerUiController;
 }
 
 /**
@@ -702,11 +681,9 @@ function createOpenApiControllers(
 ): Type<unknown>[] {
   const controllers: Type<unknown>[] = [];
 
-  // Create JSON controller
   const jsonController = createJsonController(options.jsonPath, spec);
   controllers.push(jsonController);
 
-  // Create Swagger UI controller if enabled
   if (options.swagger.enabled) {
     const swaggerUiController = createSwaggerUiController(
       options.swagger.path,

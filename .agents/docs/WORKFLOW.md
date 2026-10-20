@@ -7,6 +7,7 @@
 3. **ESM imports** — Always use `.js` extensions in imports
 4. **Functional style** — Prefer pure functions, avoid mutation
 5. **No console.log** — Use `Effect.logDebug/Info/Warn` (CLI is the exception)
+6. **No line comments in `src/`** — If code needs a comment to be understood, refactor it. If a comment explains why something is there, write a test that asserts it. JSDoc documents exported API only. ESLint enforces this (`local/no-line-comments`).
 
 ## Linting
 

@@ -492,6 +492,21 @@ export interface OptionsConfig {
   readonly enums?: 'nest' | 'ref';
 
   /**
+   * Order of paths, operations, schema properties and component schemas.
+   *
+   * - `'source'`: declaration order. Paths follow the controllers as they are
+   *   reached from the entry module and their methods in class order;
+   *   properties follow the class; component schemas follow the order they
+   *   are first reached.
+   * - `'alphabetical'`: sort them A to Z.
+   *
+   * Other object keys stay in a fixed order either way.
+   *
+   * @default 'source'
+   */
+  readonly order?: 'source' | 'alphabetical';
+
+  /**
    * Versioning, as passed to `app.enableVersioning()`, which static analysis
    * cannot see. With `type: 'uri'`, paths get the version of their method
    * (`@Version()`) or controller (`@Controller({ version })`), or
@@ -763,7 +778,10 @@ export interface OpenApiSchema {
   readonly oneOf?: readonly OpenApiSchema[];
   readonly anyOf?: readonly OpenApiSchema[];
   readonly allOf?: readonly OpenApiSchema[];
-  readonly items?: OpenApiSchema;
+  /** `false` closes a tuple after its `prefixItems` */
+  readonly items?: OpenApiSchema | false;
+  /** One schema per position of a tuple (3.1+; 3.0 output folds them into `items`) */
+  readonly prefixItems?: readonly OpenApiSchema[];
   readonly properties?: Record<string, OpenApiSchema>;
   readonly required?: readonly string[];
   readonly enum?: readonly unknown[];
@@ -776,23 +794,18 @@ export interface OpenApiSchema {
   readonly contentEncoding?: string;
   /** 3.1+ replacement for format: 'binary' */
   readonly contentMediaType?: string;
-  // String validation constraints
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: string;
-  // Number validation constraints
   readonly minimum?: number;
   readonly maximum?: number;
   /** A number in 3.1; in 3.0, `true` makes `minimum` exclusive */
   readonly exclusiveMinimum?: number | boolean;
   /** A number in 3.1; in 3.0, `true` makes `maximum` exclusive */
   readonly exclusiveMaximum?: number | boolean;
-  // Array validation constraints
   readonly minItems?: number;
   readonly maxItems?: number;
-  // Default value
   readonly default?: unknown;
-  // Additional properties constraint
   readonly additionalProperties?: boolean | OpenApiSchema;
 }
 

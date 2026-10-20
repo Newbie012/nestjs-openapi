@@ -1,0 +1,53 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "binary-and-base64",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes": {
+      "get": {
+        "operationId": "ShapeController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShapeDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShapeDto": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "type": "string"
+          },
+          "payload": {
+            "format": "byte",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "payload"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

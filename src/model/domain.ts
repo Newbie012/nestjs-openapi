@@ -11,8 +11,6 @@ type CustomDecoratorMappingFunction = Extract<
   (...args: never[]) => unknown
 >;
 
-// Parameter Types
-
 export const ParameterLocation = Schema.Literal(
   'path',
   'query',
@@ -24,22 +22,17 @@ export type ParameterLocation = typeof ParameterLocation.Type;
 
 /** Validation constraints that can be applied to parameters (plain interface for perf) */
 export interface ParameterConstraints {
-  // String constraints
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: string;
   readonly format?: string;
-  // Number constraints
   readonly minimum?: number;
   readonly maximum?: number;
   readonly exclusiveMinimum?: number | boolean;
   readonly exclusiveMaximum?: number | boolean;
-  // Array constraints
   readonly minItems?: number;
   readonly maxItems?: number;
-  // Enum constraint
   readonly enum?: readonly unknown[];
-  // Type override
   readonly type?: string;
   readonly description?: string;
   readonly isArray?: boolean;
@@ -51,7 +44,6 @@ export const ResolvedParameter = Schema.Struct({
   tsType: Schema.String,
   required: Schema.Boolean,
   description: Schema.OptionFromNullOr(Schema.String),
-  // Note: constraints uses plain interface to avoid Schema initialization overhead
 });
 export interface ResolvedParameter extends Schema.Schema.Type<
   typeof ResolvedParameter
@@ -62,8 +54,6 @@ export interface ResolvedParameter extends Schema.Schema.Type<
   readonly extra?: Readonly<Record<string, unknown>>;
 }
 
-// Return Type
-
 export const ReturnTypeInfo = Schema.Struct({
   type: Schema.OptionFromNullOr(Schema.String),
   inline: Schema.OptionFromNullOr(Schema.String),
@@ -71,8 +61,6 @@ export const ReturnTypeInfo = Schema.Struct({
   filePath: Schema.OptionFromNullOr(Schema.String),
 });
 export type ReturnTypeInfo = typeof ReturnTypeInfo.Type;
-
-// HTTP Method Info
 
 export const HttpMethod = Schema.Literal(
   'GET',
@@ -205,101 +193,6 @@ export const MethodInfo = Schema.Struct({
 });
 export type MethodInfo = typeof MethodInfo.Type;
 
-// OpenAPI Types
-
-// Recursive schema for OpenAPI schema objects
-export const OpenApiSchemaObject: Schema.Schema<OpenApiSchema> = Schema.suspend(
-  () =>
-    Schema.Struct({
-      type: Schema.optional(Schema.String),
-      format: Schema.optional(Schema.String),
-      $ref: Schema.optional(Schema.String),
-      oneOf: Schema.optional(Schema.Array(OpenApiSchemaObject)),
-      items: Schema.optional(OpenApiSchemaObject),
-      properties: Schema.optional(
-        Schema.Record({ key: Schema.String, value: OpenApiSchemaObject }),
-      ),
-      required: Schema.optional(Schema.Array(Schema.String)),
-    }),
-);
-
-export interface OpenApiSchema {
-  readonly type?: string;
-  readonly format?: string;
-  readonly $ref?: string;
-  readonly oneOf?: readonly OpenApiSchema[];
-  readonly allOf?: readonly OpenApiSchema[];
-  readonly items?: OpenApiSchema;
-  readonly properties?: Record<string, OpenApiSchema>;
-  readonly required?: readonly string[];
-  /** OpenAPI 3.0 nullable flag */
-  readonly nullable?: boolean;
-}
-
-export const OpenApiParameter = Schema.Struct({
-  name: Schema.String,
-  in: Schema.Literal('path', 'query', 'header', 'cookie'),
-  description: Schema.optional(Schema.String),
-  required: Schema.Boolean,
-  schema: OpenApiSchemaObject,
-});
-export type OpenApiParameter = typeof OpenApiParameter.Type;
-
-export const OpenApiRequestBody = Schema.Struct({
-  description: Schema.optional(Schema.String),
-  required: Schema.optional(Schema.Boolean),
-  content: Schema.Record({
-    key: Schema.String,
-    value: Schema.Struct({
-      schema: Schema.Unknown,
-    }),
-  }),
-});
-export type OpenApiRequestBody = typeof OpenApiRequestBody.Type;
-
-export const OpenApiResponse = Schema.Struct({
-  description: Schema.String,
-  content: Schema.optional(
-    Schema.Record({
-      key: Schema.String,
-      value: Schema.Struct({
-        schema: Schema.Unknown,
-      }),
-    }),
-  ),
-});
-export type OpenApiResponse = typeof OpenApiResponse.Type;
-
-export const OpenApiOperation = Schema.Struct({
-  operationId: Schema.String,
-  summary: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
-  deprecated: Schema.optional(Schema.Boolean),
-  parameters: Schema.optional(Schema.Array(OpenApiParameter)),
-  requestBody: Schema.optional(OpenApiRequestBody),
-  responses: Schema.Record({
-    key: Schema.String,
-    value: OpenApiResponse,
-  }),
-  tags: Schema.optional(Schema.Array(Schema.String)),
-  /** Per-operation security requirements */
-  security: Schema.optional(
-    Schema.Array(
-      Schema.Record({ key: Schema.String, value: Schema.Array(Schema.String) }),
-    ),
-  ),
-});
-export type OpenApiOperation = typeof OpenApiOperation.Type;
-
-/** Maps path -> method -> operation */
-export interface OpenApiPaths {
-  readonly [path: string]: {
-    readonly [method: string]: OpenApiOperation;
-  };
-}
-
-// Config Types
-
 export const OpenApiContactConfig = Schema.Struct({
   name: Schema.optional(Schema.String),
   email: Schema.optional(Schema.String),
@@ -405,12 +298,9 @@ export const SecurityRequirement = Schema.Record({
   key: Schema.String,
   value: Schema.Array(Schema.String),
 });
-export type SecurityRequirement = typeof SecurityRequirement.Type;
 
 export const OutputFormat = Schema.Literal('json', 'yaml');
 export type OutputFormat = typeof OutputFormat.Type;
-
-// Nested config schemas (new structure)
 
 export const FilesConfig = Schema.Struct({
   entry: Schema.optional(
@@ -455,7 +345,6 @@ export const SchemaOptionsConfig = Schema.Struct({
 });
 export type SchemaOptionsConfig = typeof SchemaOptionsConfig.Type;
 
-// Schema for path filter functions: (path: string) => boolean
 const PathFilterFunction = Schema.declare(
   (input: unknown): input is (path: string) => boolean =>
     typeof input === 'function',
@@ -465,7 +354,6 @@ const PathFilterFunction = Schema.declare(
   },
 );
 
-// PathFilter can be either a RegExp or a filter function
 export const PathFilter = Schema.Union(
   Schema.instanceOf(RegExp),
   PathFilterFunction,
@@ -513,6 +401,7 @@ export const OptionsConfig = Schema.Struct({
   include: Schema.optional(Schema.Array(Schema.String)),
   deepScanRoutes: Schema.optional(Schema.Boolean),
   enums: Schema.optional(Schema.Literal('nest', 'ref')),
+  order: Schema.optional(Schema.Literal('source', 'alphabetical')),
   versioning: Schema.optional(
     Schema.Struct({
       type: Schema.Literal('uri', 'header', 'media-type', 'custom'),

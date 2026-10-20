@@ -1,0 +1,67 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Schema Collisions API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "ItemsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemListDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ItemListDto": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ItemDto": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

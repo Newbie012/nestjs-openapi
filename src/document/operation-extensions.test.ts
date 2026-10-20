@@ -65,6 +65,23 @@ describe('applyOperationExtensions', () => {
     expect(operation).not.toHaveProperty('x-skipped');
   });
 
+  it('asks the hook once for a path and verb documented twice, about the last method', () => {
+    const asked: string[] = [];
+
+    run(
+      [
+        method({ controllerName: 'FirstController' }),
+        method({ controllerName: 'SecondController' }),
+      ],
+      ({ controller }) => {
+        asked.push(controller);
+        return undefined;
+      },
+    );
+
+    expect(asked).toEqual(['SecondController']);
+  });
+
   it('leaves the operation unchanged when the hook returns undefined', () => {
     const methods = [method()];
 

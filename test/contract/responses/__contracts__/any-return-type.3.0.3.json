@@ -1,0 +1,89 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "description": "Testing any return type handling",
+    "title": "Any Return Type Test API",
+    "version": "1.0"
+  },
+  "servers": [],
+  "paths": {
+    "/test/any-return": {
+      "get": {
+        "operationId": "AnyController_getAnyReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Any"
+        ]
+      }
+    },
+    "/test/promise-any-return": {
+      "get": {
+        "operationId": "AnyController_getPromiseAnyReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Any"
+        ]
+      }
+    },
+    "/test/void-return": {
+      "get": {
+        "operationId": "AnyController_getVoidReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Any"
+        ]
+      }
+    },
+    "/test/string-return": {
+      "get": {
+        "operationId": "AnyController_getStringReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Any"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

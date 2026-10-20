@@ -1,0 +1,494 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "description": "API demonstrating DTO validation with class-validator",
+    "title": "DTO Validation API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/users": {
+      "get": {
+        "operationId": "UserController_findAll",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of users"
+          }
+        },
+        "summary": "Get all users with pagination",
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "operationId": "UserController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            },
+            "description": "User created"
+          },
+          "400": {
+            "description": "Validation failed"
+          }
+        },
+        "summary": "Create a new user with validation",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UserController_findOne",
+        "parameters": [
+          {
+            "description": "User UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            },
+            "description": "User found"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Get a user by ID",
+        "tags": [
+          "Users"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_update",
+        "parameters": [
+          {
+            "description": "User UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            },
+            "description": "User updated"
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Update a user",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "ProductController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProductResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of products"
+          }
+        },
+        "summary": "Get all products",
+        "tags": [
+          "Products"
+        ]
+      },
+      "post": {
+        "operationId": "ProductController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            },
+            "description": "Product created"
+          },
+          "400": {
+            "description": "Validation failed"
+          }
+        },
+        "summary": "Create a new product with validation",
+        "tags": [
+          "Products"
+        ]
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "operationId": "ProductController_findOne",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            },
+            "description": "Product found"
+          },
+          "404": {
+            "description": "Product not found"
+          }
+        },
+        "summary": "Get a product by ID",
+        "tags": [
+          "Products"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UserResponseDto": {
+        "description": "DTO representing a user response",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "website": {
+            "format": "uri",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "age",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CreateUserDto": {
+        "description": "DTO for creating a user - demonstrates various validation decorators",
+        "properties": {
+          "name": {
+            "maxLength": 50,
+            "minLength": 2,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)",
+            "type": "string"
+          },
+          "age": {
+            "maximum": 150,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "roleAsString": {
+            "description": "This property type is string, but",
+            "enum": [
+              "admin",
+              "user",
+              "guest"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "website": {
+            "format": "uri",
+            "type": "string"
+          },
+          "bio": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "password",
+          "age",
+          "role",
+          "roleAsString"
+        ],
+        "type": "object"
+      },
+      "UserRole": {
+        "description": "User role enum for testing",
+        "enum": [
+          "admin",
+          "user",
+          "guest"
+        ],
+        "type": "string"
+      },
+      "UserStatus": {
+        "description": "User status with numeric values",
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "type": "number"
+      },
+      "UpdateUserDto": {
+        "description": "DTO for updating a user - all fields optional",
+        "properties": {
+          "name": {
+            "maxLength": 50,
+            "minLength": 2,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "age": {
+            "maximum": 150,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "website": {
+            "format": "uri",
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ProductResponseDto": {
+        "description": "DTO for product response",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stock": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "price",
+          "tags",
+          "stock",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "CreateProductDto": {
+        "description": "DTO for creating a product with array validation",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "price": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "stock": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "price",
+          "tags"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

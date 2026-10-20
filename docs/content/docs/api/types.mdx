@@ -50,9 +50,9 @@ interface Config {
 }
 ```
 
-<Callout type="warn">
-  `extends` is not executed today. Compose configs manually until inheritance is
-  implemented.
+<Callout type="info">
+  `extends` loads a base config. Paths in it are relative to the file that
+  declares them.
 </Callout>
 
 ### FilesConfig
@@ -288,6 +288,13 @@ interface OptionsConfig {
    * Paths matching are INCLUDED.
    */
   readonly pathFilter?: RegExp | ((path: string) => boolean);
+
+  /**
+   * Order of paths, operations, schema properties and component schemas:
+   * declaration order, or sorted A to Z.
+   * @default 'source'
+   */
+  readonly order?: 'source' | 'alphabetical';
 
   /**
    * Query parameter handling options.

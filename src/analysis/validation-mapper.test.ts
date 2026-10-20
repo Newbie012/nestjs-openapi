@@ -2,11 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { Effect } from 'effect';
 import { Project } from 'ts-morph';
 import {
-  ValidationMapperService,
+  extractClassValidationInfo,
+  extractClassValidationInfoEffect,
   extractPropertyConstraints,
-  extractClassConstraints,
   isPropertyOptional,
-  getRequiredProperties,
   applyConstraintsToSchema,
 } from './validation-mapper.js';
 
@@ -23,8 +22,8 @@ function createProjectWithCode(code: string) {
 }
 
 describe('validation-mapper', () => {
-  describe('ValidationMapperService', () => {
-    it('extracts class validation info through the service layer', async () => {
+  describe('extractClassValidationInfoEffect', () => {
+    it('extracts class validation info as an Effect', async () => {
       const sourceFile = createProjectWithCode(`
         import { IsEmail, IsOptional, MinLength } from 'class-validator';
         class UserDto {
@@ -41,10 +40,7 @@ describe('validation-mapper', () => {
       const classDecl = sourceFile.getClass('UserDto')!;
 
       const result = await Effect.runPromise(
-        Effect.gen(function* () {
-          const mapper = yield* ValidationMapperService;
-          return yield* mapper.extractClassValidationInfo(classDecl);
-        }).pipe(Effect.provide(ValidationMapperService.Default)),
+        extractClassValidationInfoEffect(classDecl),
       );
 
       expect(result.constraints.name).toEqual({ minLength: 2 });
@@ -445,7 +441,7 @@ describe('validation-mapper', () => {
     });
   });
 
-  describe('extractClassConstraints', () => {
+  describe('extractClassValidationInfo constraints', () => {
     it('should extract constraints from all properties', () => {
       const sourceFile = createProjectWithCode(`
         import { MinLength, MaxLength, IsEmail, IsEnum } from 'class-validator';
@@ -466,7 +462,7 @@ describe('validation-mapper', () => {
       `);
       const classDecl = sourceFile.getClass('UserDto')!;
 
-      const constraints = extractClassConstraints(classDecl);
+      const constraints = extractClassValidationInfo(classDecl).constraints;
 
       expect(constraints.name).toEqual({ minLength: 2, maxLength: 50 });
       expect(constraints.email).toEqual({ format: 'email' });
@@ -474,7 +470,7 @@ describe('validation-mapper', () => {
     });
   });
 
-  describe('getRequiredProperties', () => {
+  describe('extractClassValidationInfo required', () => {
     it('should return properties without @IsOptional', () => {
       const sourceFile = createProjectWithCode(`
         import { IsOptional } from 'class-validator';
@@ -489,7 +485,7 @@ describe('validation-mapper', () => {
       `);
       const classDecl = sourceFile.getClass('TestDto')!;
 
-      const required = getRequiredProperties(classDecl);
+      const required = extractClassValidationInfo(classDecl).required;
 
       expect(required).toEqual(['name', 'email']);
     });
@@ -504,7 +500,7 @@ describe('validation-mapper', () => {
       `);
       const classDecl = sourceFile.getClass('UpdateExampleDto')!;
 
-      const required = getRequiredProperties(classDecl);
+      const required = extractClassValidationInfo(classDecl).required;
 
       expect(required).toEqual(['id', 'tags']);
     });
@@ -528,7 +524,7 @@ describe('validation-mapper', () => {
       `);
       const classDecl = sourceFile.getClass('ArticleDto')!;
 
-      const required = getRequiredProperties(classDecl);
+      const required = extractClassValidationInfo(classDecl).required;
 
       expect(required).toEqual(['priority', 'id']);
     });
@@ -657,7 +653,7 @@ describe('validation-mapper', () => {
       const classDecl = sourceFile.getClasses()[0]!;
       return applyConstraintsToSchema(
         schema,
-        extractClassConstraints(classDecl),
+        extractClassValidationInfo(classDecl).constraints,
       ).properties;
     };
 

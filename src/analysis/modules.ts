@@ -42,7 +42,18 @@ export const getModules = Effect.fn('Modules.getModules')(function* (
     if (visited.has(key)) continue;
     visited.add(key);
 
-    const { controllers, imports } = getModuleMetadata(mod);
+    const { controllers, imports, unresolved = [] } = getModuleMetadata(mod);
+
+    if (unresolved.length > 0) {
+      yield* Effect.logDebug(
+        'Skipped module entries that cannot be resolved statically',
+      ).pipe(
+        Effect.annotateLogs({
+          module: mod.getName() ?? '<anonymous>',
+          entries: unresolved.join(', '),
+        }),
+      );
+    }
 
     if (controllers.length > 0) {
       results.push({ declaration: mod, controllers });
@@ -103,8 +114,10 @@ const includedModules = (
     : [];
 };
 
-// Names in `include` that no module reachable from `root` has. With several
-// entries, a name is missing only when every entry misses it
+/**
+ * Names in `include` that no module reachable from `root` has. With several
+ * entries, a name is missing only when every entry misses it
+ */
 export const findMissingIncludes = (
   root: ClassDeclaration,
   include: readonly string[],
@@ -127,9 +140,11 @@ const declaredIn = (mod: ClassDeclaration) =>
     module: mod,
   }));
 
-// SwaggerModule.createDocument()'s rules: with `include`, only controllers
-// declared in the included modules, plus, with `deepScanRoutes`, those of
-// their direct, non-global imports
+/**
+ * SwaggerModule.createDocument()'s rules: with `include`, only controllers
+ * declared in the included modules, plus, with `deepScanRoutes`, those of
+ * their direct, non-global imports
+ */
 export const getDocumentedControllerModules = Effect.fn(
   'Modules.getDocumentedControllerModules',
 )(function* (root: ClassDeclaration, scope: ModuleScope = {}) {
@@ -158,37 +173,3 @@ export const getDocumentedControllerModules = Effect.fn(
     return true;
   }) as readonly DocumentedController[];
 });
-
-export const getDocumentedControllers = Effect.fn(
-  'Modules.getDocumentedControllers',
-)(function* (root: ClassDeclaration, scope: ModuleScope = {}) {
-  const documented = yield* getDocumentedControllerModules(root, scope);
-  return documented.map(
-    ({ controller }) => controller,
-  ) as readonly ClassDeclaration[];
-});
-
-const serviceGetModules = Effect.fn('ModuleTraversalService.getModules')(
-  function* (root: ClassDeclaration) {
-    return yield* getModules(root);
-  },
-);
-
-const serviceGetAllControllers = Effect.fn(
-  'ModuleTraversalService.getAllControllers',
-)(function* (root: ClassDeclaration) {
-  return yield* getAllControllers(root);
-});
-
-export class ModuleTraversalService extends Effect.Service<ModuleTraversalService>()(
-  'ModuleTraversalService',
-  {
-    accessors: true,
-    effect: Effect.succeed({
-      getModules: serviceGetModules,
-      getAllControllers: serviceGetAllControllers,
-      getDocumentedControllers,
-      getDocumentedControllerModules,
-    }),
-  },
-) {}

@@ -62,7 +62,6 @@ const RESPONSE_DECORATOR_NAMES = new Set([
 
 const readStatus = (call: DecoratorCall) => {
   if (call.name !== 'ApiResponse') return RESPONSE_DECORATOR_STATUS[call.name];
-  // @nestjs/swagger: `options.status || 'default'`
   return readStatusCode(getProperty(call.args[0], 'status')) ?? 'default';
 };
 
@@ -112,8 +111,10 @@ const mergeResponse = (
   };
 };
 
-// As in @nestjs/swagger, the controller's responses apply to every method,
-// field by field under the method's own for the same status
+/**
+ * As in @nestjs/swagger, the controller's responses apply to every method,
+ * field by field under the method's own for the same status
+ */
 export const extractResponses = (
   controllerCalls: readonly DecoratorCall[],
   methodCalls: readonly DecoratorCall[],

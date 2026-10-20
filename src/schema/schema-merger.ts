@@ -7,7 +7,11 @@
 
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
-import { Effect } from 'effect';
+import {
+  mapOperationSchemas,
+  mapSchemaRefs,
+  mapSubschemas,
+} from './schema-walk.js';
 
 /**
  * Result of schema merging
@@ -19,68 +23,25 @@ export interface MergedResult {
   readonly schemas: Record<string, OpenApiSchema>;
 }
 
+const refCollector = (
+  pattern: RegExp,
+  skip: (name: string) => boolean = () => false,
+) => {
+  const refs = new Set<string>();
+  const collect = (ref: string): string => {
+    const name = ref.match(pattern)?.[1];
+    if (name !== undefined && !skip(name)) refs.add(name);
+    return ref;
+  };
+  return { refs, collect };
+};
+
 /**
  * Extract all schema names referenced in paths
  */
 const extractReferencedSchemas = (paths: OpenApiPaths): Set<string> => {
-  const refs = new Set<string>();
-
-  const extractFromSchema = (schema: OpenApiSchema | undefined): void => {
-    if (!schema) return;
-
-    if (schema.$ref) {
-      const match = schema.$ref.match(/^#\/components\/schemas\/(.+)$/);
-      if (match) {
-        refs.add(match[1]);
-      }
-    }
-
-    if (schema.items) {
-      extractFromSchema(schema.items);
-    }
-
-    if (schema.oneOf) {
-      schema.oneOf.forEach(extractFromSchema);
-    }
-
-    if (schema.allOf) {
-      schema.allOf.forEach(extractFromSchema);
-    }
-
-    if (schema.anyOf) {
-      schema.anyOf.forEach(extractFromSchema);
-    }
-
-    if (schema.properties) {
-      Object.values(schema.properties).forEach(extractFromSchema);
-    }
-  };
-
-  for (const pathMethods of Object.values(paths)) {
-    for (const operation of Object.values(pathMethods)) {
-      // Extract from parameters
-      operation.parameters?.forEach((param) => {
-        extractFromSchema(param.schema);
-      });
-
-      // Extract from request body
-      if (operation.requestBody?.content) {
-        Object.values(operation.requestBody.content).forEach((content) => {
-          extractFromSchema(content.schema);
-        });
-      }
-
-      // Extract from responses
-      Object.values(operation.responses).forEach((response) => {
-        if (response.content) {
-          Object.values(response.content).forEach((content) => {
-            extractFromSchema(content.schema);
-          });
-        }
-      });
-    }
-  }
-
+  const { refs, collect } = refCollector(/^#\/components\/schemas\/(.+)$/);
+  mapOperationSchemas(paths, (schema) => mapSchemaRefs(schema, collect));
   return refs;
 };
 
@@ -91,52 +52,11 @@ const extractNestedReferences = (
   schemas: Record<string, JsonSchema>,
   knownSchemas: Set<string>,
 ): Set<string> => {
-  const refs = new Set<string>();
-
-  const extractFromSchema = (schema: JsonSchema | undefined): void => {
-    if (!schema) return;
-
-    if (schema.$ref) {
-      const match = schema.$ref.match(
-        /^#\/(?:components\/schemas|definitions)\/(.+)$/,
-      );
-      if (match && !knownSchemas.has(match[1])) {
-        refs.add(match[1]);
-      }
-    }
-
-    if (schema.items) {
-      extractFromSchema(schema.items);
-    }
-
-    if (schema.oneOf) {
-      schema.oneOf.forEach(extractFromSchema);
-    }
-
-    if (schema.anyOf) {
-      schema.anyOf.forEach(extractFromSchema);
-    }
-
-    if (schema.allOf) {
-      schema.allOf.forEach(extractFromSchema);
-    }
-
-    if (schema.properties) {
-      Object.values(schema.properties).forEach(extractFromSchema);
-    }
-
-    if (
-      schema.additionalProperties &&
-      typeof schema.additionalProperties === 'object'
-    ) {
-      extractFromSchema(schema.additionalProperties);
-    }
-  };
-
-  for (const schema of Object.values(schemas)) {
-    extractFromSchema(schema);
-  }
-
+  const { refs, collect } = refCollector(
+    /^#\/(?:components\/schemas|definitions)\/(.+)$/,
+    (name) => knownSchemas.has(name),
+  );
+  for (const schema of Object.values(schemas)) mapSchemaRefs(schema, collect);
   return refs;
 };
 
@@ -158,9 +78,6 @@ const BOOLEAN_FLAG_KEYS = new Set([
   'nullable',
 ]);
 
-// OpenAPI 3.0 ignores keywords beside `$ref`, so a reference with a
-// description, nullability... is wrapped as `{ allOf: [{ $ref }], ...}`, as
-// @nestjs/swagger emits it
 const convertRefSchema = (schema: JsonSchema, ref: string): OpenApiSchema => {
   const siblings = Object.fromEntries(
     REF_SIBLING_KEYS.flatMap((key) => {
@@ -179,8 +96,6 @@ const convertRefSchema = (schema: JsonSchema, ref: string): OpenApiSchema => {
 
 const isNullSchema = (schema: JsonSchema) => schema.type === 'null';
 
-// The generator emits `T | null` as `anyOf: [T, { type: 'null' }]`, and
-// OpenAPI 3.0 has no null type
 const collapseNullVariants = (schema: JsonSchema): JsonSchema | undefined => {
   const key = schema.anyOf ? 'anyOf' : schema.oneOf ? 'oneOf' : undefined;
   const variants = key ? schema[key] : undefined;
@@ -203,10 +118,8 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   const withoutNullVariants = collapseNullVariants(schema);
   if (withoutNullVariants) return convertToOpenApiSchema(withoutNullVariants);
 
-  // Build result object incrementally
   const result: Record<string, unknown> = {};
 
-  // Normalize 3.1 type arrays to 3.0 nullable (e.g., ["string", "null"] → { type: "string", nullable: true })
   if (Array.isArray(schema.type)) {
     const nonNull = schema.type.filter((t) => t !== 'null');
     const isNullable = nonNull.length < schema.type.length;
@@ -222,15 +135,12 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
   }
   if (schema.description) result['description'] = schema.description;
   if (schema.enum) result['enum'] = schema.enum;
-  // Const value for discriminated unions
   if (schema.const !== undefined) result['const'] = schema.const;
 
-  // Validation constraints - string
   if (schema.minLength !== undefined) result['minLength'] = schema.minLength;
   if (schema.maxLength !== undefined) result['maxLength'] = schema.maxLength;
   if (schema.pattern !== undefined) result['pattern'] = schema.pattern;
 
-  // Validation constraints - number
   if (schema.minimum !== undefined) result['minimum'] = schema.minimum;
   if (schema.maximum !== undefined) result['maximum'] = schema.maximum;
   if (schema.exclusiveMinimum !== undefined)
@@ -239,27 +149,29 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
     result['exclusiveMaximum'] = schema.exclusiveMaximum;
   if (schema.multipleOf !== undefined) result['multipleOf'] = schema.multipleOf;
 
-  // Validation constraints - array
   if (schema.minItems !== undefined) result['minItems'] = schema.minItems;
   if (schema.maxItems !== undefined) result['maxItems'] = schema.maxItems;
   if (schema.uniqueItems !== undefined)
     result['uniqueItems'] = schema.uniqueItems;
 
-  // Default value
   if (schema.default !== undefined) result['default'] = schema.default;
 
-  // Schema metadata (from @ApiProperty)
   if (schema.title) result['title'] = schema.title;
   if (schema.example !== undefined) result['example'] = schema.example;
   if (schema.deprecated === true) result['deprecated'] = true;
   if (schema.readOnly === true) result['readOnly'] = true;
   if (schema.writeOnly === true) result['writeOnly'] = true;
-  // Explicit nullable from @ApiProperty (not from type-array normalization above)
   if (schema.nullable === true && !result['nullable'])
     result['nullable'] = true;
 
-  if (schema.items) {
-    result['items'] = convertToOpenApiSchema(schema.items);
+  if (Array.isArray(schema.items)) {
+    result['prefixItems'] = schema.items.map(convertToOpenApiSchema);
+    result['items'] =
+      typeof schema.additionalItems === 'object'
+        ? convertToOpenApiSchema(schema.additionalItems)
+        : false;
+  } else if (schema.items) {
+    result['items'] = convertToOpenApiSchema(schema.items as JsonSchema);
   }
 
   if (schema.oneOf) {
@@ -283,7 +195,6 @@ const convertToOpenApiSchema = (schema: JsonSchema): OpenApiSchema => {
     );
   }
 
-  // Handle explicit additionalProperties setting
   if (schema.additionalProperties !== undefined) {
     if (typeof schema.additionalProperties === 'boolean') {
       result['additionalProperties'] = schema.additionalProperties;
@@ -338,195 +249,78 @@ const convertRefsInValue = (value: unknown): unknown => {
 };
 
 /**
- * Merge generated DTO schemas with paths
- *
- * This function:
- * 1. Extracts all schema references from paths
- * 2. Includes only the schemas that are actually referenced
- * 3. Recursively includes nested schema references
+ * The names `mergeSchemas` includes: the generated schemas that paths and
+ * `extraRoots` reference, directly or through other schemas
  */
-const mergeSchemasInternal = (
+export const reachableSchemaNames = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
   extraRoots: readonly string[] = [],
-): MergedResult => {
-  // Find all schemas referenced in paths, plus @ApiExtraModels
-  const referencedSchemas = new Set([
-    ...extractReferencedSchemas(paths),
-    ...extraRoots,
-  ]);
-
-  // Build the schema collection, starting with referenced schemas
-  const schemas: Record<string, OpenApiSchema> = {};
+): ReadonlySet<string> => {
+  const reachable = new Set<string>();
   const processedSchemas = new Set<string>();
-  const toProcess = [...referencedSchemas];
+  const toProcess = [
+    ...new Set([...extractReferencedSchemas(paths), ...extraRoots]),
+  ];
 
   while (toProcess.length > 0) {
     const schemaName = toProcess.pop()!;
-
-    if (processedSchemas.has(schemaName)) {
-      continue;
-    }
-
+    if (processedSchemas.has(schemaName)) continue;
     processedSchemas.add(schemaName);
 
     const jsonSchema = generatedSchemas.definitions[schemaName];
-    if (jsonSchema) {
-      schemas[schemaName] = convertToOpenApiSchema(jsonSchema);
-
-      // Find nested references
-      const nestedRefs = extractNestedReferences(
-        { [schemaName]: jsonSchema },
-        processedSchemas,
-      );
-
-      for (const ref of nestedRefs) {
-        if (!processedSchemas.has(ref)) {
-          toProcess.push(ref);
-        }
-      }
+    if (!jsonSchema) continue;
+    reachable.add(schemaName);
+    for (const ref of extractNestedReferences(
+      { [schemaName]: jsonSchema },
+      processedSchemas,
+    )) {
+      toProcess.push(ref);
     }
   }
 
-  return { paths, schemas };
+  return reachable;
 };
 
+/**
+ * Merge generated DTO schemas with paths: only the schemas the paths and
+ * `extraRoots` reach are included, converted to OpenAPI form
+ */
 export const mergeSchemas = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
-  extraRoots?: readonly string[],
-): MergedResult => mergeSchemasInternal(paths, generatedSchemas, extraRoots);
-
-export const mergeSchemasEffect = Effect.fn('SchemaMerger.mergeSchemas')(
-  function* (
-    paths: OpenApiPaths,
-    generatedSchemas: GeneratedSchemas,
-    extraRoots?: readonly string[],
-  ) {
-    return yield* Effect.succeed(
-      mergeSchemasInternal(paths, generatedSchemas, extraRoots),
-    );
-  },
-);
-
-/**
- * Merge multiple GeneratedSchemas objects into one
- */
-const mergeGeneratedSchemasInternal = (
-  ...schemas: GeneratedSchemas[]
-): GeneratedSchemas => {
-  const definitions: Record<string, JsonSchema> = {};
-
-  for (const schema of schemas) {
-    Object.assign(definitions, schema.definitions);
-  }
-
-  return { definitions };
-};
-
-export const mergeGeneratedSchemas = (
-  ...schemas: GeneratedSchemas[]
-): GeneratedSchemas => mergeGeneratedSchemasInternal(...schemas);
-
-export const mergeGeneratedSchemasEffect = Effect.fn(
-  'SchemaMerger.mergeGeneratedSchemas',
-)(function* (...schemas: GeneratedSchemas[]) {
-  return yield* Effect.succeed(mergeGeneratedSchemasInternal(...schemas));
+  extraRoots: readonly string[] = [],
+): MergedResult => ({
+  paths,
+  schemas: Object.fromEntries(
+    [...reachableSchemaNames(paths, generatedSchemas, extraRoots)].map(
+      (name) => [
+        name,
+        convertToOpenApiSchema(generatedSchemas.definitions[name]!),
+      ],
+    ),
+  ),
 });
-
-/**
- * Filter schemas to only include those matching certain patterns
- */
-const filterSchemasInternal = (
-  schemas: GeneratedSchemas,
-  include?: readonly string[],
-  exclude?: readonly string[],
-): GeneratedSchemas => {
-  const definitions: Record<string, JsonSchema> = {};
-
-  for (const [name, schema] of Object.entries(schemas.definitions)) {
-    // Check include patterns
-    if (include && include.length > 0) {
-      const matches = include.some((pattern) => {
-        if (pattern.includes('*')) {
-          const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-          return regex.test(name);
-        }
-        return name === pattern;
-      });
-      if (!matches) continue;
-    }
-
-    // Check exclude patterns
-    if (exclude && exclude.length > 0) {
-      const excluded = exclude.some((pattern) => {
-        if (pattern.includes('*')) {
-          const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-          return regex.test(name);
-        }
-        return name === pattern;
-      });
-      if (excluded) continue;
-    }
-
-    definitions[name] = schema;
-  }
-
-  return { definitions };
-};
-
-export const filterSchemas = (
-  schemas: GeneratedSchemas,
-  include?: readonly string[],
-  exclude?: readonly string[],
-): GeneratedSchemas => filterSchemasInternal(schemas, include, exclude);
-
-export const filterSchemasEffect = Effect.fn('SchemaMerger.filterSchemas')(
-  function* (
-    schemas: GeneratedSchemas,
-    include?: readonly string[],
-    exclude?: readonly string[],
-  ) {
-    return yield* Effect.succeed(
-      filterSchemasInternal(schemas, include, exclude),
-    );
-  },
-);
 
 type SchemaNode = Record<string, unknown>;
 
 const isSchemaNode = (value: unknown): value is SchemaNode =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const forbidInSchemaMap = (map: SchemaNode): SchemaNode =>
-  Object.fromEntries(
-    Object.entries(map).map(([key, item]) => [key, forbidInSchema(item)]),
-  );
-
 const forbidInSchema = (value: unknown): unknown => {
-  if (!isSchemaNode(value)) return value;
-  const result: SchemaNode = { ...value };
-  for (const key of ['allOf', 'anyOf', 'oneOf'] as const) {
-    const members = result[key];
-    if (Array.isArray(members)) result[key] = members.map(forbidInSchema);
-  }
-  for (const key of ['items', 'not', 'additionalProperties'] as const) {
-    if (isSchemaNode(result[key])) result[key] = forbidInSchema(result[key]);
-  }
-  const patternProperties = result['patternProperties'];
-  if (isSchemaNode(patternProperties)) {
-    result['patternProperties'] = forbidInSchemaMap(patternProperties);
-  }
-  const properties = result['properties'];
-  if (isSchemaNode(properties)) {
-    result['properties'] = forbidInSchemaMap(properties);
-    result['additionalProperties'] ??= false;
-  }
-  return result;
+  const mapped = mapSubschemas(value, forbidInSchema);
+  if (!isSchemaNode(mapped) || !isSchemaNode(mapped['properties']))
+    return mapped;
+  return {
+    ...mapped,
+    additionalProperties: mapped['additionalProperties'] ?? false,
+  };
 };
 
-// `options.schemas.additionalProperties: 'forbid'`: every object that lists
-// its properties allows no others, unless it declares otherwise
+/**
+ * `options.schemas.additionalProperties: 'forbid'`: every object that lists
+ * its properties allows no others, unless it declares otherwise
+ */
 export const forbidAdditionalProperties = (
   schemas: Record<string, OpenApiSchema>,
 ): Record<string, OpenApiSchema> =>

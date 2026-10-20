@@ -1,0 +1,95 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Module Scope API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/internal": {
+      "get": {
+        "operationId": "InternalController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/external": {
+      "get": {
+        "operationId": "ExternalController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "External"
+        ]
+      }
+    },
+    "/shared": {
+      "get": {
+        "operationId": "SharedController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shared"
+        ]
+      }
+    },
+    "/feature": {
+      "get": {
+        "operationId": "FeatureController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Feature"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

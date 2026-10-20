@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   adaptSpecForV30,
+  emptyNonOAuthScopesForV30,
   transformSchemasForVersion,
   transformSpecForVersion,
 } from './schema-version-transformer.js';
@@ -33,6 +34,33 @@ describe('schema-version-transformer', () => {
 
       expect(result.User.properties?.name.type).toEqual(['string', 'null']);
       expect(result.User.properties?.email.type).toBe('string');
+    });
+
+    it('adds null as a branch of a nullable oneOf or anyOf for 3.1.0', () => {
+      const schemas: Record<string, OpenApiSchema> = {
+        Pet: {
+          type: 'object',
+          properties: {
+            exclusive: {
+              nullable: true,
+              oneOf: [{ type: 'string' }, { type: 'number' }],
+            },
+            either: {
+              nullable: true,
+              anyOf: [{ type: 'string' }, { type: 'number' }],
+            },
+          },
+        },
+      };
+
+      const pet = transformSchemasForVersion(schemas, '3.1.0').Pet;
+
+      expect(pet.properties?.exclusive).toEqual({
+        oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }],
+      });
+      expect(pet.properties?.either).toEqual({
+        anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }],
+      });
     });
 
     it('should move metadata beside $ref for 3.1.0', () => {
@@ -116,7 +144,10 @@ describe('schema-version-transformer', () => {
       const result = transformSchemasForVersion(schemas, '3.1.0');
 
       expect(
-        (result.UserList.properties?.items as OpenApiSchema).items?.type,
+        (
+          (result.UserList.properties?.items as OpenApiSchema)
+            .items as OpenApiSchema
+        ).type,
       ).toEqual(['string', 'null']);
     });
 
@@ -850,6 +881,15 @@ describe('schema-version-transformer', () => {
         adaptProperty({ type: 'number', minimum: 5, exclusiveMinimum: 0 }),
       ).toEqual({ type: 'number', minimum: 5 });
     });
+
+    it('keeps the stricter of an upper bound and an exclusive upper bound', () => {
+      expect(
+        adaptProperty({ type: 'number', maximum: 10, exclusiveMaximum: 5 }),
+      ).toEqual({ type: 'number', maximum: 5, exclusiveMaximum: true });
+      expect(
+        adaptProperty({ type: 'number', maximum: 3, exclusiveMaximum: 5 }),
+      ).toEqual({ type: 'number', maximum: 3 });
+    });
   });
 
   describe('exclusive bounds for 3.1', () => {
@@ -886,6 +926,466 @@ describe('schema-version-transformer', () => {
         age: { type: 'number', exclusiveMinimum: 0 },
         weight: { type: 'number', maximum: 90 },
       });
+    });
+  });
+
+  describe('subschemas under every keyword for 3.1', () => {
+    const nullableString: OpenApiSchema = { type: 'string', nullable: true };
+    const nullableTypeArray = { type: ['string', 'null'] };
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'transforms nullable under additionalProperties, not and patternProperties for %s',
+      (version) => {
+        const result = transformSchemasForVersion(
+          {
+            Map: { type: 'object', additionalProperties: nullableString },
+            Negated: { not: nullableString },
+            Patterned: {
+              type: 'object',
+              patternProperties: { '^x-': nullableString },
+            },
+          } as Record<string, OpenApiSchema>,
+          version,
+        );
+
+        expect(result['Map']).toEqual({
+          type: 'object',
+          additionalProperties: nullableTypeArray,
+        });
+        expect(result['Negated']).toEqual({ not: nullableTypeArray });
+        expect(result['Patterned']).toEqual({
+          type: 'object',
+          patternProperties: { '^x-': nullableTypeArray },
+        });
+      },
+    );
+
+    it.each([
+      ['query', (operation: object) => ({ query: operation })],
+      [
+        'additionalOperations',
+        (operation: object) => ({ additionalOperations: { COPY: operation } }),
+      ],
+    ])('transforms an operation under %s', (_name, pathItem) => {
+      const operation = {
+        responses: {
+          '200': {
+            description: 'ok',
+            content: { 'application/json': { schema: nullableString } },
+          },
+        },
+      };
+
+      const spec = transformSpecForVersion(
+        {
+          openapi: '3.0.3',
+          info: { title: 'Pets', version: '1.0.0' },
+          paths: { '/pets': pathItem(operation) },
+        } as unknown as OpenApiSpec,
+        '3.2.0',
+      );
+
+      expect(JSON.stringify(spec.paths)).toContain('["string","null"]');
+      expect(JSON.stringify(spec.paths)).not.toContain('nullable');
+    });
+  });
+
+  describe('adaptSpecForV30 const', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+
+    it('rewrites const as a single-value enum and keeps other keywords', () => {
+      const widget = widgetOf(
+        adaptSpecForV30(
+          specWith({ const: 'pod', type: 'string', description: 'The field' }),
+        ),
+      );
+
+      expect(widget).toEqual({
+        enum: ['pod'],
+        type: 'string',
+        description: 'The field',
+      });
+    });
+
+    it('lets an existing enum win over const', () => {
+      const widget = widgetOf(
+        adaptSpecForV30(
+          specWith({ const: 'a', enum: ['a', 'b'], type: 'string' }),
+        ),
+      );
+
+      expect(widget).toEqual({ enum: ['a', 'b'], type: 'string' });
+    });
+
+    it.each([
+      ['a falsy string', '', ['']],
+      ['zero', 0, [0]],
+      ['false', false, [false]],
+      ['null', null, [null]],
+    ])('expands %s rather than treating it as absent', (_, value, want) => {
+      const widget = widgetOf(adaptSpecForV30(specWith({ const: value })));
+
+      expect(widget?.enum).toEqual(want);
+    });
+
+    it('rewrites const nested in properties, items, anyOf and additionalProperties', () => {
+      const leaf = { const: 'x', type: 'string' };
+      const widget = widgetOf(
+        adaptSpecForV30(
+          specWith({
+            type: 'object',
+            properties: { kind: leaf, list: { type: 'array', items: leaf } },
+            anyOf: [leaf, { type: 'number' }],
+            additionalProperties: leaf,
+          }),
+        ),
+      );
+
+      const expanded = { enum: ['x'], type: 'string' };
+      expect(widget).toEqual({
+        type: 'object',
+        properties: {
+          kind: expanded,
+          list: { type: 'array', items: expanded },
+        },
+        anyOf: [expanded, { type: 'number' }],
+        additionalProperties: expanded,
+      });
+    });
+
+    it('rewrites const in an operation schema', () => {
+      const spec = adaptSpecForV30({
+        ...specWith({}),
+        paths: {
+          '/widgets': {
+            get: {
+              operationId: 'getWidgets',
+              responses: {
+                '200': {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        const: 'card',
+                        type: 'string',
+                      } as OpenApiSchema,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        spec.paths['/widgets'].get.responses['200'].content?.[
+          'application/json'
+        ].schema,
+      ).toEqual({ enum: ['card'], type: 'string' });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)('keeps const for %s', (version) => {
+      const widget = widgetOf(
+        transformSpecForVersion(
+          specWith({ const: 'card', type: 'string' }),
+          version,
+        ),
+      );
+
+      expect(widget).toEqual({ const: 'card', type: 'string' });
+    });
+  });
+  describe('primitive unions', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+
+    it('writes a type list as anyOf for 3.0', () => {
+      expect(
+        widgetOf(adaptSpecForV30(specWith({ type: ['string', 'number'] }))),
+      ).toEqual({ anyOf: [{ type: 'string' }, { type: 'number' }] });
+    });
+
+    it('adds the 3.0 null member when the list has null', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(specWith({ type: ['string', 'number', 'null'] })),
+        ),
+      ).toEqual({
+        anyOf: [
+          { type: 'string' },
+          { type: 'number' },
+          { type: 'object', nullable: true, enum: [null] },
+        ],
+      });
+    });
+
+    it('keeps other keywords beside anyOf', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: ['string', 'number'], description: 'd' }),
+          ),
+        ),
+      ).toEqual({
+        description: 'd',
+        anyOf: [{ type: 'string' }, { type: 'number' }],
+      });
+    });
+
+    it('turns a type list with one type and null into nullable', () => {
+      expect(
+        widgetOf(adaptSpecForV30(specWith({ type: ['string', 'null'] }))),
+      ).toEqual({ type: 'string', nullable: true });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'leaves a type list alone for %s',
+      (version) => {
+        expect(
+          widgetOf(
+            transformSpecForVersion(
+              specWith({ type: ['string', 'number'] }),
+              version,
+            ),
+          ),
+        ).toEqual({ type: ['string', 'number'] });
+      },
+    );
+  });
+
+  describe('nullable enums', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'lists null in the enum for %s',
+      (version) => {
+        expect(
+          widgetOf(
+            transformSpecForVersion(
+              specWith({ type: 'string', enum: ['a', 'b'], nullable: true }),
+              version,
+            ),
+          ),
+        ).toEqual({ type: ['string', 'null'], enum: ['a', 'b', null] });
+      },
+    );
+
+    it('does not list null twice', () => {
+      expect(
+        widgetOf(
+          transformSpecForVersion(
+            specWith({ type: 'string', enum: ['a', null], nullable: true }),
+            '3.1.0',
+          ),
+        ),
+      ).toEqual({ type: ['string', 'null'], enum: ['a', null] });
+    });
+
+    it('leaves the enum of a schema that is not nullable alone', () => {
+      expect(
+        widgetOf(
+          transformSpecForVersion(
+            specWith({ type: 'string', enum: ['a', 'b'] }),
+            '3.1.0',
+          ),
+        ),
+      ).toEqual({ type: 'string', enum: ['a', 'b'] });
+    });
+
+    it('lists null in the enum for 3.0, where nullable leaves enum as it is', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: 'string', enum: ['a', 'b'], nullable: true }),
+          ),
+        ),
+      ).toEqual({ type: 'string', enum: ['a', 'b', null], nullable: true });
+    });
+  });
+
+  describe('tuples', () => {
+    const specWith = (schema: Record<string, unknown>): OpenApiSpec => ({
+      openapi: '3.0.3',
+      info: { title: 'Pets', version: '1.0.0' },
+      paths: {},
+      components: { schemas: { Widget: schema as OpenApiSchema } },
+    });
+    const widgetOf = (spec: OpenApiSpec) =>
+      spec.components?.schemas?.['Widget'];
+    const S = { type: 'string' };
+    const N = { type: 'number' };
+
+    it('writes the positions of a tuple as anyOf items for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({
+              type: 'array',
+              prefixItems: [S, N],
+              items: false,
+              minItems: 2,
+              maxItems: 2,
+            }),
+          ),
+        ),
+      ).toEqual({
+        type: 'array',
+        items: { anyOf: [S, N] },
+        minItems: 2,
+        maxItems: 2,
+      });
+    });
+
+    it('writes one distinct member as items for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: 'array', prefixItems: [S, S], items: false }),
+          ),
+        ),
+      ).toEqual({ type: 'array', items: S });
+    });
+
+    it('adds the rest element to the anyOf for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({ type: 'array', prefixItems: [S], items: N }),
+          ),
+        ),
+      ).toEqual({ type: 'array', items: { anyOf: [S, N] } });
+    });
+
+    it('adapts the members of a tuple for 3.0', () => {
+      expect(
+        widgetOf(
+          adaptSpecForV30(
+            specWith({
+              type: 'array',
+              prefixItems: [{ type: ['string', 'null'] }],
+              items: false,
+            }),
+          ),
+        ),
+      ).toEqual({
+        type: 'array',
+        items: { type: 'string', nullable: true },
+      });
+    });
+
+    it.each(['3.1.0', '3.2.0'] as const)(
+      'keeps the 2020-12 form and transforms its members for %s',
+      (version) => {
+        expect(
+          widgetOf(
+            transformSpecForVersion(
+              specWith({
+                type: 'array',
+                prefixItems: [{ type: 'string', nullable: true }, N],
+                items: false,
+              }),
+              version,
+            ),
+          ),
+        ).toEqual({
+          type: 'array',
+          prefixItems: [{ type: ['string', 'null'] }, N],
+          items: false,
+        });
+      },
+    );
+  });
+
+  describe('emptyNonOAuthScopesForV30', () => {
+    const specWith = (
+      overrides: Partial<OpenApiSpec> & { operationSecurity?: unknown },
+    ): OpenApiSpec => {
+      const { operationSecurity, ...rest } = overrides;
+      return {
+        openapi: '3.0.3',
+        info: { title: 'Pets', version: '1.0.0' },
+        paths: {
+          '/pets': {
+            get: {
+              operationId: 'getPets',
+              responses: { '200': { description: 'ok' } },
+              ...(operationSecurity !== undefined && {
+                security: operationSecurity,
+              }),
+            },
+          },
+        } as OpenApiSpec['paths'],
+        components: {
+          securitySchemes: {
+            'api-key': { type: 'apiKey', in: 'header', name: 'X-Key' },
+            oauth2: { type: 'oauth2', flows: {} },
+            oidc: { type: 'openIdConnect', openIdConnectUrl: 'https://x' },
+          },
+        },
+        ...rest,
+      };
+    };
+
+    it('empties the scopes of a non-OAuth scheme and reports them', () => {
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ operationSecurity: [{ 'api-key': ['read'] }] }),
+      );
+
+      expect(result.spec.paths['/pets'].get.security).toEqual([
+        { 'api-key': [] },
+      ]);
+      expect(result.dropped).toEqual([{ scheme: 'api-key', scopes: ['read'] }]);
+    });
+
+    it('keeps the scopes of OAuth2 and OpenID Connect schemes', () => {
+      const security = [{ oauth2: ['read'], oidc: ['openid'] }];
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ operationSecurity: security }),
+      );
+
+      expect(result.spec.paths['/pets'].get.security).toEqual(security);
+      expect(result.dropped).toEqual([]);
+    });
+
+    it('handles global security', () => {
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ security: [{ 'api-key': ['read', 'write'] }] }),
+      );
+
+      expect(result.spec.security).toEqual([{ 'api-key': [] }]);
+      expect(result.dropped).toEqual([
+        { scheme: 'api-key', scopes: ['read', 'write'] },
+      ]);
+    });
+
+    it('leaves a scheme that is not declared as it is', () => {
+      const result = emptyNonOAuthScopesForV30(
+        specWith({ security: [{ unknown: ['read'] }] }),
+      );
+
+      expect(result.spec.security).toEqual([{ unknown: ['read'] }]);
+      expect(result.dropped).toEqual([]);
     });
   });
 });

@@ -52,14 +52,6 @@ export const getArrayInitializer = (
   return Option.fromNullable(initializer);
 };
 
-export const getStringLiteralValue = (
-  expr: Expression | undefined,
-): Option.Option<string> => {
-  if (!expr) return Option.none();
-  const stringLit = expr.asKind?.(ts.SyntaxKind.StringLiteral);
-  return Option.fromNullable(stringLit?.getLiteralValue());
-};
-
 export const getSymbolFromIdentifier = (
   expr: Expression | undefined,
 ): Option.Option<Symbol> => {

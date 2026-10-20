@@ -1,6 +1,13 @@
 import { Effect, Schema } from 'effect';
 import { existsSync, statSync } from 'node:fs';
-import { resolve, dirname, extname } from 'node:path';
+import {
+  resolve,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+} from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import {
@@ -43,13 +50,11 @@ const deepMerge = <T extends Record<string, unknown>>(
       typeof parentValue === 'object' &&
       !Array.isArray(parentValue)
     ) {
-      // Recursively merge objects
       result[key] = deepMerge(
         parentValue as Record<string, unknown>,
         childValue as Record<string, unknown>,
       ) as T[keyof T];
     } else {
-      // Replace value (including arrays)
       result[key] = childValue as T[keyof T];
     }
   }
@@ -116,26 +121,25 @@ const DEFAULT_CONFIG = {
   },
 } as const;
 
-export const findConfigFile = (
-  startDir: string = process.cwd(),
-): Effect.Effect<string, ConfigNotFoundError> =>
-  Effect.fn('Config.findConfigFile')(function* (scanStartDir: string) {
-    let currentDir = resolve(scanStartDir);
+export const findConfigFile = Effect.fn('Config.findConfigFile')(function* (
+  scanStartDir: string = process.cwd(),
+) {
+  let currentDir = resolve(scanStartDir);
 
-    while (true) {
-      for (const fileName of CONFIG_FILE_NAMES) {
-        const configPath = resolve(currentDir, fileName);
-        if (existsSync(configPath)) {
-          return configPath;
-        }
+  while (true) {
+    for (const fileName of CONFIG_FILE_NAMES) {
+      const configPath = resolve(currentDir, fileName);
+      if (existsSync(configPath)) {
+        return configPath;
       }
-      const parentDir = dirname(currentDir);
-      if (parentDir === currentDir) break;
-      currentDir = parentDir;
     }
+    const parentDir = dirname(currentDir);
+    if (parentDir === currentDir) break;
+    currentDir = parentDir;
+  }
 
-    return yield* ConfigNotFoundError.notFound(scanStartDir);
-  })(startDir);
+  return yield* ConfigNotFoundError.notFound(scanStartDir);
+});
 
 const validateConfig = (
   config: unknown,
@@ -170,13 +174,12 @@ const require = createRequire(import.meta.url);
 
 const importConfigModule = async (
   absolutePath: string,
-  forceFreshLoad: boolean,
+  isReload: boolean,
 ): Promise<unknown> => {
   const extension = extname(absolutePath).toLowerCase();
   const fileUrl = pathToFileURL(absolutePath).href;
 
-  // Fast path for one-shot CLI runs: avoid cache-busting on first load for JS configs.
-  if (!forceFreshLoad) {
+  if (!isReload) {
     if (extension === '.cjs') {
       return require(absolutePath);
     }
@@ -190,13 +193,12 @@ const importConfigModule = async (
     }
   }
 
-  if (extension === '.cjs' && forceFreshLoad) {
+  if (extension === '.cjs' && isReload) {
     const resolvedPath = require.resolve(absolutePath);
     delete require.cache[resolvedPath];
     return require(absolutePath);
   }
 
-  // Keep cache-busting for TS (and reload cases) for correctness in long-lived processes/tests.
   const cacheBustUrl = `${fileUrl}?t=${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return import(cacheBustUrl);
 };
@@ -204,11 +206,9 @@ const importConfigModule = async (
 /**
  * Load raw config from file without validation (for extends resolution)
  */
-const loadRawConfigFromFile = (
-  configPath: string,
-): Effect.Effect<Record<string, unknown>, ConfigError> =>
-  Effect.fn('Config.loadRawConfigFromFile')(function* (inputConfigPath: string) {
-    const absolutePath = resolve(inputConfigPath);
+const loadRawConfigFromFile = Effect.fn('Config.loadRawConfigFromFile')(
+  function* (configPath: string) {
+    const absolutePath = resolve(configPath);
     const hasLoadedBefore = configRawCache.has(absolutePath);
 
     if (!existsSync(absolutePath)) {
@@ -252,90 +252,140 @@ const loadRawConfigFromFile = (
     });
 
     return normalizedRawConfig;
-  })(configPath);
+  },
+);
+
+const rebasePath = (value: unknown, fromDir: string, toDir: string) => {
+  if (typeof value !== 'string' || value === '') {
+    return value;
+  }
+  const negated = value.startsWith('!');
+  const pattern = negated ? value.slice(1) : value;
+  if (isAbsolute(pattern)) {
+    return value;
+  }
+  const rebased = relative(toDir, join(fromDir, pattern)) || '.';
+  return negated ? `!${rebased}` : rebased;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Rewrite the path-valued fields of a config (`output`, `files.entry`,
+ * `files.tsconfig`, `files.dtoGlob`, and `options.overlay` given as a path)
+ * from relative to `fromDir` into relative to `toDir`.
+ */
+const rebaseConfigPaths = (
+  config: Record<string, unknown>,
+  fromDir: string,
+  toDir: string,
+): Record<string, unknown> => {
+  if (fromDir === toDir) {
+    return config;
+  }
+  const rebase = (value: unknown) => rebasePath(value, fromDir, toDir);
+  const rebaseMany = (value: unknown) =>
+    Array.isArray(value) ? value.map(rebase) : rebase(value);
+
+  const result = { ...config };
+  if ('output' in result) {
+    result.output = rebase(result.output);
+  }
+  if (isRecord(result.files)) {
+    const files = { ...result.files };
+    for (const key of ['entry', 'dtoGlob'] as const) {
+      if (key in files) {
+        files[key] = rebaseMany(files[key]);
+      }
+    }
+    if ('tsconfig' in files) {
+      files.tsconfig = rebase(files.tsconfig);
+    }
+    result.files = files;
+  }
+  if (isRecord(result.options) && typeof result.options.overlay === 'string') {
+    result.options = {
+      ...result.options,
+      overlay: rebase(result.options.overlay),
+    };
+  }
+  return result;
+};
 
 /**
  * Recursively resolve config extends chain and merge configs
  */
-const resolveConfigExtends = (
+const resolveConfigExtends: (
+  rawConfig: Record<string, unknown>,
+  configPath: string,
+  visited?: Set<string>,
+) => Effect.Effect<Record<string, unknown>, ConfigError> = Effect.fn(
+  'Config.resolveConfigExtends',
+)(function* (
   rawConfig: Record<string, unknown>,
   configPath: string,
   visited: Set<string> = new Set(),
-): Effect.Effect<Record<string, unknown>, ConfigError> =>
-  Effect.fn('Config.resolveConfigExtends')(function* (
-    inputRawConfig: Record<string, unknown>,
-    inputConfigPath: string,
-    seen: Set<string>,
-  ) {
-    const absolutePath = resolve(inputConfigPath);
+) {
+  const absolutePath = resolve(configPath);
 
-    // Detect circular extends
-    if (seen.has(absolutePath)) {
-      return yield* ConfigLoadError.circularExtends(absolutePath);
-    }
-    seen.add(absolutePath);
+  if (visited.has(absolutePath)) {
+    return yield* ConfigLoadError.circularExtends(absolutePath);
+  }
+  visited.add(absolutePath);
 
-    const extendsPath = inputRawConfig.extends as string | undefined;
+  const extendsPath = rawConfig.extends as string | undefined;
 
-    if (!extendsPath) {
-      return inputRawConfig;
-    }
+  if (!extendsPath) {
+    return rawConfig;
+  }
 
-    // Resolve extends path relative to current config file
-    const parentConfigPath = resolve(dirname(absolutePath), extendsPath);
+  const parentConfigPath = resolve(dirname(absolutePath), extendsPath);
 
-    yield* Effect.logDebug('Resolving config extends').pipe(
-      Effect.annotateLogs({ parent: parentConfigPath }),
-    );
+  yield* Effect.logDebug('Resolving config extends').pipe(
+    Effect.annotateLogs({ parent: parentConfigPath }),
+  );
 
-    // Load parent config
-    const parentRawConfig = yield* loadRawConfigFromFile(parentConfigPath);
+  const parentRawConfig = yield* loadRawConfigFromFile(parentConfigPath);
 
-    // Recursively resolve parent's extends
-    const resolvedParent = yield* resolveConfigExtends(
-      parentRawConfig,
-      parentConfigPath,
-      seen,
-    );
+  const resolvedParent = yield* resolveConfigExtends(
+    parentRawConfig,
+    parentConfigPath,
+    visited,
+  );
 
-    // Remove extends from child before merging (it's not a real config property)
-    const { extends: _, ...childWithoutExtends } = inputRawConfig;
+  const { extends: _, ...childWithoutExtends } = rawConfig;
 
-    // Deep merge parent with child (child wins)
-    return deepMerge(
-      resolvedParent as Record<string, unknown>,
-      childWithoutExtends,
-    );
-  })(rawConfig, configPath, visited);
+  return deepMerge(
+    rebaseConfigPaths(
+      resolvedParent,
+      dirname(parentConfigPath),
+      dirname(absolutePath),
+    ),
+    childWithoutExtends,
+  );
+});
 
-export const loadConfigFromFile = (
-  configPath: string,
-): Effect.Effect<typeof OpenApiGeneratorConfig.Type, ConfigError> =>
-  Effect.fn('Config.loadConfigFromFile')(function* (inputConfigPath: string) {
-    // Load raw config
-    const rawConfig = yield* loadRawConfigFromFile(inputConfigPath);
+export const loadConfigFromFile = Effect.fn('Config.loadConfigFromFile')(
+  function* (configPath: string) {
+    const rawConfig = yield* loadRawConfigFromFile(configPath);
 
-    // Resolve extends chain
-    const mergedConfig = yield* resolveConfigExtends(rawConfig, inputConfigPath);
+    const mergedConfig = yield* resolveConfigExtends(rawConfig, configPath);
 
-    // Validate merged config (pathFilter is now schema-validated)
-    return yield* validateConfig(mergedConfig, inputConfigPath);
-  })(configPath);
+    return yield* validateConfig(mergedConfig, configPath);
+  },
+);
 
-export const loadConfig = (
+export const loadConfig = Effect.fn('Config.loadConfig')(function* (
   configPath?: string,
   cwd: string = process.cwd(),
-): Effect.Effect<typeof OpenApiGeneratorConfig.Type, ConfigError> =>
-  Effect.fn('Config.loadConfig')(function* (
-    inputConfigPath: string | undefined,
-    inputCwd: string,
-  ) {
-    const resolvedPath = inputConfigPath
-      ? Effect.succeed(inputConfigPath)
-      : findConfigFile(inputCwd);
-    const path = yield* resolvedPath;
-    return yield* loadConfigFromFile(path);
-  })(configPath, cwd);
+) {
+  const resolvedPath = configPath
+    ? Effect.succeed(configPath)
+    : findConfigFile(cwd);
+  const path = yield* resolvedPath;
+  return yield* loadConfigFromFile(path);
+});
 
 export const resolveConfig = (
   config: typeof OpenApiGeneratorConfig.Type,
@@ -346,11 +396,9 @@ export const resolveConfig = (
   const openapi = config.openapi;
   const security = openapi.security ?? {};
 
-  // Normalize entry to array
   const rawEntry = files.entry ?? DEFAULT_ENTRY;
   const entry = Array.isArray(rawEntry) ? rawEntry : [rawEntry];
 
-  // Normalize dtoGlob to array, using defaults if not specified
   const rawDtoGlob = files.dtoGlob;
   const dtoGlob = rawDtoGlob
     ? Array.isArray(rawDtoGlob)
@@ -358,7 +406,6 @@ export const resolveConfig = (
       : [rawDtoGlob]
     : [...DEFAULT_DTO_GLOB];
 
-  // tsconfig is required - fail with typed config validation error
   const tsconfig = files.tsconfig;
   if (!tsconfig) {
     return Effect.fail(
@@ -394,17 +441,12 @@ export const resolveConfig = (
   });
 };
 
-export const loadAndResolveConfig = (
-  configPath?: string,
-  cwd: string = process.cwd(),
-): Effect.Effect<typeof ResolvedConfig.Type, ConfigError> =>
-  Effect.fn('Config.loadAndResolveConfig')(function* (
-    inputConfigPath: string | undefined,
-    inputCwd: string,
-  ) {
-    const config = yield* loadConfig(inputConfigPath, inputCwd);
-    return yield* resolveConfig(config, inputConfigPath ?? 'unknown');
-  })(configPath, cwd);
+export const loadAndResolveConfig = Effect.fn('Config.loadAndResolveConfig')(
+  function* (configPath?: string, cwd: string = process.cwd()) {
+    const config = yield* loadConfig(configPath, cwd);
+    return yield* resolveConfig(config, configPath ?? 'unknown');
+  },
+);
 
 const serviceFindConfigFile = Effect.fn('ConfigService.findConfigFile')(
   function* (startDir: string = process.cwd()) {
@@ -412,11 +454,11 @@ const serviceFindConfigFile = Effect.fn('ConfigService.findConfigFile')(
   },
 );
 
-const serviceLoadConfigFromFile = Effect.fn(
-  'ConfigService.loadConfigFromFile',
-)(function* (configPath: string) {
-  return yield* loadConfigFromFile(configPath);
-});
+const serviceLoadConfigFromFile = Effect.fn('ConfigService.loadConfigFromFile')(
+  function* (configPath: string) {
+    return yield* loadConfigFromFile(configPath);
+  },
+);
 
 const serviceLoadConfig = Effect.fn('ConfigService.loadConfig')(function* (
   configPath?: string,
@@ -425,12 +467,14 @@ const serviceLoadConfig = Effect.fn('ConfigService.loadConfig')(function* (
   return yield* loadConfig(configPath, cwd);
 });
 
-const serviceResolveConfig = Effect.fn('ConfigService.resolveConfig')(function* (
-  config: typeof OpenApiGeneratorConfig.Type,
-  configPath: string = 'unknown',
-) {
-  return yield* resolveConfig(config, configPath);
-});
+const serviceResolveConfig = Effect.fn('ConfigService.resolveConfig')(
+  function* (
+    config: typeof OpenApiGeneratorConfig.Type,
+    configPath: string = 'unknown',
+  ) {
+    return yield* resolveConfig(config, configPath);
+  },
+);
 
 const serviceLoadAndResolveConfig = Effect.fn(
   'ConfigService.loadAndResolveConfig',

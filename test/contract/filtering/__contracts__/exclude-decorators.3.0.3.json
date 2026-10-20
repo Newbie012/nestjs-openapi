@@ -1,0 +1,224 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "description": "API demonstrating decorator and path filtering",
+    "title": "Exclude Decorators Test API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "ItemsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of items"
+          }
+        },
+        "summary": "Get all items",
+        "tags": [
+          "Items"
+        ]
+      },
+      "post": {
+        "operationId": "ItemsController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateItemDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDto"
+                }
+              }
+            },
+            "description": "Item created"
+          }
+        },
+        "summary": "Create a new item",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/items/{id}": {
+      "get": {
+        "operationId": "ItemsController_findOne",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDto"
+                }
+              }
+            },
+            "description": "Item found"
+          },
+          "404": {
+            "description": "Item not found"
+          }
+        },
+        "summary": "Get item by ID",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/admin/config": {
+      "get": {
+        "operationId": "AdminController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Configuration"
+          }
+        },
+        "summary": "Get public configuration",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/public/info": {
+      "get": {
+        "operationId": "PublicApiController_getInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "name"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "API info"
+          }
+        },
+        "summary": "Get public API info",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/public/status": {
+      "get": {
+        "operationId": "PublicApiController_getStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "online": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "online"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "API status"
+          }
+        },
+        "summary": "Get API status",
+        "tags": [
+          "Public"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ItemDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "CreateItemDto": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

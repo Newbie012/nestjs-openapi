@@ -14,7 +14,10 @@ import type {
   Type,
 } from 'ts-morph';
 import { Node, ts } from 'ts-morph';
-import type { GeneratedSchemas, JsonSchema } from '../schema/schema-generator.js';
+import type {
+  GeneratedSchemas,
+  JsonSchema,
+} from '../schema/schema-generator.js';
 import { ValidationMappingError } from '../config/errors.js';
 import {
   getEffectiveDecorators,
@@ -33,41 +36,33 @@ import {
 } from './static-value.js';
 import {
   DEFAULT_SCHEMA_NAMING,
-  allowsNull,
   readDeclaredPropertySchema,
   type EnumValue,
   type SchemaNaming,
 } from './property-schema.js';
 import { getLiteralValues, resolveDeclarations } from './ast.js';
-
-// Validation constraint types
+import { isNullable } from '../schema/nullable.js';
 
 export interface ValidationConstraints {
-  // String constraints
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: string;
   readonly format?: string;
 
-  // Number constraints
   readonly minimum?: number;
   readonly maximum?: number;
   readonly exclusiveMinimum?: number | boolean;
   readonly exclusiveMaximum?: number | boolean;
   readonly multipleOf?: number;
 
-  // Array constraints
   readonly minItems?: number;
   readonly maxItems?: number;
   readonly uniqueItems?: boolean;
 
-  // Enum constraint
   readonly enum?: readonly unknown[];
 
-  // Type override
   readonly type?: string;
 
-  // Schema metadata (from @ApiProperty)
   readonly description?: string;
   readonly title?: string;
   readonly example?: unknown;
@@ -78,7 +73,6 @@ export interface ValidationConstraints {
   readonly nullable?: boolean;
   readonly isArray?: boolean;
 
-  // Visibility (from @ApiHideProperty)
   readonly hidden?: boolean;
 
   readonly items?: ValidationConstraints;
@@ -144,7 +138,6 @@ const parseNumber = (value: string | undefined): number | undefined => {
  * Mapping from class-validator decorators to OpenAPI constraints
  */
 const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
-  // Type validators
   IsString: () => ({ type: 'string' }),
   IsNumber: () => ({ type: 'number' }),
   IsInt: () => ({ type: 'integer' }),
@@ -153,7 +146,6 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
   IsObject: () => ({ type: 'object' }),
   IsDate: () => ({ type: 'string', format: 'date-time' }),
 
-  // String format validators
   IsEmail: () => ({ format: 'email' }),
   IsUrl: () => ({ format: 'uri' }),
   IsUUID: () => ({ format: 'uuid' }),
@@ -164,7 +156,6 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
   IsIP: () => ({ format: 'ipv4' }),
   IsJSON: () => ({ format: 'json' }),
 
-  // String length validators
   MinLength: (args) => ({ minLength: parseNumber(args[0]) }),
   MaxLength: (args) => ({ maxLength: parseNumber(args[0]) }),
   Length: (args) => ({
@@ -172,7 +163,6 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
     maxLength: parseNumber(args[1]) ?? parseNumber(args[0]),
   }),
 
-  // String pattern validators
   Matches: (args) => ({
     pattern:
       args[0] === undefined
@@ -180,26 +170,21 @@ const DECORATOR_MAPPINGS: Record<string, DecoratorMapper> = {
         : args[0].replace(/^\/(.*)\/[gimsuvy]*$/, '$1'),
   }),
 
-  // Number validators
   Min: (args) => ({ minimum: parseNumber(args[0]) }),
   Max: (args) => ({ maximum: parseNumber(args[0]) }),
   IsPositive: () => ({ exclusiveMinimum: 0 }),
   IsNegative: () => ({ exclusiveMaximum: 0 }),
 
-  // Array validators
   ArrayMinSize: (args) => ({ minItems: parseNumber(args[0]) }),
   ArrayMaxSize: (args) => ({ maxItems: parseNumber(args[0]) }),
 
-  // Enum validator - static analysis can't easily extract enum values
   IsEnum: () => ({}),
 
-  // Other validators (these don't map directly to OpenAPI but inform the schema)
-  IsOptional: () => ({}), // Handled separately via required array
+  IsOptional: () => ({}),
   IsNotEmpty: () => ({ minLength: 1 }),
   IsDefined: () => ({}),
   IsEmpty: () => ({}),
 
-  // Nested/type validators
   ValidateNested: () => ({}),
   Type: () => ({}),
 };
@@ -454,7 +439,10 @@ const describeNode = (node: Node) =>
 const describeLocation = (
   value: StaticValue | undefined,
   call: DecoratorCall,
-) => describeNode((value && 'node' in value ? value.node : undefined) ?? call.node);
+) =>
+  describeNode(
+    (value && 'node' in value ? value.node : undefined) ?? call.node,
+  );
 
 const describeArgument = (value: StaticValue | undefined) => {
   if (value === undefined) return 'undefined';
@@ -466,7 +454,6 @@ const describeArgument = (value: StaticValue | undefined) => {
 const TYPE_FALLBACK =
   '; the TypeScript type is used instead. Describe it with a literal, an enum, or a static expression';
 
-// Recorded so an argument is never silently dropped
 const withUnreadable = (
   state: PropertyValidationInfo,
   message: string,
@@ -664,24 +651,6 @@ export const extractClassValidationInfo = (
     { constraints: {}, required: [], optional: [] },
   );
 
-/**
- * Extract all property constraints from a class
- */
-export const extractClassConstraints = (
-  classDecl: ClassDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): Record<string, ValidationConstraints> =>
-  extractClassValidationInfo(classDecl, expansion).constraints;
-
-/**
- * Get required property names from a class (those without @IsOptional)
- */
-export const getRequiredProperties = (
-  classDecl: ClassDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): readonly string[] =>
-  extractClassValidationInfo(classDecl, expansion).required;
-
 const collectHiddenProperties = (
   propertyConstraints: Record<string, ValidationConstraints>,
 ): ReadonlySet<string> =>
@@ -712,9 +681,6 @@ const cleanPropertyConstraints = (
   return cleanConstraints;
 };
 
-// The declared type replaces the inferred one, as in @nestjs/swagger: a
-// `string[]` declared `type: String` is a string (`isArray` or `[String]`
-// declares an array), and `T | null` stays nullable
 const applySchemaOverride = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints,
@@ -728,7 +694,7 @@ const applySchemaOverride = (
 
   return {
     ...typed,
-    ...(allowsNull(propertySchema) ? { nullable: true } : {}),
+    ...(isNullable(propertySchema) ? { nullable: true } : {}),
     ...(propertySchema.description && !rest.description
       ? { description: propertySchema.description }
       : {}),
@@ -737,78 +703,60 @@ const applySchemaOverride = (
   } as JsonSchema;
 };
 
-const hasNullableArraySchema = (schema: JsonSchema): boolean =>
-  schema.anyOf?.some((member) => member.type === 'array') === true;
-
 const isItemTypeOverride = (typeOverride: string | undefined): boolean =>
   typeof typeOverride === 'string' && typeOverride !== 'array';
 
-const shouldApplyNullableArrayItemConstraints = (
-  propertySchema: JsonSchema,
-  isArray: boolean | undefined,
-  typeOverride: string | undefined,
-  enumValues: readonly unknown[] | undefined,
-): boolean =>
-  hasNullableArraySchema(propertySchema) &&
-  ((isArray === true && isItemTypeOverride(typeOverride)) ||
-    enumValues !== undefined);
+const hasArrayShape = (schema: JsonSchema): boolean =>
+  schema.type === 'array' ||
+  schema.anyOf?.some((member) => member.type === 'array') === true;
 
-const applyNullableArrayItemConstraints = (
-  propertySchema: JsonSchema,
-  isArray: boolean | undefined,
-  typeOverride: string | undefined,
-  enumValues: readonly unknown[] | undefined,
-  restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
+/**
+ * Rewrites the items of an array schema, or of each array member of an
+ * `anyOf` (how `T[] | null` arrives). Any other schema is returned as it is.
+ */
+const withArrayItems = (
+  schema: JsonSchema,
+  toItems: (items: JsonSchema['items']) => JsonSchema['items'],
 ): JsonSchema => {
-  const hasItemTypeOverride =
-    isArray === true && isItemTypeOverride(typeOverride);
-  const itemConstraints = {
-    ...(hasItemTypeOverride ? { type: typeOverride } : {}),
-    ...(enumValues ? { enum: enumValues } : {}),
-  };
-
+  if (schema.type === 'array')
+    return { ...schema, items: toItems(schema.items) };
+  if (!schema.anyOf?.some((member) => member.type === 'array')) return schema;
   return {
-    ...propertySchema,
-    ...restConstraints,
-    anyOf: propertySchema.anyOf?.map((member) =>
-      member.type === 'array'
-        ? ({
-            ...member,
-            items: {
-              ...(hasItemTypeOverride ? {} : member.items),
-              ...itemConstraints,
-            },
-          } as JsonSchema)
-        : member,
+    ...schema,
+    anyOf: schema.anyOf.map((member) =>
+      member.type === 'array' ? withArrayItems(member, toItems) : member,
     ),
-  } as JsonSchema;
+  };
 };
 
-const shouldApplyArrayItemConstraints = (
-  propertySchema: JsonSchema,
-  typeOverride: string | undefined,
-  enumValues: readonly unknown[] | undefined,
-): boolean =>
-  propertySchema.type === 'array' &&
-  (isItemTypeOverride(typeOverride) || enumValues !== undefined);
-
+/**
+ * A declared item type or `enum` on an array property constrains its items.
+ * The declared type replaces the inferred items; on `T[] | null` it counts
+ * only with `isArray`.
+ */
 const applyArrayItemConstraints = (
   propertySchema: JsonSchema,
+  isArray: boolean | undefined,
   typeOverride: string | undefined,
   enumValues: readonly unknown[] | undefined,
   restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
-): JsonSchema => {
-  const hasItemTypeOverride = isItemTypeOverride(typeOverride);
-
-  return {
-    ...propertySchema,
-    ...restConstraints,
-    items: {
-      ...(hasItemTypeOverride ? {} : propertySchema.items),
-      ...(hasItemTypeOverride ? { type: typeOverride } : {}),
-      ...(enumValues ? { enum: enumValues } : {}),
-    },
-  } as JsonSchema;
+): JsonSchema | undefined => {
+  const replacesItemType =
+    isItemTypeOverride(typeOverride) &&
+    (propertySchema.type === 'array' || isArray === true);
+  if (
+    !hasArrayShape(propertySchema) ||
+    (!replacesItemType && enumValues === undefined)
+  )
+    return undefined;
+  return withArrayItems(
+    { ...propertySchema, ...restConstraints } as JsonSchema,
+    (items) =>
+      ({
+        ...(replacesItemType ? { type: typeOverride } : items),
+        ...(enumValues ? { enum: enumValues } : {}),
+      }) as JsonSchema,
+  );
 };
 
 const applyDirectPropertyConstraints = (
@@ -858,23 +806,15 @@ const withoutStringKeywordsOnNonStrings = (schema: JsonSchema) => {
 const withItemConstraints = (
   schema: JsonSchema,
   itemConstraints: ValidationConstraints,
-): JsonSchema => {
-  if (schema.type === 'array') {
-    return {
-      ...schema,
-      items: applyPropertyConstraints(schema.items ?? {}, itemConstraints),
-    } as JsonSchema;
-  }
-  if (!schema.anyOf?.some((member) => member.type === 'array')) return schema;
-  return {
-    ...schema,
-    anyOf: schema.anyOf.map((member) =>
-      member.type === 'array'
-        ? withItemConstraints(member, itemConstraints)
-        : member,
-    ),
-  } as JsonSchema;
-};
+): JsonSchema =>
+  withArrayItems(schema, (items) =>
+    Array.isArray(items)
+      ? items
+      : applyPropertyConstraints(
+          (items as JsonSchema | undefined) ?? {},
+          itemConstraints,
+        ),
+  );
 
 export const applyPropertyConstraints = (
   propertySchema: JsonSchema,
@@ -890,59 +830,35 @@ export const applyPropertyConstraints = (
 const applyOwnConstraints = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints | undefined,
-): JsonSchema =>
-  Option.fromNullable(constraints).pipe(
-    Option.map((propertyConstraints) => {
-      if (propertyConstraints.schemaOverride) {
-        return applySchemaOverride(propertySchema, propertyConstraints);
-      }
+): JsonSchema => {
+  if (!constraints) return propertySchema;
+  if (constraints.schemaOverride) {
+    return applySchemaOverride(propertySchema, constraints);
+  }
 
-      const isArray = propertyConstraints.isArray;
-      const {
-        type: typeOverride,
-        enum: enumValues,
-        ...restConstraints
-      } = cleanPropertyConstraints(propertyConstraints);
-      const keywords = propertyConstraints.keywords;
-      if (keywords) Object.assign(restConstraints, keywords);
+  const {
+    type: typeOverride,
+    enum: enumValues,
+    ...restConstraints
+  } = cleanPropertyConstraints(constraints);
+  const withKeywords = { ...restConstraints, ...constraints.keywords };
 
-      if (
-        shouldApplyNullableArrayItemConstraints(
-          propertySchema,
-          isArray,
-          typeOverride,
-          enumValues,
-        )
-      ) {
-        return applyNullableArrayItemConstraints(
-          propertySchema,
-          isArray,
-          typeOverride,
-          enumValues,
-          restConstraints,
-        );
-      }
-
-      return shouldApplyArrayItemConstraints(
-        propertySchema,
-        typeOverride,
-        enumValues,
-      )
-        ? applyArrayItemConstraints(
-            propertySchema,
-            typeOverride,
-            enumValues,
-            restConstraints,
-          )
-        : applyDirectPropertyConstraints(
-            propertySchema,
-            typeOverride,
-            enumValues,
-            restConstraints,
-          );
-    }),
-    Option.getOrElse(() => propertySchema),
+  return (
+    applyArrayItemConstraints(
+      propertySchema,
+      constraints.isArray,
+      typeOverride,
+      enumValues,
+      withKeywords,
+    ) ??
+    applyDirectPropertyConstraints(
+      propertySchema,
+      typeOverride,
+      enumValues,
+      withKeywords,
+    )
   );
+};
 
 const buildUpdatedProperties = (
   schema: JsonSchema,
@@ -952,23 +868,17 @@ const buildUpdatedProperties = (
   const shouldUpdateProperties =
     Object.keys(propertyConstraints).length > 0 || hiddenProperties.size > 0;
 
-  return Option.fromNullable(schema.properties).pipe(
-    Option.filter(() => shouldUpdateProperties),
-    Option.map(
-      (properties) =>
-        Object.fromEntries(
-          Object.entries(properties)
-            .filter(([propertyName]) => !hiddenProperties.has(propertyName))
-            .map(([propertyName, propertySchema]) => [
-              propertyName,
-              applyPropertyConstraints(
-                propertySchema,
-                propertyConstraints[propertyName],
-              ),
-            ]),
-        ) as Record<string, JsonSchema>,
-    ),
-    Option.getOrUndefined,
+  if (!schema.properties || !shouldUpdateProperties) return undefined;
+  return Object.fromEntries(
+    Object.entries(schema.properties)
+      .filter(([propertyName]) => !hiddenProperties.has(propertyName))
+      .map(([propertyName, propertySchema]) => [
+        propertyName,
+        applyPropertyConstraints(
+          propertySchema,
+          propertyConstraints[propertyName],
+        ),
+      ]),
   );
 };
 
@@ -987,8 +897,6 @@ const buildUpdatedRequired = (
     return undefined;
   }
 
-  // Decorators can make a property optional even when the TypeScript
-  // declaration has no `?`
   const excluded = new Set([...hiddenProperties, ...optionalProperties]);
   return [
     ...new Set([...(schema.required ?? []), ...(requiredProperties ?? [])]),
@@ -1080,8 +988,11 @@ export const mergeValidationConstraints = (
   return { definitions };
 };
 
-const serviceExtractClassValidationInfo = Effect.fn(
-  'ValidationMapperService.extractClassValidationInfo',
+/**
+ * Extracts class validation info, mapping a failure to `ValidationMappingError`.
+ */
+export const extractClassValidationInfoEffect = Effect.fn(
+  'Validation.extractClassValidationInfo',
 )(function* (
   classDecl: ClassDeclaration,
   expansion?: DecoratorExpansionOptions,
@@ -1107,57 +1018,3 @@ const serviceExtractClassValidationInfo = Effect.fn(
 
   return info;
 });
-
-const serviceMergeValidationConstraints = Effect.fn(
-  'ValidationMapperService.mergeValidationConstraints',
-)(function* (
-  schemas: GeneratedSchemas,
-  classConstraints: Map<string, Record<string, ValidationConstraints>>,
-  classRequired: Map<string, readonly string[]>,
-  classOptional?: Map<string, readonly string[]>,
-) {
-  const merged = mergeValidationConstraints(
-    schemas,
-    classConstraints,
-    classRequired,
-    classOptional,
-  );
-
-  yield* Effect.annotateCurrentSpan(
-    'inputDefinitionCount',
-    Object.keys(schemas.definitions).length,
-  );
-  yield* Effect.annotateCurrentSpan(
-    'outputDefinitionCount',
-    Object.keys(merged.definitions).length,
-  );
-  yield* Effect.annotateCurrentSpan(
-    'classConstraintCount',
-    classConstraints.size,
-  );
-  yield* Effect.annotateCurrentSpan('classRequiredCount', classRequired.size);
-
-  return merged;
-});
-
-export class ValidationMapperService extends Effect.Service<ValidationMapperService>()(
-  'ValidationMapperService',
-  {
-    effect: Effect.succeed({
-      extractClassValidationInfo: serviceExtractClassValidationInfo,
-      mergeValidationConstraints: serviceMergeValidationConstraints,
-    }),
-  },
-) {}
-
-/**
- * Effect-native wrapper with trace annotations for class validation extraction.
- */
-export const extractClassValidationInfoEffect =
-  serviceExtractClassValidationInfo;
-
-/**
- * Effect-native wrapper with trace annotations for schema merge.
- */
-export const mergeValidationConstraintsEffect =
-  serviceMergeValidationConstraints;

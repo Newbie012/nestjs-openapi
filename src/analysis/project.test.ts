@@ -1,13 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import {
-  ProjectService,
-  ProjectServiceLive,
-  makeProjectContext,
-} from './project.js';
+import { makeProjectContext } from './project.js';
 
 const makeFixture = (
   options: { readonly className?: string } = {},
@@ -51,7 +47,7 @@ const makeFixture = (
   return { dir, tsconfigPath, entryPath };
 };
 
-describe('ProjectService', () => {
+describe('makeProjectContext', () => {
   const fixtureDirs: string[] = [];
 
   afterEach(() => {
@@ -114,76 +110,38 @@ describe('ProjectService', () => {
     expect(recovered).toContain("Entry class 'AppModule' not found");
   });
 
-  it('wires ProjectServiceLive layer and provides context to dependents', async () => {
+  it('returns the entry class name from the project context', async () => {
     const fixture = makeFixture();
     fixtureDirs.push(fixture.dir);
-
-    const program = Effect.gen(function* () {
-      const context = yield* ProjectService.makeProjectContext({
-        tsconfig: fixture.tsconfigPath,
-        entry: fixture.entryPath,
-      });
-      return context.entryClass.getName();
-    }).pipe(
-      Effect.provide(
-        ProjectServiceLive({
-          tsconfig: fixture.tsconfigPath,
-          entry: fixture.entryPath,
-        }),
-      ),
-    );
-
-    const className = await Effect.runPromise(program);
-    expect(className).toBe('AppModule');
-  });
-
-  it('propagates layer initialization failures with typed error handling', async () => {
-    const fixture = makeFixture();
-    fixtureDirs.push(fixture.dir);
-
-    const program = Effect.gen(function* () {
-      const context = yield* ProjectService.makeProjectContext({
-        tsconfig: fixture.tsconfigPath,
-        entry: join(fixture.dir, 'does-not-exist.ts'),
-      });
-      return context.entryClass.getName();
-    }).pipe(
-      Effect.provide(
-        ProjectServiceLive({
-          tsconfig: fixture.tsconfigPath,
-          entry: join(fixture.dir, 'does-not-exist.ts'),
-        }),
-      ),
-      Effect.catchTag('EntryNotFoundError', (error) =>
-        Effect.succeed(error._tag),
-      ),
-    );
-
-    const tag = await Effect.runPromise(program);
-    expect(tag).toBe('EntryNotFoundError');
-  });
-
-  it('can merge the service layer into a composite layer graph', async () => {
-    const fixture = makeFixture();
-    fixtureDirs.push(fixture.dir);
-
-    const layer = Layer.mergeAll(
-      ProjectServiceLive({
-        tsconfig: fixture.tsconfigPath,
-        entry: fixture.entryPath,
-      }),
-    );
 
     const className = await Effect.runPromise(
       Effect.gen(function* () {
-        const context = yield* ProjectService.makeProjectContext({
+        const context = yield* makeProjectContext({
           tsconfig: fixture.tsconfigPath,
           entry: fixture.entryPath,
         });
         return context.entryClass.getName();
-      }).pipe(Effect.provide(layer)),
+      }),
     );
 
     expect(className).toBe('AppModule');
+  });
+
+  it('fails with a typed error when the entry file is missing', async () => {
+    const fixture = makeFixture();
+    fixtureDirs.push(fixture.dir);
+
+    const tag = await Effect.runPromise(
+      makeProjectContext({
+        tsconfig: fixture.tsconfigPath,
+        entry: join(fixture.dir, 'does-not-exist.ts'),
+      }).pipe(
+        Effect.catchTag('EntryNotFoundError', (error) =>
+          Effect.succeed(error._tag),
+        ),
+      ),
+    );
+
+    expect(tag).toBe('EntryNotFoundError');
   });
 });

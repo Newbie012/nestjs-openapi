@@ -1,0 +1,633 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "enum-shapes-in-operations",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shapes/by-color": {
+      "get": {
+        "operationId": "ShapeController_byColor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "red": {
+                      "type": "number"
+                    },
+                    "green": {
+                      "type": "number"
+                    },
+                    "blue": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "red",
+                    "green",
+                    "blue"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/maybe-by-color": {
+      "get": {
+        "operationId": "ShapeController_maybeByColor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "red": {
+                      "type": "number"
+                    },
+                    "green": {
+                      "type": "number"
+                    },
+                    "blue": {
+                      "type": "number"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/colors": {
+      "get": {
+        "operationId": "ShapeController_colors",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "c",
+            "required": true,
+            "schema": {
+              "enum": [
+                "red",
+                "green"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "enum": [
+                    "red",
+                    "green"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/single": {
+      "get": {
+        "operationId": "ShapeController_single",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "const": "blue",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/by-status": {
+      "get": {
+        "operationId": "ShapeController_byStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "100": {
+                      "type": "string"
+                    },
+                    "101": {
+                      "type": "string"
+                    },
+                    "102": {
+                      "type": "string"
+                    },
+                    "103": {
+                      "type": "string"
+                    },
+                    "200": {
+                      "type": "string"
+                    },
+                    "201": {
+                      "type": "string"
+                    },
+                    "202": {
+                      "type": "string"
+                    },
+                    "203": {
+                      "type": "string"
+                    },
+                    "204": {
+                      "type": "string"
+                    },
+                    "205": {
+                      "type": "string"
+                    },
+                    "206": {
+                      "type": "string"
+                    },
+                    "207": {
+                      "type": "string"
+                    },
+                    "208": {
+                      "type": "string"
+                    },
+                    "210": {
+                      "type": "string"
+                    },
+                    "300": {
+                      "type": "string"
+                    },
+                    "301": {
+                      "type": "string"
+                    },
+                    "302": {
+                      "type": "string"
+                    },
+                    "303": {
+                      "type": "string"
+                    },
+                    "304": {
+                      "type": "string"
+                    },
+                    "307": {
+                      "type": "string"
+                    },
+                    "308": {
+                      "type": "string"
+                    },
+                    "400": {
+                      "type": "string"
+                    },
+                    "401": {
+                      "type": "string"
+                    },
+                    "402": {
+                      "type": "string"
+                    },
+                    "403": {
+                      "type": "string"
+                    },
+                    "404": {
+                      "type": "string"
+                    },
+                    "405": {
+                      "type": "string"
+                    },
+                    "406": {
+                      "type": "string"
+                    },
+                    "407": {
+                      "type": "string"
+                    },
+                    "408": {
+                      "type": "string"
+                    },
+                    "409": {
+                      "type": "string"
+                    },
+                    "410": {
+                      "type": "string"
+                    },
+                    "411": {
+                      "type": "string"
+                    },
+                    "412": {
+                      "type": "string"
+                    },
+                    "413": {
+                      "type": "string"
+                    },
+                    "414": {
+                      "type": "string"
+                    },
+                    "415": {
+                      "type": "string"
+                    },
+                    "416": {
+                      "type": "string"
+                    },
+                    "417": {
+                      "type": "string"
+                    },
+                    "418": {
+                      "type": "string"
+                    },
+                    "421": {
+                      "type": "string"
+                    },
+                    "422": {
+                      "type": "string"
+                    },
+                    "423": {
+                      "type": "string"
+                    },
+                    "424": {
+                      "type": "string"
+                    },
+                    "428": {
+                      "type": "string"
+                    },
+                    "429": {
+                      "type": "string"
+                    },
+                    "456": {
+                      "type": "string"
+                    },
+                    "500": {
+                      "type": "string"
+                    },
+                    "501": {
+                      "type": "string"
+                    },
+                    "502": {
+                      "type": "string"
+                    },
+                    "503": {
+                      "type": "string"
+                    },
+                    "504": {
+                      "type": "string"
+                    },
+                    "505": {
+                      "type": "string"
+                    },
+                    "507": {
+                      "type": "string"
+                    },
+                    "508": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "100",
+                    "101",
+                    "102",
+                    "103",
+                    "200",
+                    "201",
+                    "202",
+                    "203",
+                    "204",
+                    "205",
+                    "206",
+                    "207",
+                    "208",
+                    "210",
+                    "300",
+                    "301",
+                    "302",
+                    "303",
+                    "304",
+                    "307",
+                    "308",
+                    "400",
+                    "401",
+                    "402",
+                    "403",
+                    "404",
+                    "405",
+                    "406",
+                    "407",
+                    "408",
+                    "409",
+                    "410",
+                    "411",
+                    "412",
+                    "413",
+                    "414",
+                    "415",
+                    "416",
+                    "417",
+                    "418",
+                    "421",
+                    "422",
+                    "423",
+                    "424",
+                    "428",
+                    "429",
+                    "456",
+                    "500",
+                    "501",
+                    "502",
+                    "503",
+                    "504",
+                    "505",
+                    "507",
+                    "508"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/maybe-by-status": {
+      "get": {
+        "operationId": "ShapeController_maybeByStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "100": {
+                      "type": "string"
+                    },
+                    "101": {
+                      "type": "string"
+                    },
+                    "102": {
+                      "type": "string"
+                    },
+                    "103": {
+                      "type": "string"
+                    },
+                    "200": {
+                      "type": "string"
+                    },
+                    "201": {
+                      "type": "string"
+                    },
+                    "202": {
+                      "type": "string"
+                    },
+                    "203": {
+                      "type": "string"
+                    },
+                    "204": {
+                      "type": "string"
+                    },
+                    "205": {
+                      "type": "string"
+                    },
+                    "206": {
+                      "type": "string"
+                    },
+                    "207": {
+                      "type": "string"
+                    },
+                    "208": {
+                      "type": "string"
+                    },
+                    "210": {
+                      "type": "string"
+                    },
+                    "300": {
+                      "type": "string"
+                    },
+                    "301": {
+                      "type": "string"
+                    },
+                    "302": {
+                      "type": "string"
+                    },
+                    "303": {
+                      "type": "string"
+                    },
+                    "304": {
+                      "type": "string"
+                    },
+                    "307": {
+                      "type": "string"
+                    },
+                    "308": {
+                      "type": "string"
+                    },
+                    "400": {
+                      "type": "string"
+                    },
+                    "401": {
+                      "type": "string"
+                    },
+                    "402": {
+                      "type": "string"
+                    },
+                    "403": {
+                      "type": "string"
+                    },
+                    "404": {
+                      "type": "string"
+                    },
+                    "405": {
+                      "type": "string"
+                    },
+                    "406": {
+                      "type": "string"
+                    },
+                    "407": {
+                      "type": "string"
+                    },
+                    "408": {
+                      "type": "string"
+                    },
+                    "409": {
+                      "type": "string"
+                    },
+                    "410": {
+                      "type": "string"
+                    },
+                    "411": {
+                      "type": "string"
+                    },
+                    "412": {
+                      "type": "string"
+                    },
+                    "413": {
+                      "type": "string"
+                    },
+                    "414": {
+                      "type": "string"
+                    },
+                    "415": {
+                      "type": "string"
+                    },
+                    "416": {
+                      "type": "string"
+                    },
+                    "417": {
+                      "type": "string"
+                    },
+                    "418": {
+                      "type": "string"
+                    },
+                    "421": {
+                      "type": "string"
+                    },
+                    "422": {
+                      "type": "string"
+                    },
+                    "423": {
+                      "type": "string"
+                    },
+                    "424": {
+                      "type": "string"
+                    },
+                    "428": {
+                      "type": "string"
+                    },
+                    "429": {
+                      "type": "string"
+                    },
+                    "456": {
+                      "type": "string"
+                    },
+                    "500": {
+                      "type": "string"
+                    },
+                    "501": {
+                      "type": "string"
+                    },
+                    "502": {
+                      "type": "string"
+                    },
+                    "503": {
+                      "type": "string"
+                    },
+                    "504": {
+                      "type": "string"
+                    },
+                    "505": {
+                      "type": "string"
+                    },
+                    "507": {
+                      "type": "string"
+                    },
+                    "508": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/statuses": {
+      "get": {
+        "operationId": "ShapeController_statuses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "enum": [
+                    200,
+                    201
+                  ],
+                  "type": "number"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    },
+    "/shapes/single-status": {
+      "post": {
+        "operationId": "ShapeController_singleStatus",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "const": 404,
+                "type": "number"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "const": 404,
+                  "type": "number"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Shape"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

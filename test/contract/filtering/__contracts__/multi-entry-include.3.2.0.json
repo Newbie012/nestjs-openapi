@@ -1,0 +1,130 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Multi-Entry API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/users": {
+      "get": {
+        "operationId": "UsersController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get all users",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UsersController_findOne",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get user by ID",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "ProductsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get all products",
+        "tags": [
+          "products"
+        ]
+      },
+      "post": {
+        "operationId": "ProductsController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Create product",
+        "tags": [
+          "products"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

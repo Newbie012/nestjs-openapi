@@ -1,0 +1,85 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "nested-subschemas",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/maps": {
+      "get": {
+        "operationId": "MapsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapsDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maps"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MapsDto": {
+        "properties": {
+          "labels": {
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": "object"
+          },
+          "owners": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UserDto"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "labels",
+          "owners",
+          "counts"
+        ],
+        "type": "object"
+      },
+      "UserDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

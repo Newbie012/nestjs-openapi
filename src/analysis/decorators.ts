@@ -360,7 +360,6 @@ export const getEffectiveDecorators = (
     .getDecorators()
     .flatMap((decorator) => expandDecorator(decorator, options));
 
-// Class references keep only their name, so the values can go into a spec
 const withoutNodes = (value: unknown): unknown => {
   if (value instanceof TypeRef) return new TypeRef(value.name);
   if (Array.isArray(value)) return value.map(withoutNodes);
@@ -372,7 +371,7 @@ const withoutNodes = (value: unknown): unknown => {
   return value;
 };
 
-// Decorators as written, top to bottom, with their arguments as plain values
+/** Decorators as written, top to bottom, with their arguments as plain values */
 export const readDecoratorUses = (
   node: Decoratable,
 ): readonly CustomDecoratorUse[] =>
@@ -385,8 +384,10 @@ export const readDecoratorUses = (
       ),
   }));
 
-// In the order Nest runs them: the bottom decorator first, and each
-// applyDecorators() list in order, so a later call overrides an earlier one
+/**
+ * In the order Nest runs them: the bottom decorator first, and each
+ * applyDecorators() list in order, so a later call overrides an earlier one
+ */
 export const getEffectiveDecoratorsInApplyOrder = (
   node: Decoratable,
   options: DecoratorExpansionOptions = NO_MAPPINGS,

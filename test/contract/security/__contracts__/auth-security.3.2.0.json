@@ -1,0 +1,180 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "description": "API demonstrating security schemes",
+    "title": "Auth Security API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenDto"
+                }
+              }
+            },
+            "description": "Login successful"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        },
+        "summary": "Authenticate user and get tokens",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "operationId": "AuthController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileDto"
+                }
+              }
+            },
+            "description": "User profile"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Get current user profile (requires authentication)",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refreshToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenDto"
+                }
+              }
+            },
+            "description": "Token refreshed"
+          },
+          "401": {
+            "description": "Invalid refresh token"
+          }
+        },
+        "summary": "Refresh access token",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LoginDto": {
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object"
+      },
+      "TokenDto": {
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn"
+        ],
+        "type": "object"
+      },
+      "UserProfileDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "roles"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "apiKey": {
+        "description": "API key authentication",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      },
+      "bearerAuth": {
+        "bearerFormat": "JWT",
+        "description": "JWT Bearer token authentication",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "tags": [],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}

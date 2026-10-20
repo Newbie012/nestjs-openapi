@@ -1,0 +1,25 @@
+# Spec constructs the generator cannot produce from source yet
+
+When the generator learns to emit one, delete its line here and add a contract case for it.
+
+- `webhooks` (3.1)
+- `jsonSchemaDialect` (3.1)
+- `$self` (3.2)
+- `info.summary` (3.1)
+- `license.identifier` (3.1)
+- `server.name` (3.2)
+- tag `summary`, `parent` and `kind` (3.2)
+- `query` method (3.2)
+- `additionalOperations` from source (3.2)
+- `in: querystring` parameters (3.2)
+- `response.summary` (3.2)
+- `itemSchema`, `itemEncoding` and `prefixEncoding` (3.2)
+- example `dataValue` and `serializedValue` (3.2)
+- `mutualTLS` security scheme (3.1)
+- OAuth2 device authorization flow (3.2)
+- `oauth2MetadataUrl` (3.2)
+- security scheme `deprecated` (3.2)
+- `components.pathItems` (3.1)
+- `components.mediaTypes` (3.2)
+- `discriminator.defaultMapping` (3.2)
+- XML `nodeType` (3.2)

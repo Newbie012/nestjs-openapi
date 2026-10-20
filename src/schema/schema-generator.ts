@@ -21,12 +21,8 @@ import {
   type SchemaProgramOptions,
 } from './schema-program.js';
 
-// Error types
-
 export type SchemaError = SchemaGenerationError;
 export { SchemaGenerationError };
-
-// Schema types
 
 export interface GeneratedSchemas {
   readonly definitions: Record<string, JsonSchema>;
@@ -38,7 +34,10 @@ export interface JsonSchema {
   readonly $ref?: string;
   readonly properties?: Record<string, JsonSchema>;
   readonly required?: readonly string[];
-  readonly items?: JsonSchema;
+  /** An array holds one schema for every element; a tuple lists one per position */
+  readonly items?: JsonSchema | readonly JsonSchema[];
+  /** The rest element of a tuple */
+  readonly additionalItems?: JsonSchema | boolean;
   readonly enum?: readonly unknown[];
   readonly oneOf?: readonly JsonSchema[];
   readonly anyOf?: readonly JsonSchema[];
@@ -53,8 +52,6 @@ export interface JsonSchema {
   readonly additionalProperties?: boolean | JsonSchema;
   readonly [key: string]: unknown;
 }
-
-// Options
 
 export interface SchemaGeneratorOptions {
   /** Glob patterns for DTO files */
@@ -167,8 +164,6 @@ const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
     basePath: string,
     reuseProgram?: unknown,
   ) {
-    // Resolve the pattern relative to basePath. Brace patterns may include
-    // multiple absolute paths, so we detect that case and skip joining.
     const isBraceAbsolute =
       pattern.startsWith('{') &&
       pattern
@@ -184,8 +179,6 @@ const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
 
     yield* Effect.annotateCurrentSpan('pattern', absolutePattern);
 
-    // Check if any files match the pattern - ts-json-schema-generator
-    // doesn't handle empty patterns gracefully
     const matchedFiles = globSync(absolutePattern);
     if (matchedFiles.length === 0) {
       yield* Effect.logDebug('No files matched pattern, skipping').pipe(
@@ -212,7 +205,6 @@ const generateSchemasFromGlob = Effect.fn('SchemaGenerator.generateFromGlob')(
 const convertToGeneratedSchemas = (schema: TsJsonSchema): GeneratedSchemas => {
   const definitions: Record<string, JsonSchema> = {};
 
-  // ts-json-schema-generator puts definitions under $defs or definitions
   const defs =
     (schema.$defs as Record<string, JsonSchema>) ??
     (schema.definitions as Record<string, JsonSchema>) ??
@@ -239,7 +231,6 @@ type IsolatedProperty = {
   readonly reason: string;
 };
 
-// Strips the suffix schema identity gives renamed declarations
 const publicTypeName = (name: string) => name.replace(/__oapi\d+/g, '');
 
 const trySchemaForNodes = (
@@ -328,8 +319,6 @@ const withVirtualFile = (
   ]),
 });
 
-// For errors without a source position: the failing node was synthesized,
-// as for `z.infer<typeof schema>`
 const recoverByScanningProperties = (
   options: SchemaProgramOptions,
   target: TypeTarget,
@@ -351,7 +340,6 @@ const recoverByScanningProperties = (
       Effect.gen(function* () {
         let edited = text;
         const properties: string[] = [];
-        // Last position first, so earlier positions stay valid
         for (const position of [...erasedPositions].sort((a, b) => b - a)) {
           const erased = eraseFailingPropertyType(
             target.filePath,
@@ -401,8 +389,6 @@ const inlineExternalTypesIn = (
       : undefined,
   );
 
-// A failure inside library typings cannot be pinned on one property, so
-// before giving up the library types the declaration references are inlined
 const nextRecoveryEdit = (
   options: SchemaProgramOptions,
   target: TypeTarget,
@@ -484,7 +470,6 @@ const recoverFailedType = (
       error = result.left;
     }
 
-    // Last resort: without the class's `extends` clauses (for this type only)
     const withoutHeritage = yield* Effect.either(
       generateTypeIn(
         {
@@ -544,10 +529,6 @@ const generateInProgram = (
       }
     }
 
-    // A type that fails often only references one that does: recover the
-    // types in dependency order and share the edits, so dependents generate
-    // untouched once what they reference does. Each round retries every
-    // pending type in one program built with the edits so far.
     const isolated: IsolatedProperty[] = [];
     const unrecovered: Failure[] = [];
     let shared = options;
@@ -588,7 +569,6 @@ const generateInProgram = (
     }
 
     yield* warnIsolatedProperties(isolated);
-    // An empty schema keeps references valid
     for (const { target } of unrecovered) definitions[target.name] = {};
     yield* Effect.forEach(unrecovered, ({ target, error }) =>
       Effect.logWarning(
@@ -613,8 +593,6 @@ const generateInProgram = (
     return { definitions } as GeneratedSchemas;
   });
 
-// The generator only names exported types: a non-exported interface
-// requested by name gets a `def-interface-...` key instead
 const nameRequestedTypes = (
   schemas: GeneratedSchemas,
   roots: readonly (TypeTarget & { readonly node: TypeScript.Node })[],

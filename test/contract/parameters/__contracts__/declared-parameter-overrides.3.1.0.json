@@ -1,0 +1,57 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Declared Overrides API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "ItemsController_list",
+        "parameters": [
+          {
+            "deprecated": true,
+            "description": "Rows per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "example": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Items"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

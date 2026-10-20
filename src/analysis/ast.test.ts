@@ -4,7 +4,6 @@ import { Project, ts } from 'ts-morph';
 import {
   resolveClassFromSymbol,
   getArrayInitializer,
-  getStringLiteralValue,
   getSymbolFromIdentifier,
 } from './ast.js';
 
@@ -103,49 +102,6 @@ describe('AST Utilities', () => {
 
       expect(objLit).toBeDefined();
       const result = getArrayInitializer(objLit!, 'items');
-
-      expect(Option.isNone(result)).toBe(true);
-    });
-  });
-
-  describe('getStringLiteralValue', () => {
-    it('should extract string literal value', () => {
-      const project = createProject();
-      const sourceFile = project.createSourceFile(
-        'test.ts',
-        `
-          const str = "hello world";
-        `,
-      );
-
-      const varDecl = sourceFile.getVariableDeclaration('str');
-      const initializer = varDecl?.getInitializer();
-
-      const result = getStringLiteralValue(initializer);
-
-      expect(Option.isSome(result)).toBe(true);
-      expect(Option.getOrNull(result)).toBe('hello world');
-    });
-
-    it('should return None for non-string expressions', () => {
-      const project = createProject();
-      const sourceFile = project.createSourceFile(
-        'test.ts',
-        `
-          const num = 42;
-        `,
-      );
-
-      const varDecl = sourceFile.getVariableDeclaration('num');
-      const initializer = varDecl?.getInitializer();
-
-      const result = getStringLiteralValue(initializer);
-
-      expect(Option.isNone(result)).toBe(true);
-    });
-
-    it('should return None for undefined expression', () => {
-      const result = getStringLiteralValue(undefined);
 
       expect(Option.isNone(result)).toBe(true);
     });

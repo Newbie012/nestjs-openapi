@@ -1,0 +1,158 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "description": "API demonstrating inline return type extraction",
+    "title": "Inline Types API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/inline/simple": {
+      "get": {
+        "operationId": "InlineController_getSimple",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "email"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get simple inline object",
+        "tags": [
+          "inline"
+        ]
+      }
+    },
+    "/inline/optional": {
+      "get": {
+        "operationId": "InlineController_getOptional",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "nickname": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get object with optional properties",
+        "tags": [
+          "inline"
+        ]
+      }
+    },
+    "/inline/nested": {
+      "get": {
+        "operationId": "InlineController_getNested",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "user": {
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "age": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "age"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get nested inline object",
+        "tags": [
+          "inline"
+        ]
+      }
+    },
+    "/inline/array": {
+      "get": {
+        "operationId": "InlineController_getArray",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "number"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Get array of inline objects",
+        "tags": [
+          "inline"
+        ]
+      }
+    }
+  },
+  "tags": []
+}

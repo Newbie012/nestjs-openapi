@@ -1,0 +1,288 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "api-gateway",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/": {
+      "get": {
+        "description": "Get basic API information and available services",
+        "operationId": "GatewayController_getApiInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiInfoDto"
+                }
+              }
+            },
+            "description": "API information"
+          }
+        },
+        "summary": "API Information",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Get overall system health status including microservices",
+        "operationId": "GatewayController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckDto"
+                }
+              }
+            },
+            "description": "System health status"
+          }
+        },
+        "summary": "Health check",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "description": "Returns the current API version",
+        "operationId": "GatewayController_getVersion",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "version": {
+                      "example": "1.0.0",
+                      "type": "string"
+                    },
+                    "buildDate": {
+                      "example": "2025-09-18T14:00:00Z",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "API version information"
+          }
+        },
+        "summary": "Get API version",
+        "tags": [
+          "gateway"
+        ]
+      }
+    },
+    "/api/users/{id}/profile": {
+      "get": {
+        "description": "Proxy request to user service for user profile",
+        "operationId": "ProxyController_getUserProfile",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "usr_123",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "user": {
+                      "type": "object"
+                    },
+                    "preferences": {
+                      "type": "object"
+                    },
+                    "lastLogin": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "User profile data from user service"
+          }
+        },
+        "summary": "Get user profile (proxied)",
+        "tags": [
+          "proxy"
+        ]
+      }
+    },
+    "/api/notifications/stats": {
+      "get": {
+        "description": "Proxy request to notification service for statistics",
+        "operationId": "ProxyController_getNotificationStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "totalSent": {
+                      "type": "number"
+                    },
+                    "pending": {
+                      "type": "number"
+                    },
+                    "delivered": {
+                      "type": "number"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Notification statistics from notification service"
+          }
+        },
+        "summary": "Get notification stats (proxied)",
+        "tags": [
+          "proxy"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiInfoDto": {
+        "properties": {
+          "name": {
+            "description": "API name",
+            "example": "Microservices API Gateway",
+            "type": "string"
+          },
+          "version": {
+            "description": "API version",
+            "example": "1.0.0",
+            "type": "string"
+          },
+          "environment": {
+            "description": "Environment",
+            "example": "production",
+            "type": "string"
+          },
+          "docsUrl": {
+            "description": "Available endpoints documentation URL",
+            "example": "/api/docs",
+            "type": "string"
+          },
+          "services": {
+            "description": "Available microservices",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "environment",
+          "docsUrl",
+          "services"
+        ],
+        "type": "object"
+      },
+      "HealthCheckDto": {
+        "properties": {
+          "status": {
+            "description": "Overall system status",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "example": "healthy",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Current server timestamp",
+            "example": "2025-09-18T14:30:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "uptime": {
+            "description": "System uptime in seconds",
+            "example": 3600,
+            "type": "number"
+          },
+          "services": {
+            "description": "Service dependencies health status",
+            "items": {
+              "$ref": "#/components/schemas/ServiceHealthDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "timestamp",
+          "uptime",
+          "services"
+        ],
+        "type": "object"
+      },
+      "ServiceHealthDto": {
+        "properties": {
+          "name": {
+            "description": "Service name",
+            "example": "user-service",
+            "type": "string"
+          },
+          "status": {
+            "description": "Service status",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ],
+            "example": "healthy",
+            "type": "string"
+          },
+          "responseTime": {
+            "description": "Response time in milliseconds",
+            "example": 45,
+            "type": "number"
+          },
+          "lastCheck": {
+            "description": "Last check timestamp",
+            "example": "2025-09-18T14:29:30Z",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "responseTime",
+          "lastCheck"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

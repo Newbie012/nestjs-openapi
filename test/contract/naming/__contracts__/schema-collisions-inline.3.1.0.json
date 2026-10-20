@@ -1,0 +1,351 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Schema Collisions API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/shipments": {
+      "get": {
+        "operationId": "AppController_shipments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/orders": {
+      "get": {
+        "operationId": "AppController_orders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSummaryDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "AppController_products",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "variants": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "vendor": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "variants",
+                      "vendor"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/a": {
+      "get": {
+        "operationId": "AppController_pluginA",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "loaded": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "loaded"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/shipments/patch": {
+      "get": {
+        "operationId": "AppController_patch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressPatchDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/products/raw": {
+      "get": {
+        "operationId": "AppController_rawProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "variants": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "vendor": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "variants",
+                      "vendor"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/page": {
+      "get": {
+        "operationId": "AppController_pluginPage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "properties": {
+                          "loaded": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "loaded"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/plugins/b": {
+      "get": {
+        "operationId": "AppController_pluginB",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "executed": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "executed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShipmentDto": {
+        "properties": {
+          "address": {
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "contact": {
+            "properties": {
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "address",
+          "contact"
+        ],
+        "type": "object"
+      },
+      "OrderSummaryDto": {
+        "properties": {
+          "address": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "product": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "sku": {
+                    "type": "string"
+                  },
+                  "barcode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "sku",
+                  "barcode"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "id",
+              "product"
+            ],
+            "type": "object"
+          },
+          "contact": {
+            "properties": {
+              "contactName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "contactName"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "address",
+          "contact"
+        ],
+        "type": "object"
+      },
+      "AddressPatchDto": {
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

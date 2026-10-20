@@ -3,7 +3,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Effect } from 'effect';
-import { generateSchemasFromFiles } from './schema-generator.js';
+import ts from 'typescript';
+import {
+  generateSchemas,
+  generateSchemasFromFiles,
+} from './schema-generator.js';
 
 const fixtureDirs: string[] = [];
 
@@ -167,5 +171,57 @@ export class CacheDto {
 
     expect(properties['age']).toBeDefined();
     expect(properties['name']).toBeUndefined();
+  });
+});
+
+describe('generateSchemas with a shared program', () => {
+  const programFor = (files: readonly string[]) =>
+    ts.createProgram(files, {
+      target: ts.ScriptTarget.ES2022,
+      strict: true,
+      noEmit: true,
+      skipLibCheck: true,
+    });
+
+  it('skips a pattern that matches no file instead of passing it to the generator', async () => {
+    const fixture = createFixture([
+      ['a.dto.ts', 'export class ADto { a!: string; }\n'],
+    ]);
+    const program = programFor([join(fixture.dir, 'a.dto.ts')]);
+
+    const schemas = await Effect.runPromise(
+      generateSchemas({
+        dtoGlob: ['missing/*.dto.ts'],
+        tsconfig: fixture.tsconfig,
+        basePath: fixture.dir,
+        reuseProgram: program,
+      }),
+    );
+
+    expect(schemas.definitions).toEqual({});
+  });
+
+  it('reads a brace pattern of absolute paths as it is, without joining the base path', async () => {
+    const fixture = createFixture([
+      ['a.dto.ts', 'export class ADto { a!: string; }\n'],
+      ['b.dto.ts', 'export class BDto { b!: string; }\n'],
+    ]);
+    const program = programFor([
+      join(fixture.dir, 'a.dto.ts'),
+      join(fixture.dir, 'b.dto.ts'),
+    ]);
+
+    const schemas = await Effect.runPromise(
+      generateSchemas({
+        dtoGlob: [
+          `{${join(fixture.dir, 'a.dto.ts')},${join(fixture.dir, 'b.dto.ts')}}`,
+        ],
+        tsconfig: fixture.tsconfig,
+        basePath: '/nowhere',
+        reuseProgram: program,
+      }),
+    );
+
+    expect(Object.keys(schemas.definitions).sort()).toEqual(['ADto', 'BDto']);
   });
 });

@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 import { Project, ClassDeclaration, SourceFile } from 'ts-morph';
 import {
   ProjectInitError,
@@ -16,7 +16,7 @@ export interface ProjectOptions {
   readonly entry: string;
 }
 
-const initProject = Effect.fn('ProjectService.initProject')(function* (
+const initProject = Effect.fn('Project.initProject')(function* (
   options: ProjectOptions,
 ) {
   return yield* Effect.try({
@@ -29,7 +29,7 @@ const initProject = Effect.fn('ProjectService.initProject')(function* (
   });
 });
 
-const addSourceFiles = Effect.fn('ProjectService.addSourceFiles')(function* (
+const addSourceFiles = Effect.fn('Project.addSourceFiles')(function* (
   project: Project,
   entry: string,
   tsconfig: string,
@@ -43,7 +43,7 @@ const addSourceFiles = Effect.fn('ProjectService.addSourceFiles')(function* (
   });
 });
 
-const getEntrySourceFile = Effect.fn('ProjectService.getEntrySourceFile')(
+const getEntrySourceFile = Effect.fn('Project.getEntrySourceFile')(
   function* (project: Project, entry: string) {
     const sourceFile = project.getSourceFile(entry);
     if (!sourceFile) {
@@ -53,7 +53,7 @@ const getEntrySourceFile = Effect.fn('ProjectService.getEntrySourceFile')(
   },
 );
 
-const getEntryClass = Effect.fn('ProjectService.getEntryClass')(function* (
+const getEntryClass = Effect.fn('Project.getEntryClass')(function* (
   sourceFile: SourceFile,
   entry: string,
   className: string = 'AppModule',
@@ -66,7 +66,7 @@ const getEntryClass = Effect.fn('ProjectService.getEntryClass')(function* (
 });
 
 export const makeProjectContext = Effect.fn(
-  'ProjectService.makeProjectContext',
+  'Project.makeProjectContext',
 )(function* (options: ProjectOptions) {
   yield* Effect.logDebug('Initializing project').pipe(
     Effect.annotateLogs({ entry: options.entry }),
@@ -86,23 +86,3 @@ export const makeProjectContext = Effect.fn(
     entryClass,
   };
 });
-
-const serviceMakeProjectContext = Effect.fn(
-  'ProjectService.makeProjectContext.service',
-)(function* (options: ProjectOptions) {
-  return yield* makeProjectContext(options);
-});
-
-export class ProjectService extends Effect.Service<ProjectService>()(
-  'ProjectService',
-  {
-    accessors: true,
-    effect: Effect.succeed({
-      makeProjectContext: serviceMakeProjectContext,
-    }),
-  },
-) {}
-
-export const ProjectServiceLive = (
-  _options: ProjectOptions,
-): Layer.Layer<ProjectService, never> => ProjectService.Default;

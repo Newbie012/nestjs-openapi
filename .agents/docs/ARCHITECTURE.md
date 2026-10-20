@@ -39,12 +39,11 @@ src/
 ├── schema/        # Producing JSON Schemas
 │   ├── schema-program.ts     # TypeScript programs for ts-json-schema-generator (in-memory transforms)
 │   ├── schema-generator.ts   # Generation with crash recovery
-│   ├── type-resolver.ts      # Finds types declared outside dtoGlob
 │   ├── schema-identity.ts    # One schema per declaration: temporary names for same-name declarations, in-memory renames
 │   ├── schema-name-resolution.ts # Equal same-name schemas share a component; collision strategies for the rest
 │   ├── schema-normalizer.ts, schema-alias-collapser.ts, schema-inliner.ts # Names, aliases, inlining
 │   ├── schema-merger.ts      # JSON Schema → OpenAPI components
-│   ├── schema-const-expander.ts, schema-version-transformer.ts # Per-version shapes
+│   ├── schema-version-transformer.ts, schema-walk.ts # Per-version shapes, the one subschema walker
 │   └── spec-compliance.ts    # Valid component names, version-specific `examples`
 ├── document/      # Assembling and writing the spec
 │   ├── generate.ts           # Main generation orchestration
@@ -56,7 +55,7 @@ src/
     └── module.ts, runtime-layer.ts, service-layer.ts
 ```
 
-Unit tests (`*.test.ts`) sit next to the module they test. `*-service.ts` files wrap a module's functions as an Effect service and sit next to it.
+Unit tests (`*.test.ts`) sit next to the module they test. Pure functions stay plain functions. A module becomes an Effect service (`config.ts`, `output-service.ts`) only when it does IO that a test replaces; `runtime/service-layer.ts` provides those two.
 
 ## Test Applications
 

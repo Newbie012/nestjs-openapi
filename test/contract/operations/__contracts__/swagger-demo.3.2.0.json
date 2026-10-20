@@ -1,0 +1,252 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "description": "Demo API showcasing Swagger UI integration",
+    "title": "Users API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/users": {
+      "get": {
+        "operationId": "UserController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List of users"
+          }
+        },
+        "summary": "Get all users",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "operationId": "UserController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "User created"
+          }
+        },
+        "summary": "Create a new user",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UserController_findOne",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "The user"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Get a user by ID",
+        "tags": [
+          "users"
+        ]
+      },
+      "put": {
+        "operationId": "UserController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            },
+            "description": "User updated"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Update a user",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "operationId": "UserController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Delete a user",
+        "tags": [
+          "users"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UserDto": {
+        "description": "User DTO for the demo API",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "UserRole": {
+        "description": "User role enum",
+        "enum": [
+          "admin",
+          "user",
+          "guest"
+        ],
+        "type": "string"
+      },
+      "CreateUserDto": {
+        "description": "DTO for creating a new user",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "password"
+        ],
+        "type": "object"
+      },
+      "UpdateUserDto": {
+        "description": "DTO for updating a user",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "User management endpoints",
+      "name": "users"
+    }
+  ]
+}

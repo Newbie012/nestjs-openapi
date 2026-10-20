@@ -1,0 +1,138 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Books API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/books": {
+      "get": {
+        "operationId": "BooksController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/books/{id}": {
+      "get": {
+        "operationId": "BooksController_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
+      },
+      "delete": {
+        "operationId": "BooksController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Books"
+        ]
+      }
+    },
+    "/internal/health": {
+      "get": {
+        "operationId": "InternalController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Internal"
+        ]
+      }
+    },
+    "/books/copy": {
+      "additionalOperations": {
+        "COPY": {
+          "operationId": "copyBooks",
+          "responses": {
+            "204": {
+              "description": "Copied"
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BookDto": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

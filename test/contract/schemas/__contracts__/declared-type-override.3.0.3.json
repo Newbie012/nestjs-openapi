@@ -1,0 +1,67 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Declared Type Override API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "ThingsController_find",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThingDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Things"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ThingDto": {
+        "properties": {
+          "name": {
+            "description": "Display name",
+            "nullable": true,
+            "type": "string"
+          },
+          "asString": {
+            "type": "string"
+          },
+          "withIsArray": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "withBrackets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "asString",
+          "withIsArray",
+          "withBrackets"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

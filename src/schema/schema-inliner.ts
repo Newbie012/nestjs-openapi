@@ -1,9 +1,10 @@
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
+import { SCHEMA_REF_PREFIX } from './schema-walk.js';
 
-const REF_PREFIX = '#/components/schemas/';
-
-// A component that references itself, directly or not, cannot be inlined
-// and stays a component
+/**
+ * A component that references itself, directly or not, cannot be inlined
+ * and stays a component
+ */
 export const inlineSchemas = (
   paths: OpenApiPaths,
   schemas: Record<string, OpenApiSchema>,
@@ -19,8 +20,8 @@ export const inlineSchemas = (
 
     const record = value as Record<string, unknown>;
     const ref = record['$ref'];
-    if (typeof ref === 'string' && ref.startsWith(REF_PREFIX)) {
-      const name = ref.slice(REF_PREFIX.length);
+    if (typeof ref === 'string' && ref.startsWith(SCHEMA_REF_PREFIX)) {
+      const name = ref.slice(SCHEMA_REF_PREFIX.length);
       if (names.has(name) && schemas[name]) {
         if (stack.includes(name)) {
           kept.add(name);

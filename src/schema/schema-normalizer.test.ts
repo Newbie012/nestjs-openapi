@@ -1,166 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  normalizeSchemaName,
-  buildNameMapping,
-  normalizeSchemas,
-  filterInternalSchemas,
   toPascalCase,
   normalizeStructureRefs,
 } from './schema-normalizer.js';
-import type { GeneratedSchemas } from './schema-generator.js';
+import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 
 describe('schema-normalizer', () => {
-  describe('normalizeSchemaName', () => {
-    it('should only strip generic types with ugly structure references', () => {
-      // These have ugly structure refs and should be normalized
-      expect(normalizeSchemaName('SelectRule<structure-123>')).toBe(
-        'SelectRule',
-      );
-      expect(normalizeSchemaName('SelectRule<structure-123-456-789>')).toBe(
-        'SelectRule',
-      );
-    });
-
-    it('should preserve clean generic types', () => {
-      // These are clean generic types and should be preserved
-      expect(normalizeSchemaName('SelectRule<string>')).toBe(
-        'SelectRule<string>',
-      );
-      expect(normalizeSchemaName('Pick<User,_id_|_name_>')).toBe(
-        'Pick<User,_id_|_name_>',
-      );
-      expect(normalizeSchemaName('Omit<Post,_createdAt_>')).toBe(
-        'Omit<Post,_createdAt_>',
-      );
-    });
-
-    it('should preserve simple names', () => {
-      expect(normalizeSchemaName('User')).toBe('User');
-      expect(normalizeSchemaName('CreateUserDto')).toBe('CreateUserDto');
-    });
-
-    it('should use custom names when provided', () => {
-      expect(
-        normalizeSchemaName('UglyName<structure-123>', {
-          customNames: { 'UglyName<structure-123>': 'NiceName' },
-        }),
-      ).toBe('NiceName');
-    });
-
-    it('should preserve internal structure refs as-is', () => {
-      expect(normalizeSchemaName('structure-123-456-789')).toBe(
-        'structure-123-456-789',
-      );
-    });
-  });
-
-  describe('buildNameMapping', () => {
-    it('should handle collisions with numeric suffixes for ugly names', () => {
-      const names = [
-        'SelectRule<structure-1>',
-        'SelectRule<structure-2>',
-        'SelectRule<structure-3>',
-      ];
-      const mapping = buildNameMapping(names);
-
-      expect(mapping.get('SelectRule<structure-1>')).toBe('SelectRule');
-      expect(mapping.get('SelectRule<structure-2>')).toBe('SelectRule_1');
-      expect(mapping.get('SelectRule<structure-3>')).toBe('SelectRule_2');
-    });
-
-    it('should preserve unique names', () => {
-      const names = ['User', 'Post', 'Comment'];
-      const mapping = buildNameMapping(names);
-
-      expect(mapping.get('User')).toBe('User');
-      expect(mapping.get('Post')).toBe('Post');
-      expect(mapping.get('Comment')).toBe('Comment');
-    });
-  });
-
-  describe('normalizeSchemas', () => {
-    it('should normalize definition names with ugly refs and update refs', () => {
-      const schemas: GeneratedSchemas = {
-        definitions: {
-          'SelectRule<structure-123>': {
-            type: 'object',
-            properties: {
-              value: { $ref: '#/definitions/RuleValue<structure-456>' },
-            },
-          },
-          'RuleValue<structure-456>': {
-            type: 'string',
-          },
-        },
-      };
-
-      const result = normalizeSchemas(schemas);
-
-      expect(result.definitions['SelectRule']).toBeDefined();
-      expect(result.definitions['RuleValue']).toBeDefined();
-      expect(result.definitions['SelectRule'].properties?.value.$ref).toBe(
-        '#/components/schemas/RuleValue',
-      );
-    });
-
-    it('should preserve clean generic type names', () => {
-      const schemas: GeneratedSchemas = {
-        definitions: {
-          'SelectRule<string>': {
-            type: 'object',
-            properties: {
-              value: { type: 'string' },
-            },
-          },
-        },
-      };
-
-      const result = normalizeSchemas(schemas);
-
-      expect(result.definitions['SelectRule<string>']).toBeDefined();
-    });
-
-    it('should convert #/definitions to #/components/schemas', () => {
-      const schemas: GeneratedSchemas = {
-        definitions: {
-          User: {
-            type: 'object',
-            properties: {
-              profile: { $ref: '#/definitions/Profile' },
-            },
-          },
-          Profile: {
-            type: 'object',
-          },
-        },
-      };
-
-      const result = normalizeSchemas(schemas);
-
-      expect(result.definitions['User'].properties?.profile.$ref).toBe(
-        '#/components/schemas/Profile',
-      );
-    });
-  });
-
-  describe('filterInternalSchemas', () => {
-    it('should remove structure references', () => {
-      const schemas: GeneratedSchemas = {
-        definitions: {
-          User: { type: 'object' },
-          'structure-123-456': { type: 'string' },
-          Post: { type: 'object' },
-        },
-      };
-
-      const result = filterInternalSchemas(schemas);
-
-      expect(result.definitions['User']).toBeDefined();
-      expect(result.definitions['Post']).toBeDefined();
-      expect(result.definitions['structure-123-456']).toBeUndefined();
-    });
-  });
-
   describe('toPascalCase', () => {
     it('should convert camelCase to PascalCase', () => {
       expect(toPascalCase('namespaceLabels')).toBe('NamespaceLabels');
@@ -421,7 +266,10 @@ describe('schema-normalizer', () => {
 
       // Nested ref inside SelectRule should also be updated
       expect(
-        result.definitions['SelectRule<Tags>'].properties?.include.items?.$ref,
+        (
+          result.definitions['SelectRule<Tags>'].properties?.include
+            .items as JsonSchema
+        )?.$ref,
       ).toBe('#/components/schemas/Tags');
     });
 
