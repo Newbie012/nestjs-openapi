@@ -82,17 +82,12 @@
             "name": "status",
             "required": false,
             "schema": {
-              "oneOf": [
-                {
-                  "type": "object"
-                },
-                {
-                  "type": "object"
-                },
-                {
-                  "type": "object"
-                }
-              ]
+              "enum": [
+                "active",
+                "inactive",
+                "pending"
+              ],
+              "type": "string"
             }
           },
           {
