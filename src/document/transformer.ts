@@ -19,6 +19,7 @@ import {
   type ValidationConstraints,
 } from '../analysis/validation-mapper.js';
 import type { JsonSchema } from '../schema/schema-generator.js';
+import { withNull } from '../schema/nullable.js';
 
 /**
  * Converts internal MethodSecurityRequirement[] to OpenAPI SecurityRequirement[] format.
@@ -174,11 +175,6 @@ const buildInlineObjectSchema = (parsed: InlineObjectType): OpenApiSchema => ({
   ...(parsed.required.length > 0 ? { required: parsed.required } : {}),
 });
 
-const withNullable = (schema: OpenApiSchema): OpenApiSchema =>
-  schema.$ref
-    ? { allOf: [{ $ref: schema.$ref }], nullable: true }
-    : { ...schema, nullable: true };
-
 const resolveInlineObjectSchema: TypeSchemaResolver = (tsType) =>
   Option.fromNullable(parseInlineObjectType(tsType)).pipe(
     Option.map(buildInlineObjectSchema),
@@ -220,7 +216,7 @@ const resolveUnionSchema: TypeSchemaResolver = (tsType) =>
   Option.fromNullable(parseUnionType(tsType)).pipe(
     Option.map(({ types, hasNull }) => {
       const schema = buildUnionSchema(types);
-      return hasNull && types.length > 0 ? withNullable(schema) : schema;
+      return hasNull && types.length > 0 ? withNull(schema) : schema;
     }),
     Option.getOrUndefined,
   );

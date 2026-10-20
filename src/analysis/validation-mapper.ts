@@ -14,7 +14,10 @@ import type {
   Type,
 } from 'ts-morph';
 import { Node, ts } from 'ts-morph';
-import type { GeneratedSchemas, JsonSchema } from '../schema/schema-generator.js';
+import type {
+  GeneratedSchemas,
+  JsonSchema,
+} from '../schema/schema-generator.js';
 import { ValidationMappingError } from '../config/errors.js';
 import {
   getEffectiveDecorators,
@@ -33,12 +36,12 @@ import {
 } from './static-value.js';
 import {
   DEFAULT_SCHEMA_NAMING,
-  allowsNull,
   readDeclaredPropertySchema,
   type EnumValue,
   type SchemaNaming,
 } from './property-schema.js';
 import { getLiteralValues, resolveDeclarations } from './ast.js';
+import { isNullable } from '../schema/nullable.js';
 
 // Validation constraint types
 
@@ -454,7 +457,10 @@ const describeNode = (node: Node) =>
 const describeLocation = (
   value: StaticValue | undefined,
   call: DecoratorCall,
-) => describeNode((value && 'node' in value ? value.node : undefined) ?? call.node);
+) =>
+  describeNode(
+    (value && 'node' in value ? value.node : undefined) ?? call.node,
+  );
 
 const describeArgument = (value: StaticValue | undefined) => {
   if (value === undefined) return 'undefined';
@@ -710,7 +716,7 @@ const applySchemaOverride = (
 
   return {
     ...typed,
-    ...(allowsNull(propertySchema) ? { nullable: true } : {}),
+    ...(isNullable(propertySchema) ? { nullable: true } : {}),
     ...(propertySchema.description && !rest.description
       ? { description: propertySchema.description }
       : {}),

@@ -272,9 +272,3 @@ export const readDeclaredPropertySchema = (
 
   return { keywords };
 };
-
-export const allowsNull = (schema: JsonSchema) =>
-  schema.nullable === true ||
-  (Array.isArray(schema.type) && schema.type.includes('null')) ||
-  (schema.anyOf ?? []).some((member) => member.type === 'null') ||
-  (schema.oneOf ?? []).some((member) => member.type === 'null');
