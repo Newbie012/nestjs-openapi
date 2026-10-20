@@ -165,7 +165,6 @@ const BINARY_TYPE_NAMES = new Set([
   'ReadableStream',
 ]);
 
-// A value that says nothing about its type
 const UNTYPED_VALUE_TYPES = new Set(['unknown', 'any']);
 const TYPE_REFERENCE_PATTERN = /^[a-zA-Z_$][a-zA-Z0-9_$]*(<[^>]+>)?$/;
 
@@ -240,7 +239,6 @@ const resolveArraySchema: TypeSchemaResolver = (tsType) =>
       }
     : undefined;
 
-// `A, B<C, D>` → [`A`, `B<C, D>`]: commas inside brackets are not splits
 const splitTypeArguments = (text: string): string[] => {
   const parts: string[] = [];
   let depth = 0;
@@ -261,8 +259,6 @@ const splitTypeArguments = (text: string): string[] => {
 const COLLECTION_TYPE_PATTERN =
   /^(Record|Map|ReadonlyMap|Set|ReadonlySet)<(.+)>$/;
 
-// JSON has no Map or Set: a body or response declared as one is sent as an
-// object keyed by strings, or as an array of unique items
 const resolveCollectionSchema: TypeSchemaResolver = (tsType) => {
   const match = COLLECTION_TYPE_PATTERN.exec(tsType);
   if (!match) return undefined;
@@ -382,9 +378,6 @@ const applyParameterConstraints = (
 
 const PARAMETER_LEVEL_KEYS = ['description', 'deprecated', 'examples'] as const;
 
-// A Parameter Object's `examples` is a map of Example Objects. An array is the
-// JSON Schema keyword, so it stays on the schema, where each version's form
-// is written later
 const isParameterLevel = (key: string, value: unknown) =>
   value !== undefined && (key !== 'examples' || !Array.isArray(value));
 
@@ -415,7 +408,6 @@ const liftParameterKeys = (schema: OpenApiSchema) => {
 };
 
 const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
-  // `type: object` would mean exploded `key=value` pairs
   const baseSchema = UNTYPED_VALUE_TYPES.has(param.tsType.trim())
     ? {}
     : tsTypeToOpenApiSchema(param.tsType);
@@ -434,16 +426,12 @@ const inferParameterSchema = (param: ResolvedParameter): OpenApiSchema => {
   ) as OpenApiSchema;
 };
 
-// As in @nestjs/swagger, what @ApiQuery/@ApiParam/@ApiHeader declare is
-// merged over the inferred schema, and a declared type replaces it
 const buildParameterSchema = (param: ResolvedParameter) => {
   const inferred = liftParameterKeys(inferParameterSchema(param));
   const declared = param.declaredSchema as Record<string, unknown> | undefined;
   if (!declared) return inferred;
 
   const declaresType = TYPE_DEFINING_KEYS.some((key) => key in declared);
-  // A property's `examples` array describes the parameter, not its type, so
-  // a declared type keeps it, as @nestjs/swagger keeps undeclared fields
   const { examples } = inferred.schema as { examples?: unknown };
   const kept =
     Array.isArray(examples) && !('examples' in declared) ? { examples } : {};
@@ -519,7 +507,6 @@ const buildResponseSchema = (
   );
 };
 
-// As in @nestjs/swagger, an explicit `schema` wins over `type`
 const buildSchemaFromMetadata = (
   metadata: ResponseMetadata | RequestBodyMetadata,
 ): OpenApiSchema | undefined => {
@@ -638,8 +625,6 @@ const buildResponses = (
     ]),
   );
 
-  // Document the default success response unless the handler already declares
-  // a 2xx response via @ApiResponse.
   return {
     ...(hasDeclaredSuccessResponse(methodInfo.responses)
       ? {}
@@ -648,8 +633,6 @@ const buildResponses = (
   };
 };
 
-// As in @nestjs/swagger, @ApiBody wins over the @Body() parameter, and
-// documents a body even without one
 const buildRequestBody = (
   declared: RequestBodyMetadata | undefined,
   bodyParam: ResolvedParameter | undefined,
@@ -699,24 +682,20 @@ export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
     getRequestContentTypes(methodInfo),
   );
 
-  // Use extracted operation metadata, falling back to generated defaults
   const operationId = Option.getOrElse(
     methodInfo.operation.operationId,
     () =>
       `${methodInfo.controllerName}_${methodInfo.operationKey ?? methodInfo.methodName}`,
   );
 
-  // Only include summary if explicitly provided via @ApiOperation
   const summary = Option.getOrUndefined(methodInfo.operation.summary);
   const description = Option.getOrUndefined(methodInfo.operation.description);
   const deprecated = Option.getOrUndefined(methodInfo.operation.deprecated);
 
-  // Build security requirements from decorators
   const security = buildSecurityRequirements(methodInfo.security);
 
   const operation: OpenApiOperation = {
     operationId,
-    // Always include parameters array (even if empty) to match NestJS Swagger
     parameters,
     ...(requestBody ? { requestBody } : {}),
     responses: buildResponses(methodInfo),

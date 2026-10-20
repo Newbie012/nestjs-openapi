@@ -96,18 +96,14 @@ function findRefs(
  * ```
  */
 export function validateSpec(spec: OpenApiSpec): ValidationResult {
-  // Get all defined schemas
   const definedSchemas = new Set(Object.keys(spec.components?.schemas ?? {}));
 
-  // Find all $ref values in the spec
   const allRefs = findRefs(spec);
 
-  // Filter to just schema refs
   const schemaRefs = allRefs.filter((r) =>
     r.ref.startsWith('#/components/schemas/'),
   );
 
-  // Find broken refs
   const brokenRefs: BrokenRef[] = [];
   const missingSchemas = new Map<string, number>();
 
@@ -147,8 +143,6 @@ const valueAt = (document: unknown, pointer: string): unknown =>
       document,
     );
 
-// The JSON Schema of OpenAPI 3.0 cannot say that `nullable` needs a `type`
-// beside it, which the 3.0.3 text requires
 const findUntypedNullables = (
   value: unknown,
   pointer: string,
@@ -236,8 +230,6 @@ type AjvError = {
   readonly params?: { readonly missingProperty?: string };
 };
 
-// A failed `oneOf` or `if` reports each branch it tried, and the Reference
-// Object branch's missing `$ref`, beside the error that matters
 const isBranchNoise = ({ keyword, params }: AjvError) =>
   keyword === 'oneOf' ||
   keyword === 'if' ||
@@ -250,10 +242,9 @@ const isBranchNoise = ({ keyword, params }: AjvError) =>
 export async function validateStructure(
   spec: OpenApiSpec,
 ): Promise<readonly StructuralError[]> {
-  // The validator keeps the document it reads, so it gets a copy
-  const document = structuredClone(spec);
+  const detachedCopy = structuredClone(spec);
   const result = await new Validator().validate(
-    document as unknown as Parameters<Validator['validate']>[0],
+    detachedCopy as unknown as Parameters<Validator['validate']>[0],
   );
   const schemaErrors: StructuralError[] = result.valid
     ? []
@@ -325,19 +316,16 @@ export function categorizeBrokenRefs(
   ]);
 
   for (const schema of missingSchemas.keys()) {
-    // Check for primitives
     if (primitiveTypes.has(schema.toLowerCase())) {
       primitives.push(schema);
       continue;
     }
 
-    // Check for union types (contains | character)
     if (schema.includes(' | ') || schema.includes('|')) {
       unionTypes.push(schema);
       continue;
     }
 
-    // Check for query/path param patterns
     if (
       schema.endsWith('QueryParams') ||
       schema.endsWith('PathParams') ||

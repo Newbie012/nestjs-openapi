@@ -22,7 +22,6 @@ export const applyOperationExtensions = Effect.fn(
   methods: readonly MethodInfo[],
   hook: OperationExtensionsHook,
 ) {
-  // The last method documenting a path and verb is the one in `paths`
   const byOperation = new Map<string, MethodInfo>();
   for (const method of methods) {
     byOperation.set(
