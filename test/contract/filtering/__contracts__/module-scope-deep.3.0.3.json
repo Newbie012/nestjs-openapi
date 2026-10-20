@@ -1,0 +1,53 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Module Scope API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/external": {
+      "get": {
+        "operationId": "ExternalController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "External"
+        ]
+      }
+    },
+    "/feature": {
+      "get": {
+        "operationId": "FeatureController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Feature"
+        ]
+      }
+    }
+  },
+  "tags": []
+}
