@@ -47,6 +47,7 @@ import { OPERATION_KEYS } from '../schema/schema-walk.js';
 import {
   forbidAdditionalProperties,
   mergeSchemas,
+  reachableSchemaNames,
 } from '../schema/schema-merger.js';
 import { filterMethods } from '../analysis/filter.js';
 import {
@@ -249,14 +250,33 @@ const sortObjectKeysDeep = <T>(obj: T, isTopLevel = false): T => {
 };
 
 /**
- * Find all schema refs in paths that aren't defined in schemas.
+ * Adds schemas found after the first round, normalized on their own. They
+ * win over the schemas found before, except where `kept` names a schema
+ * that is already there (one generated from its planned declaration).
+ */
+const withLaterSource = (
+  schemas: GeneratedSchemas,
+  source: GeneratedSchemas,
+  kept: ReadonlyMap<string, unknown> = new Map(),
+): GeneratedSchemas => ({
+  definitions: {
+    ...schemas.definitions,
+    ...Object.fromEntries(
+      Object.entries(normalizeStructureRefs(source).definitions).filter(
+        ([name]) => !(kept.has(name) && schemas.definitions[name]),
+      ),
+    ),
+  },
+});
+
+/**
+ * Find all schema refs in paths that aren't among the `defined` names.
  * Returns a set of missing schema names.
  */
 const findMissingSchemaRefs = (
   paths: OpenApiSpec['paths'],
-  schemas: Record<string, OpenApiSchema>,
+  defined: ReadonlySet<string>,
 ): Set<string> => {
-  const defined = new Set(Object.keys(schemas));
   const missing = new Set<string>();
 
   const findRefs = (obj: unknown): void => {
@@ -1375,16 +1395,11 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       // e.g., SelectRule<structure-123...> → SelectRule<NamespaceLabels>
       generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
-      // First merge to get initial schemas
-      let mergeResult = mergeSchemas(paths, generatedSchemas, extraModelRoots);
-      schemas = mergeResult.schemas;
-      yield* Effect.annotateCurrentSpan(
-        'initialMergedSchemaCount',
-        Object.keys(schemas).length,
-      );
-
       // Hybrid approach: Find and resolve any missing schemas automatically
-      const missingRefs = findMissingSchemaRefs(paths, schemas);
+      const missingRefs = findMissingSchemaRefs(
+        paths,
+        reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
+      );
       const missingGenericRefsBeforeResolution = [...missingRefs].filter(
         isGenericSchemaRef,
       );
@@ -1429,42 +1444,16 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           for (const filePath of additionalFiles)
             schemaSourceFiles.add(filePath);
 
-          const additionalSchemas = yield* generateNamedSchemas(
-            resolvedNonGenericLocations,
-            tsconfig,
+          generatedSchemas = withLaterSource(
+            generatedSchemas,
+            yield* generateNamedSchemas(resolvedNonGenericLocations, tsconfig),
+            plannedSources,
           );
-
-          if (Object.keys(additionalSchemas.definitions).length > 0) {
-            const normalizedAdditional =
-              normalizeStructureRefs(additionalSchemas);
-
-            const combinedSchemas: GeneratedSchemas = {
-              definitions: {
-                ...generatedSchemas.definitions,
-                ...normalizedAdditional.definitions,
-                // Keep schemas generated from their planned declarations
-                ...Object.fromEntries(
-                  [...plannedSources.keys()].flatMap((name) => {
-                    const schema = generatedSchemas.definitions[name];
-                    return schema ? [[name, schema]] : [];
-                  }),
-                ),
-              },
-            };
-            generatedSchemas = combinedSchemas;
-
-            mergeResult = mergeSchemas(paths, combinedSchemas, extraModelRoots);
-            schemas = mergeResult.schemas;
-            yield* Effect.annotateCurrentSpan(
-              'schemaCountAfterAdditionalResolution',
-              Object.keys(schemas).length,
-            );
-          }
         }
 
         const unresolvedAfterFileResolution = findMissingSchemaRefs(
           paths,
-          schemas,
+          reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
         );
         yield* Effect.annotateCurrentSpan(
           'missingRefCountAfterFileResolution',
@@ -1518,29 +1507,14 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
             schemaSourceFiles.add(filePath);
           }
 
-          const genericSchemas = yield* generateMissingGenericSchemasEffect(
-            unresolvedGenericRefs,
-            tsconfig,
-            resolvedGenericSymbols,
+          generatedSchemas = withLaterSource(
+            generatedSchemas,
+            yield* generateMissingGenericSchemasEffect(
+              unresolvedGenericRefs,
+              tsconfig,
+              resolvedGenericSymbols,
+            ),
           );
-
-          if (Object.keys(genericSchemas.definitions).length > 0) {
-            const normalizedGeneric = normalizeStructureRefs(genericSchemas);
-            const combinedSchemas: GeneratedSchemas = {
-              definitions: {
-                ...generatedSchemas.definitions,
-                ...normalizedGeneric.definitions,
-              },
-            };
-            generatedSchemas = combinedSchemas;
-
-            mergeResult = mergeSchemas(paths, combinedSchemas, extraModelRoots);
-            schemas = mergeResult.schemas;
-            yield* Effect.annotateCurrentSpan(
-              'schemaCountAfterGenericResolution',
-              Object.keys(schemas).length,
-            );
-          }
         }
       }
 
@@ -1564,10 +1538,12 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           shouldExtractValidation,
           schemaNaming,
         );
-        generatedSchemas = overlaid.schemas;
         enumNameUses = overlaid.enumNameUses;
-        mergeResult = mergeSchemas(paths, generatedSchemas, extraModelRoots);
-        schemas = mergeResult.schemas;
+        schemas = mergeSchemas(
+          paths,
+          overlaid.schemas,
+          extraModelRoots,
+        ).schemas;
       }
     }
 

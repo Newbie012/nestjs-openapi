@@ -264,58 +264,58 @@ const convertRefsInValue = (value: unknown): unknown => {
 };
 
 /**
- * Merge generated DTO schemas with paths
- *
- * This function:
- * 1. Extracts all schema references from paths
- * 2. Includes only the schemas that are actually referenced
- * 3. Recursively includes nested schema references
+ * The names `mergeSchemas` includes: the generated schemas that paths and
+ * `extraRoots` reference, directly or through other schemas
+ */
+export const reachableSchemaNames = (
+  paths: OpenApiPaths,
+  generatedSchemas: GeneratedSchemas,
+  extraRoots: readonly string[] = [],
+): ReadonlySet<string> => {
+  const reachable = new Set<string>();
+  const processedSchemas = new Set<string>();
+  const toProcess = [
+    ...new Set([...extractReferencedSchemas(paths), ...extraRoots]),
+  ];
+
+  while (toProcess.length > 0) {
+    const schemaName = toProcess.pop()!;
+    if (processedSchemas.has(schemaName)) continue;
+    processedSchemas.add(schemaName);
+
+    const jsonSchema = generatedSchemas.definitions[schemaName];
+    if (!jsonSchema) continue;
+    reachable.add(schemaName);
+    for (const ref of extractNestedReferences(
+      { [schemaName]: jsonSchema },
+      processedSchemas,
+    )) {
+      toProcess.push(ref);
+    }
+  }
+
+  return reachable;
+};
+
+/**
+ * Merge generated DTO schemas with paths: only the schemas the paths and
+ * `extraRoots` reach are included, converted to OpenAPI form
  */
 export const mergeSchemas = (
   paths: OpenApiPaths,
   generatedSchemas: GeneratedSchemas,
   extraRoots: readonly string[] = [],
-): MergedResult => {
-  // Find all schemas referenced in paths, plus @ApiExtraModels
-  const referencedSchemas = new Set([
-    ...extractReferencedSchemas(paths),
-    ...extraRoots,
-  ]);
-
-  // Build the schema collection, starting with referenced schemas
-  const schemas: Record<string, OpenApiSchema> = {};
-  const processedSchemas = new Set<string>();
-  const toProcess = [...referencedSchemas];
-
-  while (toProcess.length > 0) {
-    const schemaName = toProcess.pop()!;
-
-    if (processedSchemas.has(schemaName)) {
-      continue;
-    }
-
-    processedSchemas.add(schemaName);
-
-    const jsonSchema = generatedSchemas.definitions[schemaName];
-    if (jsonSchema) {
-      schemas[schemaName] = convertToOpenApiSchema(jsonSchema);
-
-      // Find nested references
-      const nestedRefs = extractNestedReferences(
-        { [schemaName]: jsonSchema },
-        processedSchemas,
-      );
-
-      for (const ref of nestedRefs) {
-        if (!processedSchemas.has(ref)) {
-          toProcess.push(ref);
-        }
-      }
-    }
-  }
-
-  return { paths, schemas };
-};
+): MergedResult => ({
+  paths,
+  schemas: Object.fromEntries(
+    [...reachableSchemaNames(paths, generatedSchemas, extraRoots)].map(
+      (name) => [
+        name,
+        convertToOpenApiSchema(generatedSchemas.definitions[name]!),
+      ],
+    ),
+  ),
+});
 
 type SchemaNode = Record<string, unknown>;
 
