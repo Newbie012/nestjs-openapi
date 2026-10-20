@@ -11,9 +11,10 @@ import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
  * Pattern to match internal structure/class references
  * Examples:
  * - `structure-1949804971-123-456-789`
+ * - `structure-src_dto.ts-123-456-789` (the generator keeps a short file name verbatim, and cuts it by the working directory)
  * - `class-1038812259-491-2678-1038812259-0-2679`
  */
-const STRUCTURE_REF_PATTERN = /^(?:structure|class)-\d+(-\d+)*$/;
+const STRUCTURE_REF_PATTERN = /^(?:structure|class)-[^<>,\s]*\d$/;
 
 /**
  * Pattern to match structure/class references inside generic type parameters
@@ -21,7 +22,7 @@ const STRUCTURE_REF_PATTERN = /^(?:structure|class)-\d+(-\d+)*$/;
  * - `SelectRule<structure-1949804971-123-456>`
  * - `Relation<class-1038812259-491-2678-...>`
  */
-const CONTAINS_STRUCTURE_REF_PATTERN = /(?:structure|class)-\d+(-\d+)*/;
+const CONTAINS_STRUCTURE_REF_PATTERN = /(?:structure|class)-[^<>,\s]*\d/;
 
 /**
  * Check if a name contains ugly structure references that should be normalized
@@ -247,7 +248,7 @@ const updateRefsWithMapping = (
     return { ...s, $ref: `#/components/schemas/${refName}` };
   });
 
-const SOLE_STRUCTURE_ARGUMENT = /^[^<]+<((?:structure|class)-\d+(?:-\d+)*)>$/;
+const SOLE_STRUCTURE_ARGUMENT = /^[^<]+<((?:structure|class)-[^<>,\s]*\d)>$/;
 
 const isRefOnly = (schema: JsonSchema) =>
   typeof schema.$ref === 'string' &&
