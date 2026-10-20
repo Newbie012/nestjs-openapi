@@ -355,25 +355,35 @@ const toModuleImportPath = (fromDir: string, filePath: string): string => {
   return importPath.startsWith('.') ? importPath : `./${importPath}`;
 };
 
+/**
+ * Finds the file that declares each symbol by name: the controller files
+ * first, as TypeScript resolves a local declaration before an import, then
+ * a text search of the project, then a ts-morph project for the rest.
+ */
 const resolveSymbolLocations = (
   tsconfig: string,
-  symbolNames: Set<string>,
+  controllerFiles: readonly string[],
+  symbolNames: ReadonlySet<string>,
 ): Map<string, string> => {
   if (symbolNames.size === 0) {
     return new Map();
   }
 
-  const tsconfigDir = dirname(tsconfig);
-  const resolved = resolveTypeLocationsFast(tsconfigDir, symbolNames);
+  const resolved = resolveLocalTypeLocations(controllerFiles, symbolNames);
+  const unresolvedNames = () =>
+    new Set([...symbolNames].filter((name) => !resolved.has(name)));
 
-  const unresolved = new Set(
-    [...symbolNames].filter((name) => !resolved.has(name)),
-  );
+  for (const [name, filePath] of resolveTypeLocationsFast(
+    dirname(tsconfig),
+    unresolvedNames(),
+  )) {
+    resolved.set(name, filePath);
+  }
 
+  const unresolved = unresolvedNames();
   if (unresolved.size > 0) {
     const project = createTypeResolverProject(tsconfig);
-    const morphResolved = resolveTypeLocations(project, unresolved);
-    for (const [name, filePath] of morphResolved) {
+    for (const [name, filePath] of resolveTypeLocations(project, unresolved)) {
       resolved.set(name, filePath);
     }
   }
@@ -1370,68 +1380,18 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       );
 
       if (missingRefs.size > 0) {
-        const resolvedNonGenericLocations = new Map<string, string>();
-
-        if (missingNonGenericRefsBeforeResolution.size > 0) {
-          // Types declared in the controller's own file, exported or not,
-          // resolve there first, as in TypeScript
-          const controllerFiles = [
-            ...new Set(
-              filteredMethodInfos.flatMap((method) =>
-                method.controllerFile ? [method.controllerFile] : [],
-              ),
+        const controllerFiles = [
+          ...new Set(
+            filteredMethodInfos.flatMap((method) =>
+              method.controllerFile ? [method.controllerFile] : [],
             ),
-          ];
-          for (const [type, path] of resolveLocalTypeLocations(
-            controllerFiles,
-            missingNonGenericRefsBeforeResolution,
-          )) {
-            resolvedNonGenericLocations.set(type, path);
-          }
-
-          // Fast grep-based resolution (much faster for large codebases)
-          const tsconfigDir = dirname(tsconfig);
-          const fastResolved = resolveTypeLocationsFast(
-            tsconfigDir,
-            new Set(
-              [...missingNonGenericRefsBeforeResolution].filter(
-                (type) => !resolvedNonGenericLocations.has(type),
-              ),
-            ),
-          );
-
-          for (const [type, path] of fastResolved) {
-            resolvedNonGenericLocations.set(type, path);
-          }
-
-          // Fall back to ts-morph for types not found by fast resolution
-          const unresolvedTypes = new Set(
-            [...missingNonGenericRefsBeforeResolution].filter(
-              (t) => !resolvedNonGenericLocations.has(t.replace(/<.*>$/, '')),
-            ),
-          );
-          yield* Effect.annotateCurrentSpan(
-            'unresolvedTypeCountAfterFastLookup',
-            unresolvedTypes.size,
-          );
-
-          if (unresolvedTypes.size > 0) {
-            const project = createTypeResolverProject(tsconfig);
-            const morphResolved = resolveTypeLocations(
-              project,
-              unresolvedTypes,
-            );
-
-            for (const [type, path] of morphResolved) {
-              resolvedNonGenericLocations.set(type, path);
-            }
-          }
-        } else {
-          yield* Effect.annotateCurrentSpan(
-            'unresolvedTypeCountAfterFastLookup',
-            0,
-          );
-        }
+          ),
+        ];
+        const resolvedNonGenericLocations = resolveSymbolLocations(
+          tsconfig,
+          controllerFiles,
+          missingNonGenericRefsBeforeResolution,
+        );
         yield* Effect.annotateCurrentSpan(
           'resolvedTypeLocationCount',
           resolvedNonGenericLocations.size,
@@ -1517,6 +1477,7 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           const resolvedGenericSymbols = new Map([
             ...resolveSymbolLocations(
               tsconfig,
+              controllerFiles,
               new Set(
                 [...genericSymbols].filter(
                   (name) => !reachedLocations.has(name),
