@@ -580,12 +580,7 @@ const resolveDtoFilesEffect = Effect.fn('Generate.resolveDtoFiles')(function* (
     { concurrency: 'unbounded' },
   );
 
-  const dtoFiles = [...new Set(fileArrays.flat())];
-
-  yield* Effect.annotateCurrentSpan('dtoPatternCount', absolutePatterns.length);
-  yield* Effect.annotateCurrentSpan('dtoFileCount', dtoFiles.length);
-
-  return dtoFiles;
+  return [...new Set(fileArrays.flat())];
 });
 
 // Classes are also looked up in everything the schema files import, so
@@ -1203,9 +1198,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       absoluteConfigPath,
     );
 
-    yield* Effect.annotateCurrentSpan('entryCount', entries.length);
-    yield* Effect.annotateCurrentSpan('tsconfig', tsconfig);
-
     const expansion: DecoratorExpansionOptions = {
       decorators: options.decorators,
     };
@@ -1223,7 +1215,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           ? files.dtoGlob
           : [files.dtoGlob];
 
-    yield* Effect.annotateCurrentSpan('dtoGlobCount', dtoGlobArray.length);
     const [extractedMethodInfos, initialSchemas] = yield* Effect.all(
       [
         extractMethodInfosEffect(
@@ -1265,10 +1256,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       excludeDecorators: options.excludeDecorators,
       pathFilter: options.pathFilter,
     });
-    yield* Effect.annotateCurrentSpan(
-      'filteredMethodCount',
-      filteredMethodInfos.length,
-    );
 
     // One schema per declaration: plan names for the declarations the
     // documented operations reach, and point the operations at them
@@ -1323,24 +1310,11 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         options.operationExtensions,
       );
     }
-    yield* Effect.annotateCurrentSpan(
-      'initialPathCount',
-      Object.keys(paths).length,
-    );
-
-    yield* Effect.annotateCurrentSpan(
-      'basePathApplied',
-      options.basePath ? 'true' : 'false',
-    );
 
     // Merge decorator security with global security
     // Operations with decorator security get merged with global (AND logic)
     // Operations without decorator security inherit global as-is
     paths = mergeSecurityWithGlobal(paths, security.global);
-    yield* Effect.annotateCurrentSpan(
-      'globalSecurityRequirementCount',
-      security.global?.length ?? 0,
-    );
 
     // Process schemas if generated
     let schemas: Record<string, OpenApiSchema> = {};
@@ -1400,23 +1374,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
         paths,
         reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
       );
-      const missingGenericRefsBeforeResolution = [...missingRefs].filter(
-        isGenericSchemaRef,
-      );
       const missingNonGenericRefsBeforeResolution = new Set(
         [...missingRefs].filter((ref) => !isGenericSchemaRef(ref)),
-      );
-      yield* Effect.annotateCurrentSpan(
-        'missingRefCountBeforeResolution',
-        missingRefs.size,
-      );
-      yield* Effect.annotateCurrentSpan(
-        'missingGenericRefCountBeforeResolution',
-        missingGenericRefsBeforeResolution.length,
-      );
-      yield* Effect.annotateCurrentSpan(
-        'missingNonGenericRefCountBeforeResolution',
-        missingNonGenericRefsBeforeResolution.size,
       );
 
       if (missingRefs.size > 0) {
@@ -1431,10 +1390,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           tsconfig,
           controllerFiles,
           missingNonGenericRefsBeforeResolution,
-        );
-        yield* Effect.annotateCurrentSpan(
-          'resolvedTypeLocationCount',
-          resolvedNonGenericLocations.size,
         );
 
         if (resolvedNonGenericLocations.size > 0) {
@@ -1455,16 +1410,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           paths,
           reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
         );
-        yield* Effect.annotateCurrentSpan(
-          'missingRefCountAfterFileResolution',
-          unresolvedAfterFileResolution.size,
-        );
         const unresolvedGenericRefs = [...unresolvedAfterFileResolution].filter(
           isGenericSchemaRef,
-        );
-        yield* Effect.annotateCurrentSpan(
-          'unresolvedGenericRefCount',
-          unresolvedGenericRefs.length,
         );
 
         if (unresolvedGenericRefs.length > 0) {
@@ -1521,10 +1468,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       // Overlay class metadata once every schema is known, so types resolved
       // outside dtoGlob get theirs too
       const shouldExtractValidation = options.extractValidation !== false;
-      yield* Effect.annotateCurrentSpan(
-        'validationExtractionEnabled',
-        shouldExtractValidation ? 'true' : 'false',
-      );
       if (Object.keys(generatedSchemas.definitions).length > 0) {
         const overlaid = yield* overlayClassMetadataEffect(
           [...schemaSourceFiles],
@@ -1588,7 +1531,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
       paths = collapsed.paths;
       schemas = collapsed.schemas;
     }
-    yield* Effect.annotateCurrentSpan('aliasRefMode', aliasRefsMode);
 
     // Get OpenAPI version from config (default to 3.0.3)
     const openApiVersion = openapi.version ?? '3.0.3';
@@ -1679,7 +1621,6 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     yield* OutputService.ensureOutputDirectory(output);
 
     const format = overrides?.format ?? config.format ?? 'json';
-    yield* Effect.annotateCurrentSpan('outputFormat', format);
     const serializedSpec = yield* OutputService.serializeSpec(
       sortedSpec,
       output,
