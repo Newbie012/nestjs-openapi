@@ -1,3 +1,15 @@
+nestjs-openapi@0.10.0:
+  dir: ""
+  intents:
+    - big-boxes-shake
+    - extends-paths-rebase
+    - good-olives-arrive
+    - happy-spiders-cheer
+    - itchy-wasps-chew
+    - keep-source-order
+    - plain-owls-simplify
+    - quiet-codes-resolve
+    - silly-mice-mix
 nestjs-openapi@0.7.0:
   dir: ""
   intents:

@@ -1,5 +1,29 @@
 # nestjs-openapi
 
+## 0.10.0
+
+### Minor Changes
+
+- With `extends`, the relative paths in a base config (`output`, `files.entry`, `files.tsconfig`, `files.dtoGlob`, and `options.overlay` given as a path) now resolve against the folder of the base config, as tsconfig `extends` does. Before, they resolved against the folder of the config you passed. This only affects setups whose base config is in a different folder and uses relative paths; move those paths so they are relative to the base file. Paths a child config sets itself are unchanged.
+
+- Generated documents now keep declaration order: paths follow the controllers as they are reached from the entry module, operations and properties follow the class, and component schemas follow the order they are first reached. Before, all of them were sorted A to Z. Set `options.order: 'alphabetical'` to restore the old order. Only key order changes, not values. Expected documents under test/contract change in key order only.
+
+- Removed exports nothing in the docs used. Use the plain function with the same name instead. Services: `ProjectService`, `ProjectServiceLive`, `ModuleTraversalService`, `MethodExtractionService`, `TransformerService`, `SchemaService`, `ValidationMapperService`, `ValidationService`. Effect copies of pure functions: `getMethodInfoEffect`, `getControllerMethodInfosEffect`, `transformMethodEffect`, `transformMethodsEffect`, `mergeSchemasEffect`, `mergeGeneratedSchemasEffect`, `filterSchemasEffect`, `normalizeSchemasEffect`, `filterInternalSchemasEffect`, `normalizeStructureRefsEffect`, `mergeValidationConstraintsEffect`. Helpers: `mergeGeneratedSchemas`, `filterSchemas`, `normalizeSchemas`, `filterInternalSchemas`, `NormalizerOptions`, `extractClassConstraints` (use `extractClassValidationInfo(...).constraints`), `getRequiredProperties` (use `extractClassValidationInfo(...).required`), `getHttpMethods`, `isHttpDecorator`, `getStringLiteralValue`. Duplicates of `generate`: `generateFromConfigEffect`, `generateFromConfigAsync`. `generatorServicesLayer` now provides only `ConfigService` and `OutputService`. Generated documents are unchanged.
+
+### Patch Changes
+
+- OpenAPI 3.1 and 3.2 output now writes the nullable values of maps (`Record<string, T | null>`), and schemas under `not` and `patternProperties`, in 3.1 form instead of leaving the 3.0-only `nullable`. Alias collapsing also rewrites refs under `not`, `patternProperties` and discriminator `mapping`. Expected documents changed: test/contract/schemas/__contracts__/record-nullable-values.{3.1.0,3.2.0}.json and nested-subschemas.{3.1.0,3.2.0}.json.
+
+- A generic return type whose argument is written through a namespace import (`Page<Dtos.UserDto>`) now gets its schema, instead of a `$ref` to a component that was never generated.
+
+- An enum member, a union of enum members, and `Record` or `Partial<Record>` keyed by an enum now keep their values when used directly as a parameter, body or return type. A union of members is an enum of those values, a single member is a single value (`const` from 3.1), and an enum-keyed record lists one property per enum value, required unless wrapped in `Partial`. Before, they came out as `type: object` or a `oneOf` of objects. Plain string or number literal unions used directly in operation parameters, bodies and return types are now written as an `enum` instead of a `oneOf` of objects.
+
+- OpenAPI 3.0 output (the default) now writes `string | number` properties as `anyOf` instead of an invalid type list, and drops scopes from security requirements on non-OAuth schemes with a warning. Nullable enums now allow `null` in every version. Tuples keep their element types: `prefixItems` in 3.1 and 3.2, and in 3.0 one `items` `anyOf` of the position types, which is lossy because 3.0 cannot say which position holds which type (`minItems` and `maxItems` still keep the length). Expected documents changed: primitive-union.3.0.3.json, nullable-enum.{3.0.3,3.1.0,3.2.0}.json, tuple.{3.0.3,3.1.0,3.2.0}.json, and new api-key-scopes.{3.0.3,3.1.0,3.2.0}.json under test/contract.
+
+- A parameter, body or return type that uses an enum from a library, such as `HttpStatus` from `@nestjs/common`, now produces its schema. Before, the `$ref` pointed at a schema that was never written, so validation failed whenever the enum appeared only outside the DTO files.
+
+- A module that lists its controllers or imports through a spread or an identifier, such as `controllers: [...controllers]` with `controllers` an array declared locally or imported, now has them discovered, instead of yielding no operations. Entries computed at runtime are skipped.
+
 ## 0.9.0
 
 ### Minor Changes
