@@ -8,6 +8,7 @@
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
 import type { OpenApiPaths, OpenApiSchema } from '../config/types.js';
 import { Effect } from 'effect';
+import { mapSubschemas } from './schema-walk.js';
 
 /**
  * Result of schema merging
@@ -498,31 +499,14 @@ type SchemaNode = Record<string, unknown>;
 const isSchemaNode = (value: unknown): value is SchemaNode =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const forbidInSchemaMap = (map: SchemaNode): SchemaNode =>
-  Object.fromEntries(
-    Object.entries(map).map(([key, item]) => [key, forbidInSchema(item)]),
-  );
-
 const forbidInSchema = (value: unknown): unknown => {
-  if (!isSchemaNode(value)) return value;
-  const result: SchemaNode = { ...value };
-  for (const key of ['allOf', 'anyOf', 'oneOf'] as const) {
-    const members = result[key];
-    if (Array.isArray(members)) result[key] = members.map(forbidInSchema);
-  }
-  for (const key of ['items', 'not', 'additionalProperties'] as const) {
-    if (isSchemaNode(result[key])) result[key] = forbidInSchema(result[key]);
-  }
-  const patternProperties = result['patternProperties'];
-  if (isSchemaNode(patternProperties)) {
-    result['patternProperties'] = forbidInSchemaMap(patternProperties);
-  }
-  const properties = result['properties'];
-  if (isSchemaNode(properties)) {
-    result['properties'] = forbidInSchemaMap(properties);
-    result['additionalProperties'] ??= false;
-  }
-  return result;
+  const mapped = mapSubschemas(value, forbidInSchema);
+  if (!isSchemaNode(mapped) || !isSchemaNode(mapped['properties']))
+    return mapped;
+  return {
+    ...mapped,
+    additionalProperties: mapped['additionalProperties'] ?? false,
+  };
 };
 
 // `options.schemas.additionalProperties: 'forbid'`: every object that lists

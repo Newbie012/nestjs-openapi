@@ -5,6 +5,7 @@ import type {
   OpenApiSpec,
   OpenApiVersion,
 } from '../config/types.js';
+import { mapSubschemas } from './schema-walk.js';
 
 /**
  * Transforms schemas between OpenAPI 3.0 and 3.1/3.2 formats
@@ -494,40 +495,16 @@ const constAsEnum = (schema: SchemaRecord): SchemaRecord => {
   return { ...rest, enum: [value] };
 };
 
-const SUBSCHEMA_KEYS = ['items', 'not', 'additionalProperties'] as const;
-const SUBSCHEMA_LIST_KEYS = ['allOf', 'anyOf', 'oneOf'] as const;
-const SUBSCHEMA_MAP_KEYS = ['properties', 'patternProperties'] as const;
-
 const adaptSchemaForV30 = (
   value: unknown,
   components: Readonly<Record<string, unknown>>,
 ): unknown => {
-  if (!isRecord(value)) return value;
-  const result: SchemaRecord = { ...value };
-  for (const key of SUBSCHEMA_KEYS) {
-    if (isRecord(result[key]))
-      result[key] = adaptSchemaForV30(result[key], components);
-  }
-  for (const key of SUBSCHEMA_LIST_KEYS) {
-    const members = result[key];
-    if (Array.isArray(members))
-      result[key] = members.map((member) =>
-        adaptSchemaForV30(member, components),
-      );
-  }
-  for (const key of SUBSCHEMA_MAP_KEYS) {
-    const map = result[key];
-    if (isRecord(map)) {
-      result[key] = Object.fromEntries(
-        Object.entries(map).map(([name, item]) => [
-          name,
-          adaptSchemaForV30(item, components),
-        ]),
-      );
-    }
-  }
+  const mapped = mapSubschemas(value, (sub) =>
+    adaptSchemaForV30(sub, components),
+  );
+  if (!isRecord(mapped)) return mapped;
   return typeNullable(
-    exclusiveBoundsFor(constAsEnum(result), 'v30'),
+    exclusiveBoundsFor(constAsEnum(mapped), 'v30'),
     components,
   );
 };
