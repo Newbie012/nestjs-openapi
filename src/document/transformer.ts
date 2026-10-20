@@ -679,12 +679,15 @@ const buildRequestBody = (
   };
 };
 
-/** Transforms :param to {param} syntax */
-const buildOpenApiPath = (path: string): string =>
+/**
+ * Writes Express-style `:param` segments as OpenAPI `{param}` templates, and
+ * an empty path as `/`. A path that is already templated stays the same.
+ */
+export const toOpenApiPath = (path: string): string =>
   path.replace(/:([^/]+)/g, '{$1}') || '/';
 
 export const transformMethod = (methodInfo: MethodInfo): OpenApiPaths => {
-  const path = buildOpenApiPath(methodInfo.path);
+  const path = toOpenApiPath(methodInfo.path);
   const method = methodInfo.httpMethod.toLowerCase();
 
   const bodyParams = methodInfo.parameters.filter((p) => p.location === 'body');

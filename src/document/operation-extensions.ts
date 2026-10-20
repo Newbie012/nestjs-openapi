@@ -6,8 +6,7 @@ import type {
   OperationExtensionsHook,
 } from '../config/types.js';
 import type { MethodInfo } from '../model/domain.js';
-
-const openApiPath = (path: string) => path.replace(/:([^/]+)/g, '{$1}') || '/';
+import { toOpenApiPath } from './transformer.js';
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -27,7 +26,7 @@ export const applyOperationExtensions = Effect.fn(
   const byOperation = new Map<string, MethodInfo>();
   for (const method of methods) {
     byOperation.set(
-      `${method.httpMethod.toLowerCase()} ${openApiPath(method.path)}`,
+      `${method.httpMethod.toLowerCase()} ${toOpenApiPath(method.path)}`,
       method,
     );
   }

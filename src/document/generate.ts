@@ -33,7 +33,7 @@ import {
   getControllerMethodInfos,
   type ExtractParametersOptions,
 } from '../analysis/methods.js';
-import { transformMethods } from './transformer.js';
+import { toOpenApiPath, transformMethods } from './transformer.js';
 import {
   generateNamedSchemas,
   generateSchemas,
@@ -888,7 +888,7 @@ const finalizePath = (
   const prefix = basePath ? `/${basePath.replace(/^\/+|\/+$/g, '')}` : '';
   const joined =
     method.path === '/' && prefix ? prefix : `${prefix}${method.path}`;
-  const path = joined.replace(/:([^/]+)/g, '{$1}') || '/';
+  const path = toOpenApiPath(joined);
   if (!transformPath) return path;
 
   const transformed = transformPath(path, {

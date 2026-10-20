@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Option } from 'effect';
-import { transformMethod, transformMethods } from './transformer.js';
+import {
+  toOpenApiPath,
+  transformMethod,
+  transformMethods,
+} from './transformer.js';
 import type { MethodInfo, ResolvedParameter } from '../model/domain.js';
 
 // Test helper to create method info with defaults
@@ -33,6 +37,24 @@ function createMethodInfo(overrides: Partial<MethodInfo> = {}): MethodInfo {
     ...overrides,
   };
 }
+
+describe('toOpenApiPath', () => {
+  it('templates every :param segment', () => {
+    expect(toOpenApiPath('/orgs/:orgId/users/:userId/posts/:postId')).toBe(
+      '/orgs/{orgId}/users/{userId}/posts/{postId}',
+    );
+  });
+
+  it('leaves an already templated path unchanged', () => {
+    const path = toOpenApiPath('/orgs/:orgId/users/:userId/posts/:postId');
+
+    expect(toOpenApiPath(path)).toBe(path);
+  });
+
+  it('writes an empty path as /', () => {
+    expect(toOpenApiPath('')).toBe('/');
+  });
+});
 
 describe('transformMethods', () => {
   it('transforms method infos into paths', () => {
