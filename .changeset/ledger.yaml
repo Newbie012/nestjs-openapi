@@ -26,3 +26,9 @@ nestjs-openapi@0.8.4:
   dir: ""
   intents:
     - quiet-nulls-stay
+nestjs-openapi@0.9.0:
+  dir: ""
+  intents:
+    - brave-keys-stack
+    - calm-overlays-land
+    - kind-hooks-tag
