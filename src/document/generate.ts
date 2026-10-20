@@ -5,7 +5,7 @@
  */
 
 import { Effect } from 'effect';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { Project, ts, type ClassDeclaration } from 'ts-morph';
 import { glob as nodeGlob } from 'glob';
@@ -513,6 +513,63 @@ const toModuleImportPath = (fromDir: string, filePath: string): string => {
  * first, as TypeScript resolves a local declaration before an import, then
  * a text search of the project, then a ts-morph project for the rest.
  */
+const spikeStages = new Map<string, string>();
+
+/**
+ * Spike instrumentation: appends one JSON line per missing ref to the file
+ * named by `NOA_SPIKE_LOG`.
+ */
+const spikeLogMissing = (
+  tsconfig: string,
+  missing: ReadonlySet<string>,
+  finalMissing: ReadonlySet<string>,
+  locations: ReadonlyMap<string, string>,
+  methods: readonly MethodInfo[],
+  phase: string,
+) => {
+  const target = process.env.NOA_SPIKE_LOG;
+  if (!target) return;
+  for (const name of missing) {
+    const base = name.replace(/<.*>$/, '');
+    const declared = methods.flatMap((method) =>
+      (method.referencedDeclarations ?? [])
+        .filter((ref) => ref.name === base || ref.localNames?.includes(base))
+        .map((ref) => ({
+          name: ref.name,
+          filePath: ref.filePath,
+          kind: ref.kind,
+          generic: ref.generic ?? false,
+          localNames: ref.localNames,
+        })),
+    );
+    const usedBy = methods
+      .filter((method) =>
+        JSON.stringify(method.returnType ?? {}).includes(base),
+      )
+      .map((method) => ({
+        route: `${method.httpMethod} ${method.path}`,
+        returnType: method.returnType,
+      }))
+      .slice(0, 3);
+    appendFileSync(
+      target,
+      `${JSON.stringify({
+        phase,
+        tsconfig,
+        name,
+        generic: isGenericSchemaRef(name),
+        stage: finalMissing.has(name)
+          ? 'never'
+          : (spikeStages.get(name) ??
+            (isGenericSchemaRef(name) ? 'generic-round' : 'unknown')),
+        resolvedFile: locations.get(name),
+        declared,
+        usedBy,
+      })}\n`,
+    );
+  }
+};
+
 const resolveSymbolLocations = (
   tsconfig: string,
   controllerFiles: readonly string[],
@@ -523,6 +580,7 @@ const resolveSymbolLocations = (
   }
 
   const resolved = resolveLocalTypeLocations(controllerFiles, symbolNames);
+  for (const name of resolved.keys()) spikeStages.set(name, 'local');
   const unresolvedNames = () =>
     new Set([...symbolNames].filter((name) => !resolved.has(name)));
 
@@ -531,6 +589,7 @@ const resolveSymbolLocations = (
     unresolvedNames(),
   )) {
     resolved.set(name, filePath);
+    spikeStages.set(name, 'rg');
   }
 
   const unresolved = unresolvedNames();
@@ -538,7 +597,22 @@ const resolveSymbolLocations = (
     const project = createTypeResolverProject(tsconfig);
     for (const [name, filePath] of resolveTypeLocations(project, unresolved)) {
       resolved.set(name, filePath);
+      spikeStages.set(name, 'ts-morph');
     }
+  }
+  if (process.env.NOA_SPIKE_LOG) {
+    appendFileSync(
+      process.env.NOA_SPIKE_LOG,
+      `${JSON.stringify({
+        phase: 'lookup',
+        tsconfig,
+        names: [...symbolNames].map((name) => ({
+          name,
+          stage: spikeStages.get(name) ?? 'never',
+          filePath: resolved.get(name),
+        })),
+      })}\n`,
+    );
   }
 
   return resolved;
@@ -1475,6 +1549,8 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
       generatedSchemas = normalizeStructureRefs(generatedSchemas);
 
+      const spikeLastLocations = new Map<string, string>();
+      spikeStages.clear();
       const missingRefs = findMissingSchemaRefs(
         paths,
         reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
@@ -1497,6 +1573,9 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           missingNonGenericRefsBeforeResolution,
         );
 
+        for (const [name, filePath] of resolvedNonGenericLocations) {
+          spikeLastLocations.set(name, filePath);
+        }
         if (resolvedNonGenericLocations.size > 0) {
           const additionalFiles = [
             ...new Set(resolvedNonGenericLocations.values()),
@@ -1538,6 +1617,20 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
               }
             }
           }
+          const spikeByName = new Set(
+            [...genericSymbols].filter((name) => !reachedLocations.has(name)),
+          );
+          if (process.env.NOA_SPIKE_LOG) {
+            appendFileSync(
+              process.env.NOA_SPIKE_LOG,
+              `${JSON.stringify({
+                phase: 'generic-symbols',
+                tsconfig,
+                fromDeclarations: [...reachedLocations.keys()],
+                byName: [...spikeByName],
+              })}\n`,
+            );
+          }
           const resolvedGenericSymbols = new Map([
             ...resolveSymbolLocations(
               tsconfig,
@@ -1567,6 +1660,18 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
           );
         }
       }
+
+      spikeLogMissing(
+        tsconfig,
+        missingRefs,
+        findMissingSchemaRefs(
+          paths,
+          reachableSchemaNames(paths, generatedSchemas, extraModelRoots),
+        ),
+        spikeLastLocations,
+        filteredMethodInfos,
+        'after-first-merge',
+      );
 
       const shouldExtractValidation = options.extractValidation !== false;
       if (Object.keys(generatedSchemas.definitions).length > 0) {
