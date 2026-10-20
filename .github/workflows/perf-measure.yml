@@ -25,42 +25,53 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create base and flat worktrees
+      - name: Create worktrees
         run: |
-          git worktree add --detach "$RUNNER_TEMP/noa-base" 7024b9c
-          git worktree add --detach "$RUNNER_TEMP/noa-flat" 71abbd5
-          (cd "$RUNNER_TEMP/noa-base" && pnpm install --frozen-lockfile)
-          (cd "$RUNNER_TEMP/noa-flat" && pnpm install --frozen-lockfile)
+          while IFS='=' read -r label sha; do
+            git worktree add --detach "$RUNNER_TEMP/noa-$label" "$sha"
+            (cd "$RUNNER_TEMP/noa-$label" && pnpm install --frozen-lockfile)
+          done < .github/perf/trees.txt
 
       - name: Generate benchmark project
         run: node scripts/benchmark/large-project.mjs
 
-      - name: Compare
+      - name: Interleaved runs
         run: |
           mkdir -p perf-out
-          RUNS=5 scripts/benchmark/compare-large.sh \
-            base="$RUNNER_TEMP/noa-base" flat="$RUNNER_TEMP/noa-flat" head=. | tee perf-out/table.md
+          specs=()
+          while IFS='=' read -r label sha; do
+            specs+=("$label=$RUNNER_TEMP/noa-$label")
+          done < .github/perf/trees.txt
+          : > perf-out/rows.md
+          for round in $(seq 1 10); do
+            echo "round $round"
+            for spec in "${specs[@]}"; do
+              RUNS=1 scripts/benchmark/compare-large.sh "$spec" | grep -v -e 'real (s)' -e '^|--' | tee -a perf-out/rows.md
+            done
+          done
+          node .github/perf/interleave-stats.mjs perf-out/rows.md | tee perf-out/table.md
 
       - name: Diff outputs
         run: |
           cd .bench-large
           {
-            for pair in "base flat" "base head"; do
-              set -- $pair
-              if diff -q "out-$1.json" "out-$2.json" >/dev/null; then
-                echo "out-$1.json and out-$2.json: identical"
+            first=$(head -n1 ../.github/perf/trees.txt | cut -d= -f1)
+            while IFS='=' read -r label sha; do
+              [ "$label" = "$first" ] && continue
+              if diff -q "out-$first.json" "out-$label.json" >/dev/null; then
+                echo "out-$first.json and out-$label.json: identical"
               else
-                echo "out-$1.json and out-$2.json: DIFFER"
-                diff "out-$1.json" "out-$2.json" | head -60
+                echo "out-$first.json and out-$label.json: DIFFER"
+                diff "out-$first.json" "out-$label.json" | head -60
               fi
-            done
+            done < ../.github/perf/trees.txt
           } | tee ../perf-out/diff.txt
           cp out-*.json ../perf-out/
 
       - name: Summary
         run: |
           {
-            echo '## Pipeline benchmark (macos-latest, 5 runs each)'
+            echo '## Pipeline benchmark (macos-latest, 10 interleaved rounds)'
             cat perf-out/table.md
             echo
             echo '### Output comparison'
@@ -76,6 +87,7 @@ jobs:
 
   contracts:
     name: Contract suite (ubuntu)
+    if: contains(github.event.head_commit.message, 'contracts')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
