@@ -725,78 +725,60 @@ const applySchemaOverride = (
   } as JsonSchema;
 };
 
-const hasNullableArraySchema = (schema: JsonSchema): boolean =>
-  schema.anyOf?.some((member) => member.type === 'array') === true;
-
 const isItemTypeOverride = (typeOverride: string | undefined): boolean =>
   typeof typeOverride === 'string' && typeOverride !== 'array';
 
-const shouldApplyNullableArrayItemConstraints = (
-  propertySchema: JsonSchema,
-  isArray: boolean | undefined,
-  typeOverride: string | undefined,
-  enumValues: readonly unknown[] | undefined,
-): boolean =>
-  hasNullableArraySchema(propertySchema) &&
-  ((isArray === true && isItemTypeOverride(typeOverride)) ||
-    enumValues !== undefined);
+const hasArrayShape = (schema: JsonSchema): boolean =>
+  schema.type === 'array' ||
+  schema.anyOf?.some((member) => member.type === 'array') === true;
 
-const applyNullableArrayItemConstraints = (
-  propertySchema: JsonSchema,
-  isArray: boolean | undefined,
-  typeOverride: string | undefined,
-  enumValues: readonly unknown[] | undefined,
-  restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
+/**
+ * Rewrites the items of an array schema, or of each array member of an
+ * `anyOf` (how `T[] | null` arrives). Any other schema is returned as it is.
+ */
+const withArrayItems = (
+  schema: JsonSchema,
+  toItems: (items: JsonSchema['items']) => JsonSchema['items'],
 ): JsonSchema => {
-  const hasItemTypeOverride =
-    isArray === true && isItemTypeOverride(typeOverride);
-  const itemConstraints = {
-    ...(hasItemTypeOverride ? { type: typeOverride } : {}),
-    ...(enumValues ? { enum: enumValues } : {}),
-  };
-
+  if (schema.type === 'array')
+    return { ...schema, items: toItems(schema.items) };
+  if (!schema.anyOf?.some((member) => member.type === 'array')) return schema;
   return {
-    ...propertySchema,
-    ...restConstraints,
-    anyOf: propertySchema.anyOf?.map((member) =>
-      member.type === 'array'
-        ? ({
-            ...member,
-            items: {
-              ...(hasItemTypeOverride ? {} : member.items),
-              ...itemConstraints,
-            },
-          } as JsonSchema)
-        : member,
+    ...schema,
+    anyOf: schema.anyOf.map((member) =>
+      member.type === 'array' ? withArrayItems(member, toItems) : member,
     ),
-  } as JsonSchema;
+  };
 };
 
-const shouldApplyArrayItemConstraints = (
-  propertySchema: JsonSchema,
-  typeOverride: string | undefined,
-  enumValues: readonly unknown[] | undefined,
-): boolean =>
-  propertySchema.type === 'array' &&
-  (isItemTypeOverride(typeOverride) || enumValues !== undefined);
-
+/**
+ * A declared item type or `enum` on an array property constrains its items.
+ * The declared type replaces the inferred items; on `T[] | null` it counts
+ * only with `isArray`.
+ */
 const applyArrayItemConstraints = (
   propertySchema: JsonSchema,
+  isArray: boolean | undefined,
   typeOverride: string | undefined,
   enumValues: readonly unknown[] | undefined,
   restConstraints: Omit<CleanPropertyConstraints, 'type' | 'enum'>,
-): JsonSchema => {
-  const hasItemTypeOverride = isItemTypeOverride(typeOverride);
-
-  return {
-    ...propertySchema,
-    ...restConstraints,
-    items: {
-      ...(hasItemTypeOverride ? {} : propertySchema.items),
-      ...(hasItemTypeOverride ? { type: typeOverride } : {}),
-      ...(enumValues ? { enum: enumValues } : {}),
-    },
-  } as JsonSchema;
+): JsonSchema | undefined => {
+  const replacesItemType =
+    isItemTypeOverride(typeOverride) &&
+    (propertySchema.type === 'array' || isArray === true);
+  if (
+    !hasArrayShape(propertySchema) ||
+    (!replacesItemType && enumValues === undefined)
+  )
+    return undefined;
+  return withArrayItems(
+    { ...propertySchema, ...restConstraints } as JsonSchema,
+    (items) =>
+      ({
+        ...(replacesItemType ? { type: typeOverride } : items),
+        ...(enumValues ? { enum: enumValues } : {}),
+      }) as JsonSchema,
+  );
 };
 
 const applyDirectPropertyConstraints = (
@@ -846,27 +828,15 @@ const withoutStringKeywordsOnNonStrings = (schema: JsonSchema) => {
 const withItemConstraints = (
   schema: JsonSchema,
   itemConstraints: ValidationConstraints,
-): JsonSchema => {
-  if (schema.type === 'array') {
-    if (Array.isArray(schema.items)) return schema;
-    return {
-      ...schema,
-      items: applyPropertyConstraints(
-        (schema.items as JsonSchema | undefined) ?? {},
-        itemConstraints,
-      ),
-    } as JsonSchema;
-  }
-  if (!schema.anyOf?.some((member) => member.type === 'array')) return schema;
-  return {
-    ...schema,
-    anyOf: schema.anyOf.map((member) =>
-      member.type === 'array'
-        ? withItemConstraints(member, itemConstraints)
-        : member,
-    ),
-  } as JsonSchema;
-};
+): JsonSchema =>
+  withArrayItems(schema, (items) =>
+    Array.isArray(items)
+      ? items
+      : applyPropertyConstraints(
+          (items as JsonSchema | undefined) ?? {},
+          itemConstraints,
+        ),
+  );
 
 export const applyPropertyConstraints = (
   propertySchema: JsonSchema,
@@ -882,59 +852,35 @@ export const applyPropertyConstraints = (
 const applyOwnConstraints = (
   propertySchema: JsonSchema,
   constraints: ValidationConstraints | undefined,
-): JsonSchema =>
-  Option.fromNullable(constraints).pipe(
-    Option.map((propertyConstraints) => {
-      if (propertyConstraints.schemaOverride) {
-        return applySchemaOverride(propertySchema, propertyConstraints);
-      }
+): JsonSchema => {
+  if (!constraints) return propertySchema;
+  if (constraints.schemaOverride) {
+    return applySchemaOverride(propertySchema, constraints);
+  }
 
-      const isArray = propertyConstraints.isArray;
-      const {
-        type: typeOverride,
-        enum: enumValues,
-        ...restConstraints
-      } = cleanPropertyConstraints(propertyConstraints);
-      const keywords = propertyConstraints.keywords;
-      if (keywords) Object.assign(restConstraints, keywords);
+  const {
+    type: typeOverride,
+    enum: enumValues,
+    ...restConstraints
+  } = cleanPropertyConstraints(constraints);
+  const withKeywords = { ...restConstraints, ...constraints.keywords };
 
-      if (
-        shouldApplyNullableArrayItemConstraints(
-          propertySchema,
-          isArray,
-          typeOverride,
-          enumValues,
-        )
-      ) {
-        return applyNullableArrayItemConstraints(
-          propertySchema,
-          isArray,
-          typeOverride,
-          enumValues,
-          restConstraints,
-        );
-      }
-
-      return shouldApplyArrayItemConstraints(
-        propertySchema,
-        typeOverride,
-        enumValues,
-      )
-        ? applyArrayItemConstraints(
-            propertySchema,
-            typeOverride,
-            enumValues,
-            restConstraints,
-          )
-        : applyDirectPropertyConstraints(
-            propertySchema,
-            typeOverride,
-            enumValues,
-            restConstraints,
-          );
-    }),
-    Option.getOrElse(() => propertySchema),
+  return (
+    applyArrayItemConstraints(
+      propertySchema,
+      constraints.isArray,
+      typeOverride,
+      enumValues,
+      withKeywords,
+    ) ??
+    applyDirectPropertyConstraints(
+      propertySchema,
+      typeOverride,
+      enumValues,
+      withKeywords,
+    )
   );
+};
 
 const buildUpdatedProperties = (
   schema: JsonSchema,
@@ -944,23 +890,17 @@ const buildUpdatedProperties = (
   const shouldUpdateProperties =
     Object.keys(propertyConstraints).length > 0 || hiddenProperties.size > 0;
 
-  return Option.fromNullable(schema.properties).pipe(
-    Option.filter(() => shouldUpdateProperties),
-    Option.map(
-      (properties) =>
-        Object.fromEntries(
-          Object.entries(properties)
-            .filter(([propertyName]) => !hiddenProperties.has(propertyName))
-            .map(([propertyName, propertySchema]) => [
-              propertyName,
-              applyPropertyConstraints(
-                propertySchema,
-                propertyConstraints[propertyName],
-              ),
-            ]),
-        ) as Record<string, JsonSchema>,
-    ),
-    Option.getOrUndefined,
+  if (!schema.properties || !shouldUpdateProperties) return undefined;
+  return Object.fromEntries(
+    Object.entries(schema.properties)
+      .filter(([propertyName]) => !hiddenProperties.has(propertyName))
+      .map(([propertyName, propertySchema]) => [
+        propertyName,
+        applyPropertyConstraints(
+          propertySchema,
+          propertyConstraints[propertyName],
+        ),
+      ]),
   );
 };
 
