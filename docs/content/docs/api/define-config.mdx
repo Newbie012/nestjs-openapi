@@ -59,7 +59,6 @@ export default defineConfig({
       'src/**/*.model.ts',
       'src/**/*.schema.ts',
     ],
-    exclude: ['**/*.spec.ts', '**/*.test.ts'],
   },
 
   openapi: {
@@ -176,8 +175,6 @@ defineConfig({
     entry: 'src/app.module.ts', // default
     tsconfig: 'tsconfig.json', // generator will try to find it if omitted
     dtoGlob: ['src/**/*.dto.ts', 'src/**/*.entity.ts', '...'],
-    include: ['src/**/*.ts'],
-    exclude: ['**/*.spec.ts'],
   },
 
   openapi: {
