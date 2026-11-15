@@ -14,6 +14,10 @@ nestjs-openapi@0.10.1:
   dir: ""
   intents:
     - wicked-teeth-roll
+nestjs-openapi@0.11.0:
+  dir: ""
+  intents:
+    - calm-names-choose
 nestjs-openapi@0.7.0:
   dir: ""
   intents:
