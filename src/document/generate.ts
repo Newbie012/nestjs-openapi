@@ -71,6 +71,7 @@ import { generatorServicesLayer } from '../runtime/service-layer.js';
 import {
   EMPTY_PLAN,
   applyPlanToMethods,
+  nameDeclarations,
   namingForPlan,
   planSchemaNames,
   singleDeclarationSources,
@@ -1335,7 +1336,16 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
 
     const dtoFiles = yield* resolveDtoFilesEffect(dtoGlobArray, configDir);
     const schemaNamePlan = initialSchemas
-      ? planSchemaNames(filteredMethodInfos, dtoFiles, configDir)
+      ? planSchemaNames(
+          filteredMethodInfos,
+          dtoFiles,
+          configDir,
+          yield* nameDeclarations(
+            filteredMethodInfos,
+            configDir,
+            options.schemaName,
+          ),
+        )
       : EMPTY_PLAN;
     const documentedMethods = applyPlanToMethods(
       filteredMethodInfos,

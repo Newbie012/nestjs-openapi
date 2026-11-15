@@ -386,6 +386,17 @@ export class SchemaNameCollisionError extends Schema.TaggedError<SchemaNameColli
   },
 ) {}
 
+export class SchemaNameError extends Schema.TaggedError<SchemaNameError>()(
+  'SchemaNameError',
+  {
+    message: Schema.String,
+    /** The declaration's name */
+    name: Schema.String,
+    filePath: Schema.String,
+    cause: Schema.optional(Schema.Unknown),
+  },
+) {}
+
 export class OperationExtensionsError extends Schema.TaggedError<OperationExtensionsError>()(
   'OperationExtensionsError',
   {
@@ -407,6 +418,7 @@ export class OverlayError extends Schema.TaggedError<OverlayError>()(
 
 export type GeneratorError =
   | SchemaNameCollisionError
+  | SchemaNameError
   | OperationExtensionsError
   | OverlayError
   | ProjectError

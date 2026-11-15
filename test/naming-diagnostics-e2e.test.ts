@@ -48,6 +48,17 @@ describe('Naming diagnostics E2E', () => {
     );
   });
 
+  it("schemaNameCollision 'error' names both declarations when schemaName gives them one name", async () => {
+    await expect(
+      generate(resolve(fixture('schema-name'), 'openapi.error.config.ts')),
+    ).rejects.toThrow(
+      [
+        'Different schemas share a name:',
+        '  User: src/admin/user.ts, src/public/user.dto.ts (UserDto)',
+      ].join('\n'),
+    );
+  });
+
   it("schemaNameCollision 'error' says how each different schema differs", async () => {
     await expect(
       generate(

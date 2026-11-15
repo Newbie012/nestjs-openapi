@@ -369,6 +369,34 @@ options: {
 }
 ```
 
+### `schemaName`
+
+Chooses the component name of each class, interface, enum and type alias the documented routes reach. The returned name is used for the component and for every `$ref` to it, including references inside other schemas, array items, generic instantiations (`PageDto<UserDto>` becomes `Page_User` below) and `getSchemaPath()`. Without this option every schema is named after its declaration.
+
+```typescript
+options: {
+  // Strip the Dto suffix from classes under src/public/
+  schemaName: ({ name, relativePath }) =>
+    relativePath.startsWith('src/public/') ? name.replace(/Dto$/, '') : name,
+}
+```
+
+The function receives each declaration once:
+
+| Field          | Description                                                     |
+| -------------- | --------------------------------------------------------------- |
+| `name`         | The declaration's name, which is the default schema name        |
+| `kind`         | `'class'`, `'interface'`, `'enum'` or `'type'`                  |
+| `filePath`     | Absolute path of the file declaring it                          |
+| `relativePath` | The same path, relative to the config file, with `/` separators |
+| `exported`     | Whether the declaration is exported                             |
+
+Return `name` to keep the default. A name must be an identifier: letters, digits and `_`, not starting with a digit. If the function throws or returns anything else, generation fails with a `SchemaNameError`.
+
+Enums are named here when they become components, which is always under `enums: 'ref'`. An `enumName` in `@ApiProperty` is used as written, and inline schemas such as `@ApiResponse({ schema })` objects have no declaration to name.
+
+Two declarations given the same name are a collision, handled by [`schemaNameCollision`](#schemanamecollision) like two declarations sharing a name in the source: under `'error'`, generation fails and names both, showing the declared name next to a renamed one (`User: src/admin/user.ts, src/public/user.dto.ts (UserDto)`); under `'rename'`, each gets a file-based name. A collision function receives the new name as `name` and the original as `declaredName`. The reverse also works: two same-name declarations given different names no longer collide.
+
 ### `schemaNameCollision`
 
 Schemas are components named after their types, but different declarations can share a name: two files each declaring their own `AddressDto`, or two libraries exporting a `PluginStateDto`. References always resolve to the declaration they point to; this option only decides how such schemas are named. Only declarations reached from the documented routes count, so an unused class with the same name is not a collision.

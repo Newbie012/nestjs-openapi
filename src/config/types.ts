@@ -18,8 +18,10 @@ export type {
 
 /** A declaration whose schema name another reachable declaration shares */
 export interface SchemaNameCollision {
-  /** The shared name, e.g. `AddressDto` */
+  /** The shared name, e.g. `AddressDto`, after `options.schemaName` */
   readonly name: string;
+  /** The declaration's own name, which differs from `name` when `options.schemaName` renamed it */
+  readonly declaredName: string;
   /** Absolute path of the file declaring this one */
   readonly filePath: string;
   /** The same path, relative to the config file's directory */
@@ -29,11 +31,28 @@ export interface SchemaNameCollision {
   readonly kind: 'class' | 'interface' | 'enum' | 'type';
   /** Every declaration sharing the name, this one included */
   readonly declarations: readonly {
+    readonly declaredName: string;
     readonly filePath: string;
     readonly relativePath: string;
     readonly exported: boolean;
   }[];
 }
+
+/** A declaration that `options.schemaName` names the schema of */
+export interface SchemaNameInput {
+  /** The declaration's name, which is also the default schema name, e.g. `UserDto` */
+  readonly name: string;
+  readonly kind: 'class' | 'interface' | 'enum' | 'type';
+  /** Absolute path of the file declaring it */
+  readonly filePath: string;
+  /** The same path, relative to the config file's directory */
+  readonly relativePath: string;
+  /** Whether the declaration is exported */
+  readonly exported: boolean;
+}
+
+/** Returns the schema name for a declaration */
+export type SchemaNameHook = (declaration: SchemaNameInput) => string;
 
 /** Rewrites an operation's documented path */
 export type PathTransform = (
@@ -477,6 +496,23 @@ export interface OptionsConfig {
    * @default 'inline'
    */
   readonly schemaNameCollision?: SchemaNameCollisionStrategy;
+
+  /**
+   * Names the schema of each class, interface, enum or type alias the
+   * documented routes reach. The returned name is used for the component and
+   * every reference to it; return `name` to keep the default. Names must be
+   * identifiers (letters, digits and `_`, not starting with a digit).
+   *
+   * Two declarations given the same name are a collision, handled by
+   * `schemaNameCollision`.
+   *
+   * @example
+   * ```typescript
+   * schemaName: ({ name, relativePath }) =>
+   *   relativePath.startsWith('src/public/') ? name.replace(/Dto$/, '') : name
+   * ```
+   */
+  readonly schemaName?: SchemaNameHook;
 
   /**
    * How enums are emitted.

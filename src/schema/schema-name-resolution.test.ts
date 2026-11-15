@@ -28,6 +28,7 @@ const planFor = (
       temporary,
       {
         name,
+        declaredName: name,
         filePath: `/app/${file}`,
         relativePath: file,
         exported: true,

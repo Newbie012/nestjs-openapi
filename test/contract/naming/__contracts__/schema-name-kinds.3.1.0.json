@@ -1,0 +1,287 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Schema Name API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/public/users": {
+      "get": {
+        "operationId": "PublicUsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiUserDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      },
+      "post": {
+        "operationId": "PublicUsersController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiUserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiUserDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      }
+    },
+    "/public/users/page": {
+      "get": {
+        "operationId": "PublicUsersController_page",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiPageDto_ApiUserDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      }
+    },
+    "/public/users/raw": {
+      "get": {
+        "operationId": "PublicUsersController_raw",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiUserDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "operationId": "AdminController_users",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiUser"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/audits": {
+      "get": {
+        "operationId": "AdminController_audits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiAuditDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiUserDto": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleEnum"
+          },
+          "address": {
+            "$ref": "#/components/schemas/ApiAddressDto"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/ApiTagDto"
+            },
+            "type": "array"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ApiProfileDto"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "address",
+          "tags",
+          "profile"
+        ],
+        "type": "object"
+      },
+      "RoleEnum": {
+        "enum": [
+          "owner",
+          "member"
+        ],
+        "type": "string"
+      },
+      "ApiAddressDto": {
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "street",
+          "city"
+        ],
+        "type": "object"
+      },
+      "ApiTagDto": {
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "ApiProfileDto": {
+        "properties": {
+          "bio": {
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "$ref": "#/components/schemas/ApiTagDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bio",
+          "interests"
+        ],
+        "type": "object"
+      },
+      "ApiPageDto_ApiUserDto": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApiUserDto"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "ApiUser": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "type": "object"
+      },
+      "ApiAuditDto": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/ApiAddressDto"
+          }
+        },
+        "required": [
+          "action",
+          "location"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

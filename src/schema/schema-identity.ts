@@ -19,7 +19,8 @@ import {
   generateSchemasFromVirtualFile,
 } from './schema-generator.js';
 import type { GeneratedSchemas, JsonSchema } from './schema-generator.js';
-import type { SchemaNameCollision } from '../config/types.js';
+import type { SchemaNameCollision, SchemaNameHook } from '../config/types.js';
+import { SchemaNameError } from '../config/errors.js';
 
 type PlannedDeclaration = {
   readonly ref: DeclarationRef;
@@ -98,6 +99,55 @@ export const defaultCollisionNames = (
   return relativePaths.map((_, index) => `${name}_${index + 1}`);
 };
 
+const toRelativePath = (baseDir: string, filePath: string) =>
+  relative(baseDir, filePath).split('\\').join('/');
+
+const SCHEMA_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * The names `options.schemaName` gives the reachable declarations, by
+ * declaration key; a declaration it keeps the name of is left out
+ */
+export const nameDeclarations = Effect.fn('SchemaIdentity.nameDeclarations')(
+  function* (
+    methods: readonly MethodInfo[],
+    baseDir: string,
+    hook: SchemaNameHook | undefined,
+  ) {
+    const names = new Map<string, string>();
+    if (!hook) return names;
+    for (const ref of collectReachable(methods).values()) {
+      const relativePath = toRelativePath(baseDir, ref.filePath);
+      const name = yield* Effect.try({
+        try: () =>
+          hook({
+            name: ref.name,
+            kind: ref.kind,
+            filePath: ref.filePath,
+            relativePath,
+            exported: ref.exported,
+          }),
+        catch: (cause) =>
+          new SchemaNameError({
+            message: `options.schemaName threw for ${ref.name} in ${relativePath}: ${cause instanceof Error ? cause.message : String(cause)}`,
+            name: ref.name,
+            filePath: ref.filePath,
+            cause,
+          }),
+      });
+      if (typeof name !== 'string' || !SCHEMA_NAME.test(name)) {
+        return yield* new SchemaNameError({
+          message: `options.schemaName returned ${JSON.stringify(name)} for ${ref.name} in ${relativePath}; a schema name must be an identifier of letters, digits and _`,
+          name: ref.name,
+          filePath: ref.filePath,
+        });
+      }
+      if (name !== ref.name) names.set(declarationKey(ref), name);
+    }
+    return names as ReadonlyMap<string, string>;
+  },
+);
+
 export const singleDeclarationSources = (
   methods: readonly MethodInfo[],
   plan: SchemaNamePlan,
@@ -120,27 +170,32 @@ export const planSchemaNames = (
   methods: readonly MethodInfo[],
   candidateFiles: readonly string[],
   baseDir: string,
+  names: ReadonlyMap<string, string> = new Map(),
 ): SchemaNamePlan => {
   declaredNamesCache.clear();
 
   const reachable = collectReachable(methods);
+  const nameOf = (ref: DeclarationRef) =>
+    names.get(declarationKey(ref)) ?? ref.name;
 
   const byName = new Map<string, DeclarationRef[]>();
   for (const ref of reachable.values()) {
-    byName.set(ref.name, [...(byName.get(ref.name) ?? []), ref]);
+    const name = nameOf(ref);
+    byName.set(name, [...(byName.get(name) ?? []), ref]);
   }
 
-  const toRelative = (filePath: string) =>
-    relative(baseDir, filePath).split('\\').join('/');
+  const toRelative = (filePath: string) => toRelativePath(baseDir, filePath);
 
   const declarations = new Map<string, PlannedDeclaration>();
   const shared = new Map<string, SchemaNameCollision>();
   for (const [name, refs] of byName) {
     if (refs.length < 2) continue;
-    const sorted = [...refs].sort((a, b) =>
-      a.filePath.localeCompare(b.filePath),
+    const sorted = [...refs].sort(
+      (a, b) =>
+        a.filePath.localeCompare(b.filePath) || a.name.localeCompare(b.name),
     );
     const entries = sorted.map((ref) => ({
+      declaredName: ref.name,
       filePath: ref.filePath,
       relativePath: toRelative(ref.filePath),
       exported: ref.exported,
@@ -149,6 +204,7 @@ export const planSchemaNames = (
       const temporary = sharedName(name, shared.size);
       shared.set(temporary, {
         name,
+        declaredName: ref.name,
         filePath: ref.filePath,
         relativePath: toRelative(ref.filePath),
         exported: ref.exported,
@@ -168,10 +224,12 @@ export const planSchemaNames = (
   for (const [name, refs] of byName) {
     if (refs.length !== 1) continue;
     const [ref] = refs;
-    const shadowed = files.some(
-      (filePath) =>
-        filePath !== ref!.filePath && getDeclaredNames(filePath).has(name),
-    );
+    const shadowed =
+      name !== ref!.name ||
+      files.some(
+        (filePath) =>
+          filePath !== ref!.filePath && getDeclaredNames(filePath).has(name),
+      );
     if (shadowed) {
       declarations.set(declarationKey(ref!), { ref: ref!, name });
     }
