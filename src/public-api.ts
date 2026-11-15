@@ -32,6 +32,7 @@ export const mapGeneratorErrorsToPublicApi = <A>(
       DtoGlobResolutionError: toPublicApiError,
       SchemaGenerationError: toPublicApiError,
       SchemaNameCollisionError: toPublicApiError,
+      SchemaNameError: toPublicApiError,
       OperationExtensionsError: toPublicApiError,
       OverlayError: toPublicApiError,
       ValidationMappingError: toPublicApiError,

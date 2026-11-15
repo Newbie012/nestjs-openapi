@@ -4,6 +4,7 @@ import type {
   OperationExtensionsHook,
   PathTransform,
   SchemaNameCollision,
+  SchemaNameHook,
 } from '../config/types.js';
 
 type CustomDecoratorMappingFunction = Extract<
@@ -424,6 +425,12 @@ export const OptionsConfig = Schema.Struct({
         'SchemaNameCollisionFunction',
         'A function that returns the component name for a colliding declaration',
       ),
+    ),
+  ),
+  schemaName: Schema.optional(
+    functionSchema<SchemaNameHook>(
+      'SchemaNameFunction',
+      'A function that returns the schema name for a declaration',
     ),
   ),
   overlay: Schema.optional(

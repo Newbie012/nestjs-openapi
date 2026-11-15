@@ -44,6 +44,7 @@ export default defineConfig({
     decorators: { InternalPort: [{ name: 'ApiExcludeController' }] },
     include: ['ExternalApiModule'], // like SwaggerModule.createDocument()
     deepScanRoutes: false,
+    schemaName: ({ name, relativePath }) => name, // the component name of each declaration
     schemaNameCollision: 'inline', // 'rename' | 'error' | (collision) => name
     enums: 'ref', // or 'nest' (inline, like @nestjs/swagger)
     order: 'source', // or 'alphabetical'

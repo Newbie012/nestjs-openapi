@@ -1,0 +1,248 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Schema Name API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/public/users": {
+      "get": {
+        "operationId": "PublicUsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      },
+      "post": {
+        "operationId": "PublicUsersController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      }
+    },
+    "/public/users/page": {
+      "get": {
+        "operationId": "PublicUsersController_page",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_User"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      }
+    },
+    "/public/users/raw": {
+      "get": {
+        "operationId": "PublicUsersController_raw",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "PublicUsers"
+        ]
+      }
+    },
+    "/admin/audits": {
+      "get": {
+        "operationId": "AdminController_audits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "address": {
+            "$ref": "#/components/schemas/AddressDto"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "type": "array"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "address",
+          "tags",
+          "profile"
+        ],
+        "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "owner",
+          "member"
+        ],
+        "type": "string"
+      },
+      "AddressDto": {
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "street",
+          "city"
+        ],
+        "type": "object"
+      },
+      "Tag": {
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "Profile": {
+        "properties": {
+          "bio": {
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bio",
+          "interests"
+        ],
+        "type": "object"
+      },
+      "Page_User": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/User"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "AuditDto": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/AddressDto"
+          }
+        },
+        "required": [
+          "action",
+          "location"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "tags": []
+}

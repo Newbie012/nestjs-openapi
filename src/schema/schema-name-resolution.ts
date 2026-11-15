@@ -253,6 +253,12 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
     };
     const fileOf = (component: string) =>
       shared.get(temporaryIn(component)[0]!)!.relativePath;
+    const declarationOf = (component: string) => {
+      const entry = shared.get(temporaryIn(component)[0]!)!;
+      return entry.declaredName === entry.name
+        ? entry.relativePath
+        : `${entry.relativePath} (${entry.declaredName})`;
+    };
 
     const resolved = new Map<string, string>();
     const split = new Set<string>();
@@ -266,7 +272,7 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
         for (const temporary of temporaries) resolved.set(temporary, name);
         continue;
       }
-      collisionFor(name, classes, fileOf);
+      collisionFor(name, classes, declarationOf);
       const withoutComponent = temporaries.filter(
         (temporary) => !schemas[temporary],
       );
