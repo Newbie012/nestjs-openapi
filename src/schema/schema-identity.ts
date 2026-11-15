@@ -35,11 +35,17 @@ export type SchemaNamePlan = {
    * are known
    */
   readonly shared: ReadonlyMap<string, SchemaNameCollision>;
+  /**
+   * Names `options.schemaName` changes where nothing else shares them, by
+   * declared name; their schemas are generated as usual and renamed after
+   */
+  readonly renames: ReadonlyMap<string, string>;
 };
 
 export const EMPTY_PLAN: SchemaNamePlan = {
   declarations: new Map(),
   shared: new Map(),
+  renames: new Map(),
 };
 
 const sharedName = (name: string, index: number) =>
@@ -221,21 +227,26 @@ export const planSchemaNames = (
       ...[...reachable.values()].map((ref) => ref.filePath),
     ]),
   ];
+  const declaredCount = new Map<string, number>();
+  for (const ref of reachable.values()) {
+    declaredCount.set(ref.name, (declaredCount.get(ref.name) ?? 0) + 1);
+  }
+  const renames = new Map<string, string>();
   for (const [name, refs] of byName) {
     if (refs.length !== 1) continue;
     const [ref] = refs;
-    const shadowed =
-      name !== ref!.name ||
-      files.some(
-        (filePath) =>
-          filePath !== ref!.filePath && getDeclaredNames(filePath).has(name),
-      );
-    if (shadowed) {
+    const shadowed = files.some(
+      (filePath) =>
+        filePath !== ref!.filePath && getDeclaredNames(filePath).has(ref!.name),
+    );
+    if (name !== ref!.name && !shadowed && declaredCount.get(ref!.name) === 1) {
+      renames.set(ref!.name, name);
+    } else if (name !== ref!.name || shadowed) {
       declarations.set(declarationKey(ref!), { ref: ref!, name });
     }
   }
 
-  return { declarations, shared };
+  return { declarations, shared, renames };
 };
 
 const replaceName = (text: string, from: string, to: string) =>

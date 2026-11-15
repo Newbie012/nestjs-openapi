@@ -48,6 +48,11 @@ export type SchemaGeneratorHandle = {
   readonly createSchemaForNodes: (
     nodes: readonly TypeScript.Node[],
   ) => TsJsonSchemaOutput;
+  /** Classes, interfaces and type aliases of the program that a type's members refer to */
+  readonly referencedTypes: (
+    filePath: string,
+    name: string,
+  ) => readonly { readonly name: string; readonly filePath: string }[];
 };
 
 const BASE_GENERATOR_CONFIG: TsJsonSchemaConfig = {
@@ -546,6 +551,34 @@ const inlineExternalTypes = (
   return edits.length > 0 ? applyEdits(sourceFile.text, edits) : undefined;
 };
 
+const referencedTypes = (
+  program: TypeScript.Program,
+  declaration: TypeScript.Node,
+) => {
+  const checker = program.getTypeChecker();
+  const found = new Map<string, { name: string; filePath: string }>();
+  const visit = (node: TypeScript.Node): void => {
+    if (ts.isTypeReferenceNode(node)) {
+      const symbol = checker.getSymbolAtLocation(node.typeName);
+      const target =
+        symbol && symbol.flags & ts.SymbolFlags.Alias
+          ? checker.getAliasedSymbol(symbol)
+          : symbol;
+      for (const referenced of target?.declarations ?? []) {
+        const file = referenced.getSourceFile();
+        if (file.isDeclarationFile || !isSchemaType(referenced)) continue;
+        if (ts.isEnumDeclaration(referenced) || !referenced.name) continue;
+        const filePath = resolve(file.fileName);
+        const name = referenced.name.text;
+        found.set(`${filePath}::${name}`, { name, filePath });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(declaration);
+  return [...found.values()];
+};
+
 export const createSchemaGeneratorForProgram = (
   program: TypeScript.Program,
   overrides: Partial<TsJsonSchemaConfig> = {},
@@ -589,5 +622,9 @@ export const createSchemaGeneratorForProgram = (
     },
     createSchemaForNodes: (nodes) =>
       newGenerator().createSchemaFromNodes([...nodes]),
+    referencedTypes: (filePath, name) => {
+      const declaration = findType(filePath, name);
+      return declaration ? referencedTypes(program, declaration) : [];
+    },
   };
 };

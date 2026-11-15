@@ -78,6 +78,7 @@ import {
   regenerateDeclarations,
 } from '../schema/schema-identity.js';
 import {
+  applySchemaRenames,
   resolveSchemaNames,
   type EnumNameClash,
 } from '../schema/schema-name-resolution.js';
@@ -1512,9 +1513,14 @@ export const generateEffect = Effect.fn('Generate.generateEffect')(
     }
 
     const enumNames = separateEnumNameClashes(paths, schemas, enumNameUses);
-    const resolvedNames = yield* resolveSchemaNames(
+    const renamed = yield* applySchemaRenames(
       paths,
       enumNames.schemas,
+      schemaNamePlan.renames,
+    );
+    const resolvedNames = yield* resolveSchemaNames(
+      renamed.paths,
+      renamed.schemas,
       schemaNamePlan,
       options.schemaNameCollision ?? 'inline',
       enumNames.clashes,
