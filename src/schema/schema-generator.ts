@@ -487,6 +487,46 @@ const recoverFailedType = (
       : undefined;
   });
 
+const MAX_DEPENDENCY_CHECKS = 200;
+
+const targetKey = (target: TypeTarget) =>
+  `${resolvePath(target.filePath)}::${target.name}`;
+
+/**
+ * The types that failing roots refer to and that fail on their own too,
+ * found by following failing references only. Recovering these first fixes
+ * the root, where erasing the root's own property would lose the reference.
+ */
+const failingDependencies = (
+  handle: SchemaGeneratorHandle,
+  roots: readonly TypeTarget[],
+  failed: readonly Failure[],
+) =>
+  Effect.gen(function* () {
+    const seen = new Set(roots.map(targetKey));
+    const queue = failed.map(({ target }) => target);
+    const found: Failure[] = [];
+    let checks = 0;
+    while (queue.length > 0 && checks < MAX_DEPENDENCY_CHECKS) {
+      const current = queue.shift()!;
+      for (const dependency of handle.referencedTypes(
+        current.filePath,
+        current.name,
+      )) {
+        if (seen.has(targetKey(dependency))) continue;
+        seen.add(targetKey(dependency));
+        const node = handle.findType(dependency.filePath, dependency.name);
+        if (!node) continue;
+        checks++;
+        const result = yield* trySchemaForNodes(handle, [node]);
+        if (result._tag === 'Right') continue;
+        found.push({ target: dependency, error: result.left });
+        queue.push(dependency);
+      }
+    }
+    return found;
+  });
+
 const generateInProgram = (
   options: SchemaProgramOptions,
   targets: 'all' | readonly TypeTarget[],
@@ -529,12 +569,19 @@ const generateInProgram = (
       }
     }
 
+    const dependencies = yield* failingDependencies(handle, roots, failed);
+    const dependencyKeys = new Set(
+      dependencies.map(({ target }) => targetKey(target)),
+    );
+    const isDependency = ({ target }: Failure) =>
+      dependencyKeys.has(targetKey(target));
+
     const isolated: IsolatedProperty[] = [];
     const unrecovered: Failure[] = [];
     let shared = options;
-    let pending: readonly Failure[] = failed;
+    let pending: readonly Failure[] = [...failed, ...dependencies];
     let edited = false;
-    while (pending.length > 0) {
+    while (pending.some((entry) => !isDependency(entry))) {
       if (edited) {
         const retried = yield* retryInProgram(
           shared,
@@ -542,7 +589,7 @@ const generateInProgram = (
         );
         Object.assign(definitions, retried.definitions);
         pending = retried.failed;
-        if (pending.length === 0) break;
+        if (!pending.some((entry) => !isDependency(entry))) break;
       }
 
       const pendingNames = new Set(pending.map(({ target }) => target.name));
@@ -563,7 +610,7 @@ const generateInProgram = (
         edited = recovered.options !== shared;
         shared = recovered.options;
       } else {
-        unrecovered.push(next);
+        if (!isDependency(next)) unrecovered.push(next);
         edited = false;
       }
     }

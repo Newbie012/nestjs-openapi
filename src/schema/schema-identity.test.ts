@@ -71,18 +71,31 @@ describe('planSchemaNames', () => {
     ]);
   });
 
-  it('gives a declaration renamed by schemaName its new name', () => {
+  it('renames a declaration whose name nothing else shares after generation', () => {
     const plan = planSchemaNames(
       [method([ref(fileA, 'Other')])],
-      [],
+      [fileA, fileB],
       dir,
       new Map([[`${fileA}::Other`, 'Renamed']]),
     );
 
+    expect(plan.renames).toEqual(new Map([['Other', 'Renamed']]));
+    expect(plan.declarations.size).toBe(0);
+    expect(plan.shared.size).toBe(0);
+  });
+
+  it('regenerates a renamed declaration whose name another file declares', () => {
+    const plan = planSchemaNames(
+      [method([ref(fileA, 'Shared')])],
+      [fileA, fileB],
+      dir,
+      new Map([[`${fileA}::Shared`, 'Renamed']]),
+    );
+
+    expect(plan.renames.size).toBe(0);
     expect(
       [...plan.declarations.values()].map((declaration) => declaration.name),
     ).toEqual(['Renamed']);
-    expect(plan.shared.size).toBe(0);
   });
 
   it('shares a name between declarations schemaName gives the same name', () => {

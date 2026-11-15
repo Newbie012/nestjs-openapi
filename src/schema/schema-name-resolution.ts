@@ -428,6 +428,42 @@ export const resolveSchemaNames = Effect.fn('SchemaIdentity.resolve')(
   },
 );
 
+/**
+ * Gives the names in `renames` to their components, and to generic
+ * instantiations over them, and points every reference at the new names
+ */
+export const applySchemaRenames = Effect.fn('SchemaIdentity.applyRenames')(
+  function* (
+    paths: OpenApiPaths,
+    schemas: Record<string, OpenApiSchema>,
+    renames: ReadonlyMap<string, string>,
+  ) {
+    if (renames.size === 0) return { paths, schemas };
+    const components = new Map<string, string>();
+    for (const name of Object.keys(schemas)) {
+      const renamed = name.replace(IDENTIFIER, (id) => renames.get(id) ?? id);
+      if (renamed !== name) components.set(name, renamed);
+    }
+    for (const [from, to] of components) {
+      if (schemas[to] !== undefined && !components.has(to)) {
+        return yield* new SchemaNameCollisionError({
+          message: `options.schemaName named ${from} "${to}", which is already the name of another schema`,
+          names: [to],
+        });
+      }
+    }
+    return {
+      paths: renameSchemaRefs(paths, components) as OpenApiPaths,
+      schemas: Object.fromEntries(
+        Object.entries(schemas).map(([name, schema]) => [
+          components.get(name) ?? name,
+          renameSchemaRefs(schema, components) as OpenApiSchema,
+        ]),
+      ),
+    };
+  },
+);
+
 const groupBy = <T>(items: readonly T[], key: (item: T) => number) => {
   const groups = new Map<number, T[]>();
   for (const item of items) {

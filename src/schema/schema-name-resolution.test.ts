@@ -37,7 +37,11 @@ const planFor = (
       } satisfies SchemaNameCollision,
     ] as const;
   });
-  return { declarations: new Map(), shared: new Map(entries) };
+  return {
+    declarations: new Map(),
+    shared: new Map(entries),
+    renames: new Map(),
+  };
 };
 
 const resolve = (
