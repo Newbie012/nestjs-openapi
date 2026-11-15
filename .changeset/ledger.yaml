@@ -18,6 +18,11 @@ nestjs-openapi@0.11.0:
   dir: ""
   intents:
     - calm-names-choose
+nestjs-openapi@0.11.1:
+  dir: ""
+  intents:
+    - deep-props-stay
+    - quick-names-swap
 nestjs-openapi@0.7.0:
   dir: ""
   intents:
