@@ -137,12 +137,6 @@ describe('Config', () => {
       const resolved = await Effect.runPromise(resolveConfig(config as any));
 
       expect(resolved.entry).toEqual(['src/app.module.ts']);
-      expect(resolved.include).toEqual([]);
-      expect(resolved.exclude).toEqual([
-        '**/*.spec.ts',
-        '**/*.test.ts',
-        '**/node_modules/**',
-      ]);
       expect(resolved.excludeDecorators).toEqual([
         'ApiExcludeEndpoint',
         'ApiExcludeController',
@@ -238,8 +232,6 @@ describe('Config', () => {
         files: {
           entry: 'src/app.module.ts',
           tsconfig: 'tsconfig.json',
-          include: ['src/**/*.ts'],
-          exclude: ['**/test/**'],
         },
         openapi: {
           info: { title: 'API', version: '1.0' },
@@ -256,8 +248,6 @@ describe('Config', () => {
 
       const resolved = await Effect.runPromise(resolveConfig(config as any));
 
-      expect(resolved.include).toEqual(['src/**/*.ts']);
-      expect(resolved.exclude).toEqual(['**/test/**']);
       expect(resolved.excludeDecorators).toEqual(['Internal', 'Private']);
       expect(resolved.extractValidation).toBe(false);
       expect(resolved.aliasRefs).toBe('preserve');
