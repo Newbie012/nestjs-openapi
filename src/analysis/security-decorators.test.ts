@@ -29,7 +29,7 @@ describe('security-decorators', () => {
 
       const security = extractControllerSecurity(controller);
 
-      expect(security).toEqual([{ schemeName: 'bearer', scopes: [] }]);
+      expect(security).toEqual([{ bearer: [] }]);
     });
 
     it('should extract @ApiBearerAuth with custom name', () => {
@@ -46,7 +46,7 @@ describe('security-decorators', () => {
 
       const security = extractControllerSecurity(controller);
 
-      expect(security).toEqual([{ schemeName: 'jwt', scopes: [] }]);
+      expect(security).toEqual([{ jwt: [] }]);
     });
 
     it('should extract @ApiBasicAuth with default name', () => {
@@ -63,7 +63,7 @@ describe('security-decorators', () => {
 
       const security = extractControllerSecurity(controller);
 
-      expect(security).toEqual([{ schemeName: 'basic', scopes: [] }]);
+      expect(security).toEqual([{ basic: [] }]);
     });
 
     it('should extract @ApiOAuth2 with scopes', () => {
@@ -81,7 +81,7 @@ describe('security-decorators', () => {
       const security = extractControllerSecurity(controller);
 
       expect(security).toEqual([
-        { schemeName: 'oauth2', scopes: ['read:users', 'write:users'] },
+        { oauth2: ['read:users', 'write:users'] },
       ]);
     });
 
@@ -99,7 +99,7 @@ describe('security-decorators', () => {
 
       const security = extractControllerSecurity(controller);
 
-      expect(security).toEqual([{ schemeName: 'my-oauth', scopes: ['read'] }]);
+      expect(security).toEqual([{ 'my-oauth': ['read'] }]);
     });
 
     it('should extract @ApiSecurity with name', () => {
@@ -116,7 +116,7 @@ describe('security-decorators', () => {
 
       const security = extractControllerSecurity(controller);
 
-      expect(security).toEqual([{ schemeName: 'api-key', scopes: [] }]);
+      expect(security).toEqual([{ 'api-key': [] }]);
     });
 
     it('should extract @ApiCookieAuth with default name', () => {
@@ -133,7 +133,7 @@ describe('security-decorators', () => {
 
       const security = extractControllerSecurity(controller);
 
-      expect(security).toEqual([{ schemeName: 'cookie', scopes: [] }]);
+      expect(security).toEqual([{ cookie: [] }]);
     });
 
     it('should extract multiple security decorators', () => {
@@ -152,8 +152,29 @@ describe('security-decorators', () => {
       const security = extractControllerSecurity(controller);
 
       expect(security).toEqual([
-        { schemeName: 'jwt', scopes: [] },
-        { schemeName: 'admin-key', scopes: [] },
+        { jwt: [] },
+        { 'admin-key': [] },
+      ]);
+    });
+
+    it('reads an object requirement as schemes needed together', () => {
+      const project = createProject();
+      const sourceFile = project.createSourceFile(
+        '/test.ts',
+        `
+        @ApiSecurity({ apiKey: [], oauth2: ['read'] })
+        @ApiBearerAuth()
+        @Controller('reports')
+        export class ReportsController {}
+      `,
+      );
+      const controller = sourceFile.getClassOrThrow('ReportsController');
+
+      const security = extractControllerSecurity(controller);
+
+      expect(security).toEqual([
+        { apiKey: [], oauth2: ['read'] },
+        { bearer: [] },
       ]);
     });
 
@@ -192,7 +213,7 @@ describe('security-decorators', () => {
 
       const security = extractMethodSecurity(method);
 
-      expect(security).toEqual([{ schemeName: 'bearer', scopes: [] }]);
+      expect(security).toEqual([{ bearer: [] }]);
     });
 
     it('should return empty array when no security decorators on method', () => {
@@ -255,8 +276,8 @@ describe('security-decorators', () => {
 
   describe('combineSecurityRequirements', () => {
     it('should use method security when method has decorators', () => {
-      const controllerSecurity = [{ schemeName: 'bearer', scopes: [] }];
-      const methodSecurity = [{ schemeName: 'api-key', scopes: [] }];
+      const controllerSecurity = [{ bearer: [] }];
+      const methodSecurity = [{ 'api-key': [] }];
 
       const combined = combineSecurityRequirements(
         controllerSecurity,
@@ -264,12 +285,12 @@ describe('security-decorators', () => {
         true,
       );
 
-      expect(combined).toEqual([{ schemeName: 'api-key', scopes: [] }]);
+      expect(combined).toEqual([{ 'api-key': [] }]);
     });
 
     it('should use controller security when method has no decorators', () => {
-      const controllerSecurity = [{ schemeName: 'bearer', scopes: [] }];
-      const methodSecurity: { schemeName: string; scopes: string[] }[] = [];
+      const controllerSecurity = [{ bearer: [] }];
+      const methodSecurity: Record<string, string[]>[] = [];
 
       const combined = combineSecurityRequirements(
         controllerSecurity,
@@ -277,7 +298,7 @@ describe('security-decorators', () => {
         false,
       );
 
-      expect(combined).toEqual([{ schemeName: 'bearer', scopes: [] }]);
+      expect(combined).toEqual([{ bearer: [] }]);
     });
 
     it('should return empty array when neither has security', () => {

@@ -593,17 +593,23 @@
         },
         "security": [
           {
-            "admin-key": [],
             "bearer": [],
             "jwt": []
           },
           {
             "admin-key": [],
+            "bearer": []
+          },
+          {
             "apiKey": [],
             "jwt": []
+          },
+          {
+            "admin-key": [],
+            "apiKey": []
           }
         ],
-        "summary": "List admin actions (requires JWT AND admin key)",
+        "summary": "List admin actions (requires JWT or admin key)",
         "tags": [
           "Admin"
         ]
@@ -635,14 +641,20 @@
         },
         "security": [
           {
-            "admin-key": [],
             "bearer": [],
             "jwt": []
           },
           {
             "admin-key": [],
+            "bearer": []
+          },
+          {
             "apiKey": [],
             "jwt": []
+          },
+          {
+            "admin-key": [],
+            "apiKey": []
           }
         ],
         "summary": "Perform admin action",

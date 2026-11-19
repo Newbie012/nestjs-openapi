@@ -1,0 +1,62 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Requirement Alternatives API",
+    "version": "1.0.0"
+  },
+  "servers": [],
+  "paths": {
+    "/reports": {
+      "get": {
+        "operationId": "ReportsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "apiKey": [],
+            "clientId": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      },
+      "bearer": {
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "clientId": {
+        "in": "header",
+        "name": "X-Client-Id",
+        "type": "apiKey"
+      }
+    }
+  },
+  "tags": []
+}

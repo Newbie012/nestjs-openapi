@@ -224,28 +224,34 @@ export class UsersController {
   @ApiOAuth2(['read:users']) // Overrides with OAuth2 + scopes
   findOne(@Param('id') id: string) {}
 
-  @Delete(':id')
+  @Patch(':id')
   @ApiBearerAuth('jwt')
-  @ApiSecurity('admin-key') // Requires BOTH (AND logic)
+  @ApiSecurity('admin-key') // Either one is enough
+  update(@Param('id') id: string) {}
+
+  @Delete(':id')
+  @ApiSecurity({ jwt: [], 'admin-key': [] }) // Needs both together
   remove(@Param('id') id: string) {}
 }
 ```
 
 ### Supported Decorators
 
-| Decorator                     | Default Name | Description              |
-| ----------------------------- | ------------ | ------------------------ |
-| `@ApiBearerAuth(name?)`       | `'bearer'`   | HTTP Bearer (JWT)        |
-| `@ApiBasicAuth(name?)`        | `'basic'`    | HTTP Basic auth          |
-| `@ApiOAuth2(scopes[], name?)` | `'oauth2'`   | OAuth2 with scopes       |
-| `@ApiSecurity(name, scopes?)` | -            | Generic scheme reference |
-| `@ApiCookieAuth(name?)`       | `'cookie'`   | Cookie-based auth        |
+| Decorator                        | Default Name | Description              |
+| -------------------------------- | ------------ | ------------------------ |
+| `@ApiBearerAuth(name?)`          | `'bearer'`   | HTTP Bearer (JWT)        |
+| `@ApiBasicAuth(name?)`           | `'basic'`    | HTTP Basic auth          |
+| `@ApiOAuth2(scopes[], name?)`    | `'oauth2'`   | OAuth2 with scopes       |
+| `@ApiSecurity(name, scopes?)`    | -            | Generic scheme reference |
+| `@ApiSecurity({ a: [], b: [] })` | -            | Schemes needed together  |
+| `@ApiCookieAuth(name?)`          | `'cookie'`   | Cookie-based auth        |
 
 ### Decorator Behavior
 
 - **Controller-level**: Applies to all methods unless overridden
 - **Method-level**: Overrides controller-level security completely
-- **Multiple decorators on same target**: AND logic (all required)
+- **Multiple decorators on same target**: each adds its own requirement, and any one is enough (OR), as in @nestjs/swagger
+- **Object form of `@ApiSecurity`**: one requirement whose schemes are all needed (AND)
 - **Merge with global**: Decorator requirements merge with `global` config
 
 <Callout>

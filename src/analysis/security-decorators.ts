@@ -5,7 +5,8 @@
  * - @ApiBearerAuth(name?)    -> HTTP Bearer auth
  * - @ApiBasicAuth(name?)     -> HTTP Basic auth
  * - @ApiOAuth2(scopes, name?) -> OAuth2 with scopes
- * - @ApiSecurity(name, requirements?) -> Generic security
+ * - @ApiSecurity(name, scopes?) -> Generic security
+ * - @ApiSecurity({ a: [], b: [] }) -> Schemes needed together
  * - @ApiCookieAuth(name?)    -> Cookie-based auth
  */
 
@@ -38,8 +39,18 @@ const SECURITY_DECORATORS = new Set([
 const readStringArray = (value: StaticValue | undefined) =>
   value?.kind === 'array' ? asStrings(value.items) : [];
 
+const readObjectRequirement = (
+  value: StaticValue,
+): MethodSecurityRequirement | undefined => {
+  if (value.kind !== 'object') return undefined;
+  const entries = Object.entries(value.properties).map(
+    ([scheme, scopes]) => [scheme, readStringArray(scopes)] as const,
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
 /**
- * Parses a single security decorator into a MethodSecurityRequirement.
+ * Parses a single security decorator into the one requirement it adds.
  */
 const parseSecurityDecorator = (
   call: DecoratorCall,
@@ -50,19 +61,23 @@ const parseSecurityDecorator = (
     case 'ApiCookieAuth': {
       const schemeName =
         asString(call.args[0]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
-      return { schemeName, scopes: [] };
+      return { [schemeName]: [] };
     }
 
     case 'ApiOAuth2': {
       const schemeName =
         asString(call.args[1]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
-      return { schemeName, scopes: readStringArray(call.args[0]) };
+      return { [schemeName]: readStringArray(call.args[0]) };
     }
 
     case 'ApiSecurity': {
-      const schemeName = asString(call.args[0]);
-      if (!schemeName) return undefined;
-      return { schemeName, scopes: readStringArray(call.args[1]) };
+      const [nameOrRequirement, scopes] = call.args;
+      if (!nameOrRequirement) return undefined;
+      const schemeName = asString(nameOrRequirement);
+      if (schemeName === undefined) {
+        return readObjectRequirement(nameOrRequirement);
+      }
+      return { [schemeName]: readStringArray(scopes) };
     }
 
     default:
