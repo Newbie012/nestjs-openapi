@@ -131,8 +131,8 @@ type MutablePaths = {
  *
  * Behavior:
  * - If operation has no decorator security, it inherits global (no change)
- * - If operation has decorator security, merge with global security
- * - Merging combines both into a single security requirement (AND logic)
+ * - If operation has decorator security, each global requirement is paired
+ *   with each decorator requirement, and a pair needs all of its schemes
  */
 const mergeSingleSecurityRequirement = (
   left: SecurityRequirement,

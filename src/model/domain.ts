@@ -125,18 +125,18 @@ export const RequestBodyMetadata = Schema.Struct({
 export type RequestBodyMetadata = typeof RequestBodyMetadata.Type;
 
 /**
- * Security requirement extracted from security decorators.
- * Maps security scheme name to required scopes.
+ * One security requirement from a security decorator: every scheme it names,
+ * with the scopes each needs. All schemes in one requirement are needed
+ * together.
  *
  * @example
- * { schemeName: 'bearer', scopes: [] }
- * { schemeName: 'oauth2', scopes: ['read:users', 'write:users'] }
+ * { bearer: [] }
+ * { oauth2: ['read:users', 'write:users'] }
+ * { apiKey: [], clientId: [] }
  */
-export const MethodSecurityRequirement = Schema.Struct({
-  /** Security scheme name (e.g., 'bearer', 'jwt', 'oauth2') */
-  schemeName: Schema.String,
-  /** Required scopes (empty array for schemes without scopes) */
-  scopes: Schema.Array(Schema.String),
+export const MethodSecurityRequirement = Schema.Record({
+  key: Schema.String,
+  value: Schema.Array(Schema.String),
 });
 export type MethodSecurityRequirement = typeof MethodSecurityRequirement.Type;
 
@@ -186,8 +186,8 @@ export const MethodInfo = Schema.Struct({
   produces: Schema.Array(Schema.String),
   /**
    * Security requirements from decorators (@ApiBearerAuth, @ApiSecurity, etc.)
-   * Combines controller-level and method-level security.
-   * Multiple requirements = AND logic (all required).
+   * One requirement per decorator; a request needs to meet any one of them.
+   * Method-level decorators replace controller-level ones.
    * Empty array = no security decorators found (inherits global security).
    */
   security: Schema.Array(MethodSecurityRequirement),

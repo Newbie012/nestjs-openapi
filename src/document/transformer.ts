@@ -22,12 +22,8 @@ import type { JsonSchema } from '../schema/schema-generator.js';
 import { withNull } from '../schema/nullable.js';
 
 /**
- * Converts internal MethodSecurityRequirement[] to OpenAPI SecurityRequirement[] format.
- *
- * Internal format: [{ schemeName: 'bearer', scopes: [] }]
- * OpenAPI format: [{ 'bearer': [] }]
- *
- * Multiple requirements in the array = AND logic (all required).
+ * Converts the decorators' security requirements to the operation's
+ * `security`, one requirement per decorator, any one of which is enough.
  * Returns undefined if no security requirements.
  */
 const buildSecurityRequirements = (
@@ -35,11 +31,14 @@ const buildSecurityRequirements = (
 ): readonly SecurityRequirement[] | undefined =>
   requirements.length === 0
     ? undefined
-    : [
+    : requirements.map((requirement) =>
         Object.fromEntries(
-          requirements.map((req) => [req.schemeName, [...req.scopes]]),
-        ) as SecurityRequirement,
-      ];
+          Object.entries(requirement).map(([scheme, scopes]) => [
+            scheme,
+            [...scopes],
+          ]),
+        ),
+      );
 
 /** Gets request body content types from @ApiConsumes, defaults to 'application/json' */
 const getRequestContentTypes = (methodInfo: MethodInfo): readonly string[] =>

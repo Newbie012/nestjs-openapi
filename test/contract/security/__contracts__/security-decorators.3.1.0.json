@@ -381,6 +381,11 @@
         "security": [
           {
             "oauth2": [
+              "read:projects"
+            ]
+          },
+          {
+            "oauth2": [
               "read:projects",
               "write:projects"
             ]
@@ -466,6 +471,11 @@
         "security": [
           {
             "oauth2": [
+              "read:projects"
+            ]
+          },
+          {
+            "oauth2": [
               "write:projects"
             ]
           }
@@ -493,6 +503,11 @@
           }
         },
         "security": [
+          {
+            "oauth2": [
+              "read:projects"
+            ]
+          },
           {
             "oauth2": [
               "delete:projects"
@@ -526,11 +541,13 @@
         },
         "security": [
           {
-            "admin-key": [],
+            "admin-key": []
+          },
+          {
             "jwt": []
           }
         ],
-        "summary": "List admin actions (requires JWT AND admin key)",
+        "summary": "List admin actions (requires JWT or admin key)",
         "tags": [
           "Admin"
         ]
@@ -562,7 +579,9 @@
         },
         "security": [
           {
-            "admin-key": [],
+            "admin-key": []
+          },
+          {
             "jwt": []
           }
         ],
@@ -598,10 +617,16 @@
         },
         "security": [
           {
+            "admin-key": []
+          },
+          {
+            "jwt": []
+          },
+          {
             "stats-key": []
           }
         ],
-        "summary": "Get public stats (only requires stats key)",
+        "summary": "Get public stats (JWT, admin key or stats key)",
         "tags": [
           "Admin"
         ]

@@ -21,12 +21,7 @@ import {
   getControllerTags,
   getHttpDecorator,
 } from './controllers.js';
-import {
-  extractControllerSecurity,
-  extractMethodSecurity,
-  hasMethodSecurityDecorators,
-  combineSecurityRequirements,
-} from './security-decorators.js';
+import { extractSecurity } from './security-decorators.js';
 import {
   extractPropertyValidationInfo,
   readEnumValues,
@@ -920,14 +915,7 @@ const getMethodInfoVariants = (
     options.versioning,
   );
 
-  const controllerSecurity = extractControllerSecurity(controller, expansion);
-  const methodSecurity = extractMethodSecurity(method, expansion);
-  const hasMethodSecurity = hasMethodSecurityDecorators(method, expansion);
-  const security = combineSecurityRequirements(
-    controllerSecurity,
-    methodSecurity,
-    hasMethodSecurity,
-  );
+  const security = extractSecurity(controller, method, expansion);
 
   const requestBody = extractRequestBody(methodCalls);
 

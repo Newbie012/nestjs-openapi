@@ -221,31 +221,36 @@ export class UsersController {
   findAll() {} // Inherits controller security
 
   @Get(':id')
-  @ApiOAuth2(['read:users']) // Overrides with OAuth2 + scopes
+  @ApiOAuth2(['read:users']) // Bearer or OAuth2
   findOne(@Param('id') id: string) {}
 
-  @Delete(':id')
+  @Patch(':id')
   @ApiBearerAuth('jwt')
-  @ApiSecurity('admin-key') // Requires BOTH (AND logic)
+  @ApiSecurity('admin-key') // Bearer, jwt or admin-key
+  update(@Param('id') id: string) {}
+
+  @Delete(':id')
+  @ApiSecurity({ jwt: [], 'admin-key': [] }) // Bearer, or jwt with admin-key
   remove(@Param('id') id: string) {}
 }
 ```
 
 ### Supported Decorators
 
-| Decorator                     | Default Name | Description              |
-| ----------------------------- | ------------ | ------------------------ |
-| `@ApiBearerAuth(name?)`       | `'bearer'`   | HTTP Bearer (JWT)        |
-| `@ApiBasicAuth(name?)`        | `'basic'`    | HTTP Basic auth          |
-| `@ApiOAuth2(scopes[], name?)` | `'oauth2'`   | OAuth2 with scopes       |
-| `@ApiSecurity(name, scopes?)` | -            | Generic scheme reference |
-| `@ApiCookieAuth(name?)`       | `'cookie'`   | Cookie-based auth        |
+| Decorator                        | Default Name | Description              |
+| -------------------------------- | ------------ | ------------------------ |
+| `@ApiBearerAuth(name?)`          | `'bearer'`   | HTTP Bearer (JWT)        |
+| `@ApiBasicAuth(name?)`           | `'basic'`    | HTTP Basic auth          |
+| `@ApiOAuth2(scopes[], name?)`    | `'oauth2'`   | OAuth2 with scopes       |
+| `@ApiSecurity(name, scopes?)`    | -            | Generic scheme reference |
+| `@ApiSecurity({ a: [], b: [] })` | -            | Schemes needed together  |
+| `@ApiCookieAuth(name?)`          | `'cookie'`   | Cookie-based auth        |
 
 ### Decorator Behavior
 
-- **Controller-level**: Applies to all methods unless overridden
-- **Method-level**: Overrides controller-level security completely
-- **Multiple decorators on same target**: AND logic (all required)
+- **Each decorator** adds one requirement, and any one is enough (OR), as in @nestjs/swagger
+- **Controller-level** requirements apply to all methods; method-level ones are added to them
+- **Object form of `@ApiSecurity`**: one requirement whose schemes are all needed (AND)
 - **Merge with global**: Decorator requirements merge with `global` config
 
 <Callout>
@@ -428,9 +433,8 @@ export default defineConfig({
 
 <Callout type="info">
   Security can be configured via decorators (`@ApiBearerAuth`, etc.) or globally
-  in config. Decorator-based security merges with global requirements, giving
-  you flexibility to define defaults in config while allowing per-operation
-  overrides via decorators.
+  in config. Decorator-based security merges with global requirements, so config
+  sets the defaults and decorators add per-operation requirements.
 </Callout>
 
 ## Next Steps

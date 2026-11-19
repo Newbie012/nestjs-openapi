@@ -18,8 +18,8 @@ export class PerformActionDto {
 }
 
 /**
- * Controller demonstrating multiple security schemes (AND logic).
- * Requires BOTH bearer auth AND api key.
+ * Controller demonstrating several security decorators.
+ * Each decorator is an alternative: JWT or the admin key.
  */
 @ApiTags('Admin')
 @Controller('admin')
@@ -27,7 +27,7 @@ export class PerformActionDto {
 @ApiSecurity('admin-key')
 export class MultiSchemeController {
   @Get('actions')
-  @ApiOperation({ summary: 'List admin actions (requires JWT AND admin key)' })
+  @ApiOperation({ summary: 'List admin actions (requires JWT or admin key)' })
   @ApiResponse({
     status: 200,
     description: 'List of admin actions',
@@ -52,10 +52,10 @@ export class MultiSchemeController {
     };
   }
 
-  /** Method-level security overrides controller-level */
+  /** Method-level security adds to controller-level */
   @Get('public-stats')
-  @ApiSecurity('stats-key') // Only requires stats-key, not jwt + admin-key
-  @ApiOperation({ summary: 'Get public stats (only requires stats key)' })
+  @ApiSecurity('stats-key')
+  @ApiOperation({ summary: 'Get public stats (JWT, admin key or stats key)' })
   @ApiResponse({ status: 200, description: 'Statistics' })
   publicStats(): { totalActions: number } {
     return { totalActions: 100 };

@@ -5,14 +5,15 @@
  * - @ApiBearerAuth(name?)    -> HTTP Bearer auth
  * - @ApiBasicAuth(name?)     -> HTTP Basic auth
  * - @ApiOAuth2(scopes, name?) -> OAuth2 with scopes
- * - @ApiSecurity(name, requirements?) -> Generic security
+ * - @ApiSecurity(name, scopes?) -> Generic security
+ * - @ApiSecurity({ a: [], b: [] }) -> Schemes needed together
  * - @ApiCookieAuth(name?)    -> Cookie-based auth
  */
 
 import type { ClassDeclaration, MethodDeclaration } from 'ts-morph';
 import type { MethodSecurityRequirement } from '../model/domain.js';
 import {
-  getEffectiveDecorators,
+  getEffectiveDecoratorsInApplyOrder,
   type DecoratorCall,
   type DecoratorExpansionOptions,
 } from './decorators.js';
@@ -26,20 +27,21 @@ const DEFAULT_SCHEME_NAMES: Record<string, string> = {
   ApiCookieAuth: 'cookie',
 };
 
-/** Security decorator names to look for */
-const SECURITY_DECORATORS = new Set([
-  'ApiBearerAuth',
-  'ApiBasicAuth',
-  'ApiOAuth2',
-  'ApiSecurity',
-  'ApiCookieAuth',
-]);
-
 const readStringArray = (value: StaticValue | undefined) =>
   value?.kind === 'array' ? asStrings(value.items) : [];
 
+const readObjectRequirement = (
+  value: StaticValue,
+): MethodSecurityRequirement | undefined => {
+  if (value.kind !== 'object') return undefined;
+  const entries = Object.entries(value.properties).map(
+    ([scheme, scopes]) => [scheme, readStringArray(scopes)] as const,
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
 /**
- * Parses a single security decorator into a MethodSecurityRequirement.
+ * Parses a single security decorator into the one requirement it adds.
  */
 const parseSecurityDecorator = (
   call: DecoratorCall,
@@ -50,19 +52,23 @@ const parseSecurityDecorator = (
     case 'ApiCookieAuth': {
       const schemeName =
         asString(call.args[0]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
-      return { schemeName, scopes: [] };
+      return { [schemeName]: [] };
     }
 
     case 'ApiOAuth2': {
       const schemeName =
         asString(call.args[1]) ?? DEFAULT_SCHEME_NAMES[call.name]!;
-      return { schemeName, scopes: readStringArray(call.args[0]) };
+      return { [schemeName]: readStringArray(call.args[0]) };
     }
 
     case 'ApiSecurity': {
-      const schemeName = asString(call.args[0]);
-      if (!schemeName) return undefined;
-      return { schemeName, scopes: readStringArray(call.args[1]) };
+      const [nameOrRequirement, scopes] = call.args;
+      if (!nameOrRequirement) return undefined;
+      const schemeName = asString(nameOrRequirement);
+      if (schemeName === undefined) {
+        return readObjectRequirement(nameOrRequirement);
+      }
+      return { [schemeName]: readStringArray(scopes) };
     }
 
     default:
@@ -79,52 +85,19 @@ const extractSecurityFromCalls = (
   });
 
 /**
- * Extracts security requirements from a controller class.
- * These apply to all methods unless overridden.
+ * Extracts the security requirements of an operation, one per decorator, as
+ * @nestjs/swagger lists them: the controller's, then the method's, each in
+ * the order Nest runs the decorators (bottom to top).
  */
-export const extractControllerSecurity = (
+export const extractSecurity = (
   controller: ClassDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): readonly MethodSecurityRequirement[] =>
-  extractSecurityFromCalls(getEffectiveDecorators(controller, expansion));
-
-/**
- * Extracts security requirements from a method.
- * If present, these override controller-level security.
- */
-export const extractMethodSecurity = (
   method: MethodDeclaration,
   expansion?: DecoratorExpansionOptions,
-): readonly MethodSecurityRequirement[] =>
-  extractSecurityFromCalls(getEffectiveDecorators(method, expansion));
-
-/**
- * Checks if a method has any security decorators.
- */
-export const hasMethodSecurityDecorators = (
-  method: MethodDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): boolean =>
-  getEffectiveDecorators(method, expansion).some((call) =>
-    SECURITY_DECORATORS.has(call.name),
-  );
-
-/**
- * Combines controller-level and method-level security requirements.
- *
- * Rules:
- * - If method has security decorators, those are used (override)
- * - If method has no security decorators, controller security is used
- * - Empty array means no decorator-level security (inherits global)
- */
-export const combineSecurityRequirements = (
-  controllerSecurity: readonly MethodSecurityRequirement[],
-  methodSecurity: readonly MethodSecurityRequirement[],
-  hasMethodDecorators: boolean,
-): readonly MethodSecurityRequirement[] => {
-  if (hasMethodDecorators) {
-    return methodSecurity;
-  }
-
-  return controllerSecurity;
-};
+): readonly MethodSecurityRequirement[] => [
+  ...extractSecurityFromCalls(
+    getEffectiveDecoratorsInApplyOrder(controller, expansion),
+  ),
+  ...extractSecurityFromCalls(
+    getEffectiveDecoratorsInApplyOrder(method, expansion),
+  ),
+];
