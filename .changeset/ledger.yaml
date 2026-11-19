@@ -23,6 +23,10 @@ nestjs-openapi@0.11.1:
   intents:
     - deep-props-stay
     - quick-names-swap
+nestjs-openapi@0.12.0:
+  dir: ""
+  intents:
+    - either-auth-works
 nestjs-openapi@0.7.0:
   dir: ""
   intents:
