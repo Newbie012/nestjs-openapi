@@ -420,8 +420,20 @@
           {
             "bearer": [],
             "oauth2": [
+              "read:projects"
+            ]
+          },
+          {
+            "bearer": [],
+            "oauth2": [
               "read:projects",
               "write:projects"
+            ]
+          },
+          {
+            "apiKey": [],
+            "oauth2": [
+              "read:projects"
             ]
           },
           {
@@ -520,7 +532,19 @@
           {
             "bearer": [],
             "oauth2": [
+              "read:projects"
+            ]
+          },
+          {
+            "bearer": [],
+            "oauth2": [
               "write:projects"
+            ]
+          },
+          {
+            "apiKey": [],
+            "oauth2": [
+              "read:projects"
             ]
           },
           {
@@ -556,7 +580,19 @@
           {
             "bearer": [],
             "oauth2": [
+              "read:projects"
+            ]
+          },
+          {
+            "bearer": [],
+            "oauth2": [
               "delete:projects"
+            ]
+          },
+          {
+            "apiKey": [],
+            "oauth2": [
+              "read:projects"
             ]
           },
           {
@@ -593,20 +629,20 @@
         },
         "security": [
           {
+            "admin-key": [],
+            "bearer": []
+          },
+          {
             "bearer": [],
             "jwt": []
           },
           {
             "admin-key": [],
-            "bearer": []
+            "apiKey": []
           },
           {
             "apiKey": [],
             "jwt": []
-          },
-          {
-            "admin-key": [],
-            "apiKey": []
           }
         ],
         "summary": "List admin actions (requires JWT or admin key)",
@@ -641,20 +677,20 @@
         },
         "security": [
           {
+            "admin-key": [],
+            "bearer": []
+          },
+          {
             "bearer": [],
             "jwt": []
           },
           {
             "admin-key": [],
-            "bearer": []
+            "apiKey": []
           },
           {
             "apiKey": [],
             "jwt": []
-          },
-          {
-            "admin-key": [],
-            "apiKey": []
           }
         ],
         "summary": "Perform admin action",
@@ -689,15 +725,31 @@
         },
         "security": [
           {
+            "admin-key": [],
+            "bearer": []
+          },
+          {
+            "bearer": [],
+            "jwt": []
+          },
+          {
             "bearer": [],
             "stats-key": []
+          },
+          {
+            "admin-key": [],
+            "apiKey": []
+          },
+          {
+            "apiKey": [],
+            "jwt": []
           },
           {
             "apiKey": [],
             "stats-key": []
           }
         ],
-        "summary": "Get public stats (only requires stats key)",
+        "summary": "Get public stats (JWT, admin key or stats key)",
         "tags": [
           "Admin"
         ]

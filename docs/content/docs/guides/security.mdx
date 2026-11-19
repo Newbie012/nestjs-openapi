@@ -221,16 +221,16 @@ export class UsersController {
   findAll() {} // Inherits controller security
 
   @Get(':id')
-  @ApiOAuth2(['read:users']) // Overrides with OAuth2 + scopes
+  @ApiOAuth2(['read:users']) // Bearer or OAuth2
   findOne(@Param('id') id: string) {}
 
   @Patch(':id')
   @ApiBearerAuth('jwt')
-  @ApiSecurity('admin-key') // Either one is enough
+  @ApiSecurity('admin-key') // Bearer, jwt or admin-key
   update(@Param('id') id: string) {}
 
   @Delete(':id')
-  @ApiSecurity({ jwt: [], 'admin-key': [] }) // Needs both together
+  @ApiSecurity({ jwt: [], 'admin-key': [] }) // Bearer, or jwt with admin-key
   remove(@Param('id') id: string) {}
 }
 ```
@@ -248,9 +248,8 @@ export class UsersController {
 
 ### Decorator Behavior
 
-- **Controller-level**: Applies to all methods unless overridden
-- **Method-level**: Overrides controller-level security completely
-- **Multiple decorators on same target**: each adds its own requirement, and any one is enough (OR), as in @nestjs/swagger
+- **Each decorator** adds one requirement, and any one is enough (OR), as in @nestjs/swagger
+- **Controller-level** requirements apply to all methods; method-level ones are added to them
 - **Object form of `@ApiSecurity`**: one requirement whose schemes are all needed (AND)
 - **Merge with global**: Decorator requirements merge with `global` config
 
@@ -434,9 +433,8 @@ export default defineConfig({
 
 <Callout type="info">
   Security can be configured via decorators (`@ApiBearerAuth`, etc.) or globally
-  in config. Decorator-based security merges with global requirements, giving
-  you flexibility to define defaults in config while allowing per-operation
-  overrides via decorators.
+  in config. Decorator-based security merges with global requirements, so config
+  sets the defaults and decorators add per-operation requirements.
 </Callout>
 
 ## Next Steps

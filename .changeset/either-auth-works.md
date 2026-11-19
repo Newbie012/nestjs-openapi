@@ -2,4 +2,4 @@
 "nestjs-openapi": minor
 ---
 
-Several security decorators on one controller or method now list one security requirement each, so any one of them is enough, as @nestjs/swagger does. Before, `@ApiBearerAuth()` with `@ApiSecurity('apiKey')` gave `[{ bearer: [], apiKey: [] }]`, which requires both; it now gives `[{ bearer: [] }, { apiKey: [] }]`. To require several schemes together, use the object form, `@ApiSecurity({ apiKey: [], clientId: [] })`, which is now read, also through `applyDecorators`.
+Security decorators now produce the same requirements as @nestjs/swagger: one requirement per decorator, any one of which is enough, with the method's added to the controller's. `@ApiSecurity({ apiKey: [], clientId: [] })` is now read as one requirement that needs both.

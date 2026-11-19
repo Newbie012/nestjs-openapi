@@ -13,7 +13,7 @@
 import type { ClassDeclaration, MethodDeclaration } from 'ts-morph';
 import type { MethodSecurityRequirement } from '../model/domain.js';
 import {
-  getEffectiveDecorators,
+  getEffectiveDecoratorsInApplyOrder,
   type DecoratorCall,
   type DecoratorExpansionOptions,
 } from './decorators.js';
@@ -26,15 +26,6 @@ const DEFAULT_SCHEME_NAMES: Record<string, string> = {
   ApiOAuth2: 'oauth2',
   ApiCookieAuth: 'cookie',
 };
-
-/** Security decorator names to look for */
-const SECURITY_DECORATORS = new Set([
-  'ApiBearerAuth',
-  'ApiBasicAuth',
-  'ApiOAuth2',
-  'ApiSecurity',
-  'ApiCookieAuth',
-]);
 
 const readStringArray = (value: StaticValue | undefined) =>
   value?.kind === 'array' ? asStrings(value.items) : [];
@@ -94,52 +85,19 @@ const extractSecurityFromCalls = (
   });
 
 /**
- * Extracts security requirements from a controller class.
- * These apply to all methods unless overridden.
+ * Extracts the security requirements of an operation, one per decorator, as
+ * @nestjs/swagger lists them: the controller's, then the method's, each in
+ * the order Nest runs the decorators (bottom to top).
  */
-export const extractControllerSecurity = (
+export const extractSecurity = (
   controller: ClassDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): readonly MethodSecurityRequirement[] =>
-  extractSecurityFromCalls(getEffectiveDecorators(controller, expansion));
-
-/**
- * Extracts security requirements from a method.
- * If present, these override controller-level security.
- */
-export const extractMethodSecurity = (
   method: MethodDeclaration,
   expansion?: DecoratorExpansionOptions,
-): readonly MethodSecurityRequirement[] =>
-  extractSecurityFromCalls(getEffectiveDecorators(method, expansion));
-
-/**
- * Checks if a method has any security decorators.
- */
-export const hasMethodSecurityDecorators = (
-  method: MethodDeclaration,
-  expansion?: DecoratorExpansionOptions,
-): boolean =>
-  getEffectiveDecorators(method, expansion).some((call) =>
-    SECURITY_DECORATORS.has(call.name),
-  );
-
-/**
- * Combines controller-level and method-level security requirements.
- *
- * Rules:
- * - If method has security decorators, those are used (override)
- * - If method has no security decorators, controller security is used
- * - Empty array means no decorator-level security (inherits global)
- */
-export const combineSecurityRequirements = (
-  controllerSecurity: readonly MethodSecurityRequirement[],
-  methodSecurity: readonly MethodSecurityRequirement[],
-  hasMethodDecorators: boolean,
-): readonly MethodSecurityRequirement[] => {
-  if (hasMethodDecorators) {
-    return methodSecurity;
-  }
-
-  return controllerSecurity;
-};
+): readonly MethodSecurityRequirement[] => [
+  ...extractSecurityFromCalls(
+    getEffectiveDecoratorsInApplyOrder(controller, expansion),
+  ),
+  ...extractSecurityFromCalls(
+    getEffectiveDecoratorsInApplyOrder(method, expansion),
+  ),
+];

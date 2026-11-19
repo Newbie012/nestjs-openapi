@@ -27,10 +27,10 @@
         },
         "security": [
           {
-            "bearer": []
+            "apiKey": []
           },
           {
-            "apiKey": []
+            "bearer": []
           }
         ],
         "tags": [
@@ -63,6 +63,12 @@
           },
           {
             "bearer": []
+          },
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
           }
         ],
         "tags": [

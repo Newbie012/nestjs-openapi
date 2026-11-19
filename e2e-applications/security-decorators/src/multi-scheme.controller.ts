@@ -52,10 +52,10 @@ export class MultiSchemeController {
     };
   }
 
-  /** Method-level security overrides controller-level */
+  /** Method-level security adds to controller-level */
   @Get('public-stats')
-  @ApiSecurity('stats-key') // Only requires stats-key, not jwt + admin-key
-  @ApiOperation({ summary: 'Get public stats (only requires stats key)' })
+  @ApiSecurity('stats-key')
+  @ApiOperation({ summary: 'Get public stats (JWT, admin key or stats key)' })
   @ApiResponse({ status: 200, description: 'Statistics' })
   publicStats(): { totalActions: number } {
     return { totalActions: 100 };
